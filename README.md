@@ -116,7 +116,7 @@ rejected redemption is refunded). Every change is in the points ledger.
 npx tsx --test lib/*.test.ts
 # end-to-end, against a throwaway database only:
 DB_NAME=ravo_test npm run migrate
-DB_NAME=ravo_test node --env-file-if-exists=.env.local --conditions=react-server --import tsx --test tests/e2e/*.test.ts
+DB_NAME=ravo_test node --env-file-if-exists=.env.local --conditions=react-server --import tsx --test --test-concurrency=1 tests/e2e/*.test.ts
 ```
 
 If styles stop updating in dev, stop the server and delete `.next/`.
