@@ -27,31 +27,36 @@ export interface NavItem { href: string; label: string; children?: { href: strin
 export const NAV: NavItem[] = [
   { href: "/", label: "Home" },
   { href: "/leaderboard", label: "Leaderboard" },
-  { href: "/vip-transfer", label: "VIP Transfer" },
-  { href: "/challenges", label: "Challenges" },
+  {
+    href: "/store",
+    label: "Rewards",
+    children: [
+      { href: "/store", label: "Store", hint: "Spend your points" },
+      { href: "/challenges", label: "Challenges", hint: "First to hit the multi wins" },
+      { href: "/vip-transfer", label: "VIP Transfer", hint: "Bring your VIP status to Qzino" },
+      { href: "/raffles", label: "Raffles", hint: "Tickets for prizes" },
+    ],
+  },
   {
     href: "/stream",
     label: "Stream",
     children: [
       { href: "/stream", label: "Watch live", hint: "Kick stream & schedule" },
       { href: "/bonus-hunts", label: "Bonus hunts", hint: "Live hunt tracker" },
-      { href: "/tournaments", label: "Tournaments", hint: "1v1 slot battles from chat" },
-      { href: "/raffles", label: "Raffles", hint: "Spend points on tickets" },
+      { href: "/tournaments", label: "Tournaments", hint: "1v1 and 2v2 slot battles" },
     ],
   },
-  { href: "/store", label: "Store" },
 ];
 
-/** Flat list (footer, mobile menu). */
+/** Flat list (footer). */
 export const NAV_FLAT = [
   { href: "/", label: "Home" },
   { href: "/leaderboard", label: "Leaderboard" },
-  { href: "/vip-transfer", label: "VIP Transfer" },
+  { href: "/store", label: "Store" },
   { href: "/challenges", label: "Challenges" },
+  { href: "/vip-transfer", label: "VIP Transfer" },
+  { href: "/raffles", label: "Raffles" },
   { href: "/stream", label: "Stream" },
   { href: "/bonus-hunts", label: "Bonus hunts" },
   { href: "/tournaments", label: "Tournaments" },
-  { href: "/raffles", label: "Raffles" },
-  { href: "/store", label: "Store" },
-  { href: "/ranks", label: "Ranks" },
 ];

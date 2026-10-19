@@ -6,7 +6,7 @@ import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { ChevronDown, Menu, X } from "lucide-react";
-import { NAV, NAV_FLAT } from "@/lib/constants";
+import { NAV } from "@/lib/constants";
 import { NavActions } from "./NavActions";
 
 export interface TopBarViewer { name: string; avatar: string; points: number; level: number }
@@ -42,7 +42,7 @@ function StreamMenu({ item, active }: { item: (typeof NAV)[number]; active: bool
         type="button"
         aria-expanded={open}
         onClick={() => setOpen((v) => !v)}
-        className={`flex items-center gap-1 rounded-full px-4 py-2 font-head text-[0.82rem] font-bold uppercase tracking-[0.12em] transition ${
+        className={`flex items-center gap-1 whitespace-nowrap rounded-full px-4 py-2 font-head text-[0.82rem] font-bold uppercase tracking-[0.12em] transition ${
           active || open ? "bg-neon text-neon-ink shadow-[0_3px_0_var(--color-neon-deep)]" : "text-muted hover:text-text"
         }`}
       >
@@ -103,7 +103,7 @@ export function TopBar({ viewer, live }: { viewer: TopBarViewer | null; live: bo
           <LiveBadge live={live} />
         </Link>
 
-        <nav className="ml-auto hidden items-center gap-0.5 xl:flex" aria-label="Main">
+        <nav className="ml-auto hidden items-center gap-0.5 lg:flex" aria-label="Main">
           {NAV.map((n) =>
             n.children ? (
               <StreamMenu key={n.href} item={n} active={n.children.some((c) => isActive(c.href))} />
@@ -111,7 +111,7 @@ export function TopBar({ viewer, live }: { viewer: TopBarViewer | null; live: bo
               <Link
                 key={n.href}
                 href={n.href}
-                className={`rounded-full px-4 py-2 font-head text-[0.82rem] font-bold uppercase tracking-[0.12em] transition ${
+                className={`whitespace-nowrap rounded-full px-4 py-2 font-head text-[0.82rem] font-bold uppercase tracking-[0.12em] transition ${
                   isActive(n.href) ? "bg-neon text-neon-ink shadow-[0_3px_0_var(--color-neon-deep)]" : "text-muted hover:text-text"
                 }`}
               >
@@ -121,11 +121,11 @@ export function TopBar({ viewer, live }: { viewer: TopBarViewer | null; live: bo
           )}
         </nav>
 
-        <div className="ml-auto flex items-center gap-2 xl:ml-3">
+        <div className="ml-auto flex items-center gap-2 lg:ml-3">
           <NavActions viewer={viewer} />
           <button
             type="button"
-            className="grid size-10 place-items-center rounded-xl border border-line-hot text-text xl:hidden"
+            className="grid size-10 place-items-center rounded-xl border border-line-hot text-text lg:hidden"
             onClick={() => setOpen((v) => !v)}
             aria-expanded={open}
             aria-label={open ? "Close menu" : "Open menu"}
@@ -141,23 +141,33 @@ export function TopBar({ viewer, live }: { viewer: TopBarViewer | null; live: bo
             initial={{ opacity: 0, y: -10 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -10 }}
-            className="panel mx-auto mt-2 max-w-6xl p-3 xl:hidden"
+            className="panel mx-auto mt-2 max-w-6xl p-3 lg:hidden"
             aria-label="Mobile"
           >
-            <div className="grid grid-cols-2 gap-1">
-              {NAV_FLAT.map((n, i) => (
-                <motion.div key={n.href} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.03 }}>
-                  <Link
-                    href={n.href}
-                    onClick={() => setOpen(false)}
-                    className={`block rounded-xl px-4 py-3 font-head font-bold uppercase tracking-widest ${
-                      isActive(n.href) ? "bg-neon text-neon-ink" : "text-muted hover:bg-surface-2"
-                    }`}
-                  >
-                    {n.label}
-                  </Link>
-                </motion.div>
-              ))}
+            {/* same groups as the desktop menu */}
+            <div className="space-y-3">
+              {[{ label: "", children: NAV.filter((n) => !n.children).map((n) => ({ href: n.href, label: n.label })) }, ...NAV.filter((n) => n.children)].map((n) => {
+                const links = n.children!;
+                return (
+                  <div key={n.label || "main"}>
+                    {n.label && <p className="px-2 pb-1 font-pixel text-[0.68rem] uppercase tracking-[0.22em] text-neon">{n.label}</p>}
+                    <div className="grid grid-cols-2 gap-1">
+                      {links.map((c) => (
+                        <Link
+                          key={c.href + c.label}
+                          href={c.href}
+                          onClick={() => setOpen(false)}
+                          className={`block rounded-xl px-4 py-3 font-head text-sm font-bold uppercase tracking-widest ${
+                            isActive(c.href) ? "bg-neon text-neon-ink" : "text-muted hover:bg-surface-2"
+                          }`}
+                        >
+                          {c.label}
+                        </Link>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           </motion.nav>
         )}
