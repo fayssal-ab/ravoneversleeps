@@ -11,7 +11,7 @@ import { listRedemptions, listStoreItems } from "@/lib/store";
 import { enabledProviders } from "@/lib/userAuth";
 import { redeemAction } from "../actions";
 
-export const metadata: Metadata = { title: "Store" };
+export const metadata: Metadata = { title: "Store", description: "Spend your points on Qzino tips and bonus buy splits from Ravo." };
 export const dynamic = "force-dynamic";
 
 const STATUS: Record<string, string> = { pending: "text-gold", fulfilled: "text-neon", rejected: "text-danger" };

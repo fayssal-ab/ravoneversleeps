@@ -11,7 +11,7 @@ import { listRaffles } from "@/lib/raffles";
 import { enabledProviders } from "@/lib/userAuth";
 import { buyTicketsAction } from "../actions";
 
-export const metadata: Metadata = { title: "Raffles" };
+export const metadata: Metadata = { title: "Raffles", description: "Use your points for raffle tickets, drawn with a provably fair draw." };
 export const dynamic = "force-dynamic";
 
 export default async function RafflesPage({ searchParams }: { searchParams: Promise<Record<string, string | undefined>> }) {

@@ -10,7 +10,7 @@ import { DISCORD_URL, QZINO_CODE, QZINO_URL } from "@/lib/constants";
 import { listChallenges, type Challenge } from "@/lib/challenges";
 import { formatMoney } from "@/lib/money";
 
-export const metadata: Metadata = { title: "Challenges" };
+export const metadata: Metadata = { title: "Challenges", description: "Slot challenges: be the first to hit the multiplier and win the reward." };
 export const dynamic = "force-dynamic";
 
 const multi = (v: string) => `${Number(v).toLocaleString("en-US", { maximumFractionDigits: 2 })}x`;

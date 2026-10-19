@@ -15,7 +15,7 @@ import { tierFor } from "@/lib/ranks";
 import { enabledProviders } from "@/lib/userAuth";
 import { claimMilestoneAction } from "../actions";
 
-export const metadata: Metadata = { title: "Wager milestones" };
+export const metadata: Metadata = { title: "Points milestones", description: "Monthly cash rewards for your points on Ravo's leaderboard." };
 export const dynamic = "force-dynamic";
 
 // tint each milestone like the rank tier at the same position on the ladder

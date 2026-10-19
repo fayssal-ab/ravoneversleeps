@@ -8,7 +8,7 @@ import { Stagger } from "@/components/ui/motion";
 import { SlotArt } from "@/components/ui/SlotArt";
 import { getFeaturedKo, getKoArchive, getKoById, getKoState } from "@/lib/knockout";
 
-export const metadata: Metadata = { title: "Tournaments", description: "Slot knockout tournaments: join from Kick chat with !join." };
+export const metadata: Metadata = { title: "Tournaments", description: "Solo and duo slot knockout tournaments on Ravo's stream: join from Kick chat with !join." };
 export const dynamic = "force-dynamic";
 
 export default async function TournamentsPage({ searchParams }: { searchParams: Promise<{ id?: string }> }) {
@@ -24,7 +24,7 @@ export default async function TournamentsPage({ searchParams }: { searchParams: 
 
   return (
     <div className="mx-auto max-w-6xl px-4 sm:px-6">
-      <PageHeader eyebrow="1v1 slot battles" title="Tour" accent="naments">
+      <PageHeader eyebrow="1v1 & 2v2 slot battles" title="Slot" accent="tournaments">
         Players from chat, one slot each. Higher multiplier wins the battle. Last one standing takes the crown.
       </PageHeader>
       {requested && <Link href="/tournaments" className="mb-6 inline-block text-sm text-muted hover:text-neon">← Current tournament</Link>}

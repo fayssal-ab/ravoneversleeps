@@ -7,7 +7,7 @@ import { CountUp, Reveal, Stagger } from "@/components/ui/motion";
 import { getHunt, listHunts } from "@/lib/hunts";
 import { formatMoney } from "@/lib/money";
 
-export const metadata: Metadata = { title: "Bonus hunts" };
+export const metadata: Metadata = { title: "Bonus hunts", description: "Ravo's bonus hunts live: every bonus, the start balance, the best multi and the result." };
 export const dynamic = "force-dynamic";
 
 const STATUS = { collecting: "Collecting", opening: "Opening", finished: "Finished" } as const;

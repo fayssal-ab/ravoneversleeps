@@ -14,8 +14,13 @@ type Sym = (typeof SYMBOLS)[number];
 const LETTERS = ["R", "A", "V", "O"];
 const STRIP = 14; // symbols between the starting and landing letter
 
+// Glyphs are drawn with CSS (content: attr(data-g)) so the reels add no
+// text to the page: the <h1> reads "RAVONEVERSLEEPS" for search engines,
+// link previews and screen readers, never "R$7$7…".
+const glyph = "before:content-[attr(data-g)]";
+
 function Symbol({ s }: { s: Sym }) {
-  if (s === "7" || s === "$") return <span className="font-display text-[0.9em] text-neon/80">{s}</span>;
+  if (s === "7" || s === "$") return <span data-g={s} className={`font-display text-[0.9em] text-neon/80 ${glyph}`} />;
   const Cmp = { paw: Paw, chip: Chip, spade: Spade, club: Club }[s];
   return <Cmp className="size-[0.62em] text-neon/70" />;
 }
@@ -23,7 +28,7 @@ function Symbol({ s }: { s: Sym }) {
 function Letter({ letter, r }: { letter: string; r: number }) {
   return (
     <span className="grid h-[1.15em] w-full place-items-center font-display leading-none">
-      <span className={r % 2 ? "neon-text" : "chrome"}>{letter}</span>
+      <span data-g={letter} className={`${r % 2 ? "neon-text" : "chrome"} ${glyph}`} />
     </span>
   );
 }

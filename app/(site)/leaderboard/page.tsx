@@ -10,7 +10,7 @@ import { getBoard } from "@/lib/leaderboard";
 import { QBOARDS_URL } from "@/lib/qboardsFeed";
 import { formatMoney } from "@/lib/money";
 
-export const metadata: Metadata = { title: "Leaderboard" };
+export const metadata: Metadata = { title: "Leaderboard", description: "Ravo's monthly Qzino leaderboard: live ranking, prizes and past months." };
 export const dynamic = "force-dynamic";
 
 const fmtDate = (s: string) => new Date(s.replace(" ", "T") + "Z").toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" });

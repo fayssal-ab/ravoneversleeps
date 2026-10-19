@@ -6,7 +6,7 @@ import { PageHeader } from "@/components/ui/bits";
 import { Reveal, SpotlightCard } from "@/components/ui/motion";
 import { getLiveStatus, getSchedule, WEEKDAYS } from "@/lib/stream";
 
-export const metadata: Metadata = { title: "Stream" };
+export const metadata: Metadata = { title: "Stream", description: "Watch Ravo live on Kick: slots, bonus hunts and tournaments. Weekly schedule." };
 export const dynamic = "force-dynamic";
 
 export default async function StreamPage() {
