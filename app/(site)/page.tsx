@@ -16,7 +16,7 @@ import { SocialIcon } from "@/components/ui/SocialIcon";
 import { getRanks } from "@/lib/account";
 import { DISCORD_URL, KICK_URL, QZINO_CODE, QZINO_PERKS, QZINO_URL, X_URL } from "@/lib/constants";
 import { getBoard } from "@/lib/leaderboard";
-import { listMilestones } from "@/lib/milestones";
+import { VIP_BENEFITS } from "@/lib/vipBenefits";
 import { formatMoney } from "@/lib/money";
 import { listStoreItems } from "@/lib/store";
 import { getLiveStatus } from "@/lib/stream";
@@ -30,11 +30,11 @@ function daysLeft(end: string): number {
 }
 
 export default async function HomePage() {
-  const [board, items, ranks, milestones, live] = await Promise.all([
+  const [board, items, ranks, , live] = await Promise.all([
     getBoard(undefined, 3).catch(() => null),
     listStoreItems().catch(() => []),
     getRanks(),
-    listMilestones().catch(() => []),
+    Promise.resolve(null),
     getLiveStatus(),
   ]);
   const period = board?.period ?? null;
@@ -58,7 +58,7 @@ export default async function HomePage() {
                   <QzinoLogo className="h-10 w-auto drop-shadow-[0_0_18px_rgb(141_255_74/0.35)] sm:h-12" />
                 </a>
                 <h2 className="mt-3 font-head text-2xl font-bold leading-snug sm:text-3xl">
-                  Play under code <span className="neon-text font-mono">{QZINO_CODE}</span> for exclusive leaderboards, milestones,
+                  Play under code <span className="neon-text font-mono">{QZINO_CODE}</span> for exclusive leaderboards, VIP transfers,
                   raffles and a <span className="text-neon">$50 welcome bonus</span>.
                 </h2>
                 <div className="mt-6 grid grid-cols-3 gap-2">
@@ -161,30 +161,25 @@ export default async function HomePage() {
       </section>
 
       <div className="mt-24 overflow-hidden py-4">
-        <Ticker items={[`Code ${QZINO_CODE}`, "$50 bonus on Qzino", "Monthly leaderboard", "Wager milestones", "Points store", "Ravo never sleeps"]} />
+        <Ticker items={[`Code ${QZINO_CODE}`, "$50 bonus on Qzino", "Monthly leaderboard", "VIP Transfer", "Points store", "Ravo never sleeps"]} />
       </div>
 
-      {/* milestones teaser */}
-      {milestones.length > 0 && (
-        <section className="mx-auto mt-24 max-w-6xl px-4 sm:px-6">
-          <SectionTitle eyebrow="Wager milestones" title="Hit the number." accent="Get paid." right={<Link href="/milestones" className="btn btn-ghost btn-sm">All milestones <ArrowRight className="size-4" /></Link>} />
-          <Stagger className="grid grid-cols-2 gap-3 md:grid-cols-4">
-            {milestones.slice(0, 4).map((m, i) => (
-              <SpotlightCard key={m.id} className="panel neon-frame group h-full overflow-hidden">
-                <div className="relative h-28 overflow-hidden bg-black">
-                  <Image src={i === 3 ? "/media/store/vault.webp" : "/media/store/cash.webp"} alt="" fill sizes="(min-width: 768px) 25vw, 50vw" className="object-cover transition duration-700 group-hover:scale-110" />
-                  <div className="absolute inset-0 bg-gradient-to-t from-surface to-transparent" />
-                </div>
-                <div className="p-5 pt-3">
-                <p className="font-head text-lg font-bold">{m.name}</p>
-                <p className="font-mono text-sm text-muted">{formatMoney(m.min_wager, { cents: false })} wagered</p>
-                <p className="mt-3 inline-block rounded-full bg-neon px-3 py-1 font-mono text-sm font-bold text-neon-ink">{formatMoney(m.reward, { cents: false })} cash</p>
-                </div>
-              </SpotlightCard>
-            ))}
-          </Stagger>
-        </section>
-      )}
+      {/* VIP transfer teaser */}
+      <section className="mx-auto mt-24 max-w-6xl px-4 sm:px-6">
+        <SectionTitle eyebrow="Qzino VIP Transfer" title="Already VIP?" accent="Bring it over." right={<Link href="/vip-transfer" className="btn btn-ghost btn-sm">VIP Transfer <ArrowRight className="size-4" /></Link>} />
+        <Stagger className="grid grid-cols-2 gap-3 md:grid-cols-4">
+          {VIP_BENEFITS.slice(0, 4).map((b) => (
+            <div key={b.title} className="panel h-full p-5">
+              <p className="font-head text-lg font-bold">{b.title}</p>
+              {b.value && <p className="font-mono text-xl font-bold text-neon">{b.value}</p>}
+              <p className="mt-1 text-sm text-muted">{b.body}</p>
+            </div>
+          ))}
+        </Stagger>
+        <div className="mt-6 flex justify-center">
+          <Link href="/vip-transfer#apply" className="btn btn-neon">Apply for VIP Transfer <ArrowRight className="size-4" /></Link>
+        </div>
+      </section>
 
       {/* store preview */}
       {items.length > 0 && (

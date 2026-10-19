@@ -2,10 +2,11 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Award, Crosshair, Flag, Gamepad2, Gauge, Radio, ScrollText, ShoppingBag, Swords, Target, Ticket, Users } from "lucide-react";
+import { Award, Crosshair, Crown, Flag, Gamepad2, Gauge, Radio, ScrollText, ShoppingBag, Swords, Target, Ticket, Users } from "lucide-react";
 
 const LINKS = [
   { href: "/admin", label: "Dashboard", icon: Gauge },
+  { href: "/admin/vip", label: "VIP Transfer", icon: Crown },
   { href: "/admin/milestones", label: "Milestones", icon: Flag },
   { href: "/admin/store", label: "Store", icon: ShoppingBag },
   { href: "/admin/users", label: "Users & points", icon: Users },

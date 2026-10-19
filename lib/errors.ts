@@ -18,6 +18,7 @@ export const ERROR_TEXT: Record<string, string> = {
   banned: "This account is suspended.",
   no_qzino: "Add your Qzino username on your account page first.",
   not_reached: "You haven't reached those points yet.",
+  vip_pending: "You already have a VIP Transfer application under review.",
   qzino_pending: "Your Qzino username is being verified. Check your Discord ticket.",
   qzino_unverified: "Add your Qzino username on your account page and get it verified first.",
   discord_required: "Link your Discord account first (account page): the claim opens a Discord ticket.",

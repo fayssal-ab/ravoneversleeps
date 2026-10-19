@@ -3,19 +3,18 @@
 export const SITE_NAME = "RAVONEVERSLEEPS";
 export const SITE_SHORT = "RAVO";
 export const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
-export const SITE_TAGLINE = "Play on Qzino with code RAVO50. Climb the monthly leaderboard, hit wager milestones, spend your points.";
+export const SITE_TAGLINE = "Play on Qzino with code RAVO50. Climb the monthly leaderboard, transfer your VIP status, spend your points.";
 
 export const QZINO_CODE = process.env.NEXT_PUBLIC_QZINO_CODE || "RAVO50";
 export const QZINO_URL = process.env.NEXT_PUBLIC_QZINO_URL || "https://qzino-partners.com/trdj40jfb";
 /**
- * What the code gets you. Only claims that are confirmed: Ravo's Kick panel
- * also lists "up to 40% cashback, 15% rakeback, instant payouts, non-strict
- * KYC"; those stay off the site until they're re-checked with Qzino.
+ * What playing on Qzino with the code gets you. Cashback/rakeback rates are
+ * Qzino's published VIP rates (https://qzino.com/en/vip-club, "up to").
  */
 export const QZINO_PERKS = [
   { value: "$50", label: "Bonus with the code" },
-  { value: "Monthly", label: "Leaderboard prizes" },
-  { value: "Cashback", label: "& rakeback on Qzino" },
+  { value: "40%", label: "VIP cashback up to" },
+  { value: "15%", label: "VIP rakeback up to" },
 ] as const;
 
 export const KICK_CHANNEL = process.env.NEXT_PUBLIC_KICK_CHANNEL || "ravoneversleeps";
@@ -28,7 +27,7 @@ export interface NavItem { href: string; label: string; children?: { href: strin
 export const NAV: NavItem[] = [
   { href: "/", label: "Home" },
   { href: "/leaderboard", label: "Leaderboard" },
-  { href: "/milestones", label: "Milestones" },
+  { href: "/vip-transfer", label: "VIP Transfer" },
   { href: "/challenges", label: "Challenges" },
   {
     href: "/stream",
@@ -47,7 +46,7 @@ export const NAV: NavItem[] = [
 export const NAV_FLAT = [
   { href: "/", label: "Home" },
   { href: "/leaderboard", label: "Leaderboard" },
-  { href: "/milestones", label: "Milestones" },
+  { href: "/vip-transfer", label: "VIP Transfer" },
   { href: "/challenges", label: "Challenges" },
   { href: "/stream", label: "Stream" },
   { href: "/bonus-hunts", label: "Bonus hunts" },

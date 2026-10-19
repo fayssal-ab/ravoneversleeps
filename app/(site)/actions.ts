@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { saveQzinoUsername } from "@/lib/account";
 import { claimChallenge, qzinoStatusOf, requestQzinoVerification } from "@/lib/verification";
+import { applyVipTransfer, WAGER_RANGES } from "@/lib/vip";
 import { claimMilestone } from "@/lib/milestones";
 import { buyTickets } from "@/lib/raffles";
 import { rateLimit } from "@/lib/ratelimit";
@@ -64,3 +65,17 @@ export async function claimMilestoneAction(form: FormData) {
 export async function claimChallengeAction(form: FormData) {
   await run("/challenges", "claimed", (id) => claimChallenge(id, parseForm(z.object({ challenge: zId }), form).challenge));
 }
+
+export async function applyVipAction(form: FormData) {
+  await run("/vip-transfer", "applied", (id) => {
+    const v = parseForm(z.object({
+      qzino: z.string().trim().min(1).max(64).regex(/^[\w.-]+$/, "letters, numbers, . _ - only"),
+      casino: z.string().trim().min(1).max(80),
+      vip_level: z.string().trim().min(1).max(80),
+      monthly_wager: z.enum(WAGER_RANGES),
+      note: z.string().trim().max(500).default(""),
+    }), form);
+    return applyVipTransfer(id, v);
+  });
+}
+
