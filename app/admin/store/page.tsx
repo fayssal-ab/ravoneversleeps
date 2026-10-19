@@ -19,7 +19,7 @@ export default async function AdminStore({ searchParams }: { searchParams: Promi
       <AdminTitle title="Store">Items need a minimum rank. Redeeming takes the points right away; rejecting refunds them.</AdminTitle>
       <Flash ok={sp.ok} error={sp.error} detail={sp.detail} />
 
-      <Card title={`Pending redemptions (${pending.length})`} className={pending.length ? "neon-frame is-on" : ""}>
+      <Card title={`Pending redemptions (${pending.length})`} className={pending.length ? "!border-gold/40" : ""}>
         {pending.length === 0 ? (
           <p className="text-sm text-muted">Queue is empty.</p>
         ) : (

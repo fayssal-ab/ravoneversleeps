@@ -25,11 +25,12 @@ export default async function AdminDashboard() {
       <AdminTitle title="Dashboard">
         {stats.live_period ? <>Live leaderboard: <span className="text-neon">{stats.live_period}</span> · {stats.board_players} players on the board.</> : "No Q-boards leaderboard is live right now."}
       </AdminTitle>
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         {tiles.map((t) => (
-          <Link key={t.label} href={t.href} className={`panel p-5 transition hover:border-line-hot ${t.hot ? "neon-frame is-on" : ""}`}>
-            <p className="font-mono text-3xl font-bold text-neon">{t.value}</p>
-            <p className="mt-1 font-head text-xs font-semibold uppercase tracking-[0.16em] text-muted">{t.label}</p>
+          <Link key={t.label} href={t.href} className={`admin-card block p-5 transition hover:border-white/15 ${t.hot ? "!border-gold/50" : ""}`}>
+            <p className={`font-mono text-3xl font-bold ${t.hot ? "text-gold" : "text-text"}`}>{t.value}</p>
+            <p className="mt-1 text-xs font-medium text-muted">{t.label}</p>
+            {t.hot && <p className="mt-2 text-[11px] font-semibold uppercase tracking-wider text-gold">Needs action →</p>}
           </Link>
         ))}
       </div>

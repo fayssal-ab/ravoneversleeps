@@ -20,14 +20,19 @@ function ChallengeCard({ c, signedIn, claim }: { c: Challenge; signedIn: boolean
   return (
     <article className={`panel group flex h-full flex-col overflow-hidden ${open ? "hover:border-line-hot" : ""}`}>
       {/* slot art with the target stamped on it */}
-      <div className="relative h-44 overflow-hidden border-b border-line bg-black">
+      <div className="relative h-52 overflow-hidden border-b border-line bg-black">
         {c.image_url ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={c.image_url} alt="" loading="lazy" draggable={false} className={`size-full object-cover transition duration-700 group-hover:scale-105 ${open ? "" : "opacity-40 grayscale"}`} />
+          /* the whole slot art, centred; the same art blurred behind fills the sides */
+          <div className={`relative size-full ${open ? "" : "opacity-40 grayscale"}`}>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={c.image_url} alt="" aria-hidden loading="lazy" draggable={false} className="absolute inset-0 size-full scale-125 object-cover opacity-50 blur-xl" />
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={c.image_url} alt={c.slot_name} loading="lazy" draggable={false} className="relative mx-auto h-full object-contain py-2 drop-shadow-[0_8px_20px_rgb(0_0_0/0.6)] transition duration-700 group-hover:scale-105" />
+          </div>
         ) : (
           <div className="grid size-full place-items-center bg-[radial-gradient(ellipse_at_50%_40%,#123d0c,#040605_70%)] font-display text-3xl text-muted">{c.slot_name}</div>
         )}
-        <div className="absolute inset-0 bg-gradient-to-t from-surface via-surface/20 to-transparent" />
+        <div className="absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-surface to-transparent" />
         <span className="absolute bottom-3 left-4 flex items-center gap-1.5 rounded-xl border border-neon/50 bg-bg/85 px-3 py-1.5 font-mono text-lg font-bold text-neon backdrop-blur">
           <Target className="size-4" /> {multi(c.target_multi)}
         </span>

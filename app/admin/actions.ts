@@ -69,9 +69,14 @@ export async function resolveRedemptionAction(form: FormData) {
 }
 
 // ── users ──────────────────────────────────────────────────────────────
+/** Back to the same Users tab/search/sort (only /admin/users URLs). */
+function usersBack(form: FormData): string {
+  const back = String(form.get("back") ?? "");
+  return /^\/admin\/users(\?[\w=&%.+-]*)?$/.test(back) ? back : "/admin/users";
+}
+
 export async function adjustPointsAction(form: FormData) {
-  const q = String(form.get("q") ?? "");
-  await adminAction({ path: `/admin/users?q=${encodeURIComponent(q)}`, audit: "points.adjust" }, async () => {
+  await adminAction({ path: usersBack(form), audit: "points.adjust" }, async () => {
     const v = parseForm(z.object({ id: zId, delta: z.coerce.number().int().min(-1_000_000_000).max(1_000_000_000), note: zText(255) }), form);
     await adjustPoints(v.id, v.delta, v.note || "Admin adjustment");
     return v;
@@ -79,7 +84,7 @@ export async function adjustPointsAction(form: FormData) {
 }
 
 export async function bulkGrantAction(form: FormData) {
-  await adminAction({ path: "/admin/users", audit: "points.bulk", ok: "bulk" }, async () => {
+  await adminAction({ path: "/admin/users?tab=drop", audit: "points.bulk", ok: "bulk" }, async () => {
     const v = parseForm(z.object({ csv: zRequiredText(200_000), note: zText(255) }), form);
     const lines = parseLines(v.csv, /^\d{1,9}$/).map((l) => ({ name: l.name, points: Number(l.value) }));
     const res = await bulkGrant(lines, v.note || "Points drop");
@@ -90,8 +95,7 @@ export async function bulkGrantAction(form: FormData) {
 }
 
 export async function userFlagsAction(form: FormData) {
-  const q = String(form.get("q") ?? "");
-  await adminAction({ path: `/admin/users?q=${encodeURIComponent(q)}`, audit: "user.update" }, async () => {
+  await adminAction({ path: usersBack(form), audit: "user.update" }, async () => {
     const v = parseForm(z.object({ id: zId, qzino: z.string().trim().max(64), banned: checkbox }), form);
     await adminSetQzino(v.id, v.qzino);
     await setBanned(v.id, v.banned);
@@ -268,7 +272,7 @@ export async function challengeOpAction(form: FormData) {
 
 // ── Qzino username verification ────────────────────────────────────────
 export async function verifyQzinoAction(form: FormData) {
-  await adminAction({ path: "/admin/users", audit: "qzino.verify", revalidate: ["/account"] }, async () => {
+  await adminAction({ path: "/admin/users?tab=verify", audit: "qzino.verify", revalidate: ["/account"] }, async () => {
     const v = parseForm(z.object({ account: zId, decision: z.enum(["verify", "reject"]) }), form);
     await decideVerification(v.account, v.decision === "verify");
     return v;

@@ -13,17 +13,18 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   await requireAdmin();
   return (
     <div className="min-h-dvh bg-bg lg:grid lg:grid-cols-[15rem_1fr]">
-      <aside className="border-b border-line bg-bg-2 lg:sticky lg:top-0 lg:h-dvh lg:border-b-0 lg:border-r">
-        <div className="flex items-center justify-between gap-3 p-4 lg:block">
-          <Link href="/" className="flex items-center gap-3">
-            <Image src="/media/ravo-avatar.webp" alt="" width={40} height={40} className="rounded-full ring-2 ring-neon/40" />
-            <span className="font-display text-xl"><span className="chrome">RAVO</span> <span className="neon-text">admin</span></span>
+      <aside className="border-b border-white/[0.06] bg-bg-2 lg:sticky lg:top-0 lg:flex lg:h-dvh lg:flex-col lg:border-b-0 lg:border-r">
+        <div className="flex items-center justify-between gap-3 px-4 pt-4 lg:px-5 lg:pt-5">
+          <Link href="/" className="flex items-center gap-2.5" title="Open the site">
+            <Image src="/media/ravo-avatar.webp" alt="" width={34} height={34} className="rounded-full" />
+            <span className="font-head text-base font-bold">RAVO <span className="font-medium text-muted">admin</span></span>
           </Link>
-          <div className="lg:mt-6"><AdminNav /></div>
+          <div className="lg:hidden"><LogoutButton endpoint="/api/auth/logout" to="/login" /></div>
         </div>
-        <div className="hidden p-4 lg:absolute lg:bottom-0 lg:block"><LogoutButton endpoint="/api/auth/logout" to="/login" /></div>
+        <div className="px-3 py-3 lg:flex-1 lg:overflow-y-auto lg:py-6"><AdminNav /></div>
+        <div className="hidden border-t border-white/[0.06] p-4 lg:block"><LogoutButton endpoint="/api/auth/logout" to="/login" /></div>
       </aside>
-      <main className="mx-auto w-full max-w-6xl px-4 py-8 sm:px-8">{children}</main>
+      <main className="mx-auto w-full max-w-6xl px-4 py-6 sm:px-8 sm:py-8">{children}</main>
       <ConfirmHost />
     </div>
   );

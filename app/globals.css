@@ -395,4 +395,36 @@ iframe[src*=".netlify/scripts/hud"],
   .js.ravo-ready .hero-intro, .js.ravo-ready .hero-drop { animation: none; opacity: 1; }
 }
 
+/* ── admin: calmer than the public site (no glows, quiet borders) ── */
+.admin-card {
+  background: var(--color-surface);
+  border: 1px solid rgb(255 255 255 / 0.06);
+  border-radius: 1rem;
+}
+.admin-table { width: 100%; border-collapse: collapse; font-size: 0.875rem; }
+.admin-table th {
+  padding: 0.6rem 0.75rem; text-align: left; font-size: 0.7rem; font-weight: 600;
+  text-transform: uppercase; letter-spacing: 0.12em; color: var(--color-dim);
+  border-bottom: 1px solid rgb(255 255 255 / 0.07);
+}
+.admin-table td { padding: 0.7rem 0.75rem; border-bottom: 1px solid rgb(255 255 255 / 0.05); vertical-align: middle; }
+.admin-table tbody tr:hover { background: rgb(255 255 255 / 0.02); }
+.admin-chip {
+  border-radius: 999px; border: 1px solid rgb(255 255 255 / 0.08); padding: 0.3rem 0.8rem;
+  font-size: 0.78rem; font-weight: 600; color: var(--color-muted); transition: color .15s, border-color .15s;
+}
+.admin-chip:hover { color: var(--color-text); }
+.admin-chip.is-on { border-color: var(--color-neon); color: var(--color-neon); background: rgb(141 255 74 / 0.08); }
+.admin-details { position: relative; }
+.admin-details > summary { list-style: none; cursor: pointer; }
+.admin-details > summary::-webkit-details-marker { display: none; }
+.admin-pop {
+  position: absolute; right: 0; top: calc(100% + 0.4rem); z-index: 20; width: 20rem;
+  padding: 1rem; border-radius: 1rem; background: var(--color-surface-2);
+  border: 1px solid rgb(255 255 255 / 0.08); box-shadow: 0 24px 60px -12px rgb(0 0 0 / 0.85);
+}
+/* small screens: the Manage panel opens inline (tables scroll there) */
+@media (max-width: 1023px) {
+  .admin-pop { position: static; width: auto; margin-top: 0.5rem; box-shadow: none; }
+}
 

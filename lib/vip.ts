@@ -1,7 +1,8 @@
 import "server-only";
 import type { ResultSetHeader, RowDataPacket } from "mysql2/promise";
 import { getPool } from "./db";
-import { openTicket, postInTicket, ticketUrl } from "./discordBot";
+import { openTicket, ticketUrl } from "./discordBot";
+import { registerTicket, scheduleClose } from "./tickets";
 import { AppError } from "./tx";
 
 // VIP Transfer: viewers who are VIP on another casino apply here; Ravo's
@@ -80,7 +81,10 @@ export async function applyVipTransfer(accountId: number, v: { qzino: string; ca
         `\n📸 Please post a screenshot of your VIP level/profile on ${v.casino} here. ` +
         `**Never share passwords or login codes.** The team reviews it with Qzino and answers in this ticket.`,
     }).catch((e: Error) => { console.error("vip ticket failed", e.message); return null; });
-    if (ticket) await pool.query("UPDATE vip_applications SET ticket = ? WHERE id = ?", [ticket.channelId, res.insertId]);
+    if (ticket) {
+      await pool.query("UPDATE vip_applications SET ticket = ? WHERE id = ?", [ticket.channelId, res.insertId]);
+      await registerTicket(ticket.channelId, "vip").catch(() => {});
+    }
   }
   return res.insertId;
 }
@@ -100,9 +104,7 @@ export async function decideVipApplication(id: number, approved: boolean, note: 
     "UPDATE vip_applications SET status = ?, admin_note = ? WHERE id = ? AND status = 'pending'", [approved ? "approved" : "rejected", note, id]);
   if (!res.affectedRows) throw new AppError("invalid_input", "already decided");
   const [row] = await pool.query<RowDataPacket[]>("SELECT ticket FROM vip_applications WHERE id = ?", [id]);
-  if (row[0]?.ticket) {
-    await postInTicket(String(row[0].ticket), (approved
-      ? "✅ Your VIP Transfer is **approved**. Qzino's VIP team will set up your trial period."
-      : "❌ Your VIP Transfer application wasn't approved this time.") + (note ? `\nNote: ${note}` : "")).catch(() => {});
-  }
+  await scheduleClose(row[0]?.ticket ? String(row[0].ticket) : null, (approved
+    ? "✅ Your VIP Transfer is **approved**. Qzino's VIP team will set up your trial period."
+    : "❌ Your VIP Transfer application wasn't approved this time.") + (note ? `\nNote: ${note}` : ""));
 }

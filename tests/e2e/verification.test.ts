@@ -5,7 +5,8 @@ import assert from "node:assert/strict";
 import { after, test } from "node:test";
 import type { ResultSetHeader } from "mysql2/promise";
 import { getPool } from "../../lib/db";
-import { createChallenge } from "../../lib/challenges";
+import { createChallenge, markChallengeWon } from "../../lib/challenges";
+import { cleanupTickets } from "../../lib/tickets";
 import { claimChallenge, decideVerification, myChallengeClaims, pendingVerifications, qzinoStatusOf, requestQzinoVerification, requireVerifiedQzino } from "../../lib/verification";
 
 if (process.env.DB_NAME !== "ravo_test") throw new Error("refusing to run outside ravo_test");
@@ -57,7 +58,21 @@ test("username → pending + ticket → verified unlocks claims; one claim per c
   await assert.rejects(claimChallenge(id, challenge), /already_claimed/);
   assert.ok((await myChallengeClaims(id)).get(challenge)?.ticket_url);
 
+  // the verification ticket is scheduled to close; the cleanup deletes it once due
+  const verifyTicket = st.ticketUrl!.split("/").pop()!;
+  const [due] = await pool.query<import("mysql2/promise").RowDataPacket[]>("SELECT close_after FROM discord_tickets WHERE channel_id = ?", [verifyTicket]);
+  assert.ok(due[0]?.close_after, "close scheduled after the decision");
+  await pool.query("UPDATE discord_tickets SET close_after = UTC_TIMESTAMP() - INTERVAL 1 MINUTE WHERE channel_id = ?", [verifyTicket]);
+  const res = await cleanupTickets();
+  assert.ok(res.closed >= 1);
+  assert.ok(calls.some((c) => c.method === "DELETE" && c.path === `/channels/${verifyTicket}`));
+
+  // winning a challenge is announced in every claim ticket
+  await markChallengeWon(challenge, "someone", "1234");
+  assert.ok(calls.some((c) => c.method === "POST" && String(c.body?.content).includes("won by **someone**")));
+
   // no Discord linked → can't claim (the claim lives in a Discord ticket)
+  const other = await createChallenge({ slot_id: "", slot: "Other Slot", provider: "Test", target_multi: "500", reward: "20", min_bet: "" });
   const [acc2] = await pool.query<ResultSetHeader>("INSERT INTO user_accounts (display_name, qzino_username, qzino_status) VALUES (?, ?, 'verified')", [`${tag}b`, `${tag}b`]);
-  await assert.rejects(claimChallenge(acc2.insertId, challenge), /discord_required/);
+  await assert.rejects(claimChallenge(acc2.insertId, other), /discord_required/);
 });

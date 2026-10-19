@@ -16,7 +16,7 @@ export default async function AdminMilestones({ searchParams }: { searchParams: 
       </AdminTitle>
       <Flash ok={sp.ok} error={sp.error} detail={sp.detail} />
 
-      <Card title={`Claims to pay (${pending.length})`} className={pending.length ? "neon-frame is-on" : ""}>
+      <Card title={`Claims to pay (${pending.length})`} className={pending.length ? "!border-gold/40" : ""}>
         {pending.length === 0 ? (
           <p className="text-sm text-muted">Nothing to pay.</p>
         ) : (

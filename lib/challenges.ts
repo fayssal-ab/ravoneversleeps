@@ -3,6 +3,7 @@ import type { ResultSetHeader, RowDataPacket } from "mysql2/promise";
 import { getPool } from "./db";
 import { getSlot } from "./slots";
 import { AppError } from "./tx";
+import { scheduleClose } from "./tickets";
 
 // Slot challenges: "first to hit <target>x on <slot> wins $<reward>", with a
 // minimum bet. The team checks the proof (Discord) and marks the winner.
@@ -70,10 +71,18 @@ export async function markChallengeWon(id: number, winner: string, multi: string
   const [res] = await getPool().query<ResultSetHeader>(
     "UPDATE challenges SET status = 'won', winner = ?, winner_multi = ?, won_at = UTC_TIMESTAMP() WHERE id = ? AND status = 'open'", [winner, multi, id]);
   if (!res.affectedRows) throw new AppError("invalid_input", "only an open challenge can be won");
+  await notifyClaimants(id, `🏆 This challenge has been won by **${winner}** (${Number(multi)}x). Thanks for playing!`);
+}
+
+/** Post the outcome in every claim ticket of a challenge and schedule them to close. */
+async function notifyClaimants(challengeId: number, message: string): Promise<void> {
+  const [rows] = await getPool().query<RowDataPacket[]>("SELECT ticket FROM challenge_claims WHERE challenge_id = ? AND ticket IS NOT NULL", [challengeId]).catch(() => [[]] as unknown as [RowDataPacket[]]);
+  for (const r of rows) await scheduleClose(String(r.ticket), message);
 }
 
 export async function setChallengeStatus(id: number, status: "open" | "closed"): Promise<void> {
   await ensureTable();
+  if (status === "closed") await notifyClaimants(id, "This challenge has been closed by the team.");
   await getPool().query(
     "UPDATE challenges SET status = ?, winner = IF(? = 'open', NULL, winner), winner_multi = IF(? = 'open', NULL, winner_multi), won_at = IF(? = 'open', NULL, won_at) WHERE id = ?",
     [status, status, status, status, id]);

@@ -19,7 +19,7 @@ export default async function AdminChallenges({ searchParams }: { searchParams: 
   return (
     <>
       <AdminTitle title="Challenges">
-        &ldquo;First to hit <i>N</i>x on a slot wins $X.&rdquo; Viewers send their proof (bet and win visible) on Discord; when it checks out, mark the winner here.
+        &ldquo;First to hit <i>N</i>x on a slot wins $X.&rdquo; Players press Claim on the site, which opens a private Discord ticket for their proof (listed under each challenge). When a proof checks out, mark the winner: every claimant is told in their ticket.
       </AdminTitle>
       <Flash ok={sp.ok} error={sp.error} detail={sp.detail} okText="Saved." />
 
@@ -36,7 +36,7 @@ export default async function AdminChallenges({ searchParams }: { searchParams: 
       <div className="mt-6 space-y-2">
         {list.length === 0 && <p className="text-sm text-dim">No challenges yet.</p>}
         {list.map((c) => (
-          <div key={c.id} className="flex flex-wrap items-center gap-3 rounded-2xl border border-line bg-surface p-3">
+          <div key={c.id} className="admin-card flex flex-wrap items-center gap-3 p-3">
             <SlotArt name={c.slot_name} src={c.image_url} size={52} rounded="rounded-lg" />
             <div className="min-w-0 flex-1">
               <p className="truncate font-head font-bold">{c.slot_name} <span className="text-xs font-normal text-dim">{c.provider}</span></p>

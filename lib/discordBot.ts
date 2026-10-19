@@ -87,3 +87,9 @@ export const ticketUrl = (channelId: string | null) => {
   const guild = process.env.DISCORD_GUILD_ID;
   return channelId && guild ? `https://discord.com/channels/${guild}/${channelId}` : null;
 };
+
+/** Delete a ticket channel (closing it). Best effort. */
+export async function deleteChannel(channelId: string): Promise<void> {
+  if (!cfg()) return;
+  await api(`/channels/${channelId}`, { method: "DELETE" });
+}

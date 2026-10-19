@@ -1,7 +1,8 @@
 import "server-only";
 import type { ResultSetHeader, RowDataPacket } from "mysql2/promise";
 import { getPool } from "./db";
-import { openTicket, postInTicket, ticketUrl } from "./discordBot";
+import { openTicket, ticketUrl } from "./discordBot";
+import { registerTicket, scheduleClose } from "./tickets";
 import { AppError } from "./tx";
 
 // Qzino username verification and challenge claims, both handled by staff
@@ -76,16 +77,28 @@ export async function requestQzinoVerification(accountId: number, username: stri
       `Please send a screenshot of your Qzino profile showing this username (and that you joined with code RAVO50). ` +
       `A staff member will verify it on the site.`,
   }).catch((e: Error) => { console.error("verification ticket failed", e.message); return null; });
-  if (ticket) await pool.query("UPDATE user_accounts SET qzino_ticket = ? WHERE id = ?", [ticket.channelId, accountId]);
+  if (ticket) {
+    await pool.query("UPDATE user_accounts SET qzino_ticket = ? WHERE id = ?", [ticket.channelId, accountId]);
+    await registerTicket(ticket.channelId, "verify").catch(() => {});
+  }
 }
 
-export interface PendingVerification { account_id: number; display_name: string; qzino_username: string; ticket_url: string | null }
+export interface PendingVerification {
+  account_id: number; display_name: string; qzino_username: string; ticket_url: string | null;
+  discord: string | null; kick: string | null; joined: string;
+}
 
 export async function pendingVerifications(): Promise<PendingVerification[]> {
   await ensureVerificationSchema();
   const [rows] = await getPool().query<RowDataPacket[]>(
-    "SELECT id, display_name, qzino_username, qzino_ticket FROM user_accounts WHERE qzino_status = 'pending' ORDER BY id LIMIT 200");
-  return rows.map((r) => ({ account_id: Number(r.id), display_name: String(r.display_name), qzino_username: String(r.qzino_username), ticket_url: ticketUrl(r.qzino_ticket ?? null) }));
+    `SELECT a.id, a.display_name, a.qzino_username, a.qzino_ticket, a.created_at,
+            (SELECT username FROM user_identities WHERE account_id = a.id AND provider = 'discord' LIMIT 1) AS discord,
+            (SELECT username FROM user_identities WHERE account_id = a.id AND provider = 'kick' LIMIT 1) AS kick
+       FROM user_accounts a WHERE a.qzino_status = 'pending' ORDER BY a.id LIMIT 200`);
+  return rows.map((r) => ({
+    account_id: Number(r.id), display_name: String(r.display_name), qzino_username: String(r.qzino_username), ticket_url: ticketUrl(r.qzino_ticket ?? null),
+    discord: r.discord ? String(r.discord) : null, kick: r.kick ? String(r.kick) : null, joined: String(r.created_at),
+  }));
 }
 
 /** Admin decision; posts it in the ticket. */
@@ -96,11 +109,9 @@ export async function decideVerification(accountId: number, verified: boolean): 
     "UPDATE user_accounts SET qzino_status = ? WHERE id = ? AND qzino_status = 'pending'", [verified ? "verified" : "rejected", accountId]);
   if (!res.affectedRows) throw new AppError("invalid_input", "not pending");
   const [acc] = await pool.query<RowDataPacket[]>("SELECT qzino_ticket FROM user_accounts WHERE id = ?", [accountId]);
-  if (acc[0]?.qzino_ticket) {
-    await postInTicket(String(acc[0].qzino_ticket), verified
-      ? "✅ Your Qzino username is **verified**. Store rewards, milestones and challenges are unlocked."
-      : "❌ We couldn't verify this Qzino username. Update it on your account page to try again.").catch(() => {});
-  }
+  await scheduleClose(acc[0]?.qzino_ticket ? String(acc[0].qzino_ticket) : null, verified
+    ? "✅ Your Qzino username is **verified**. Store rewards, milestones and challenges are unlocked."
+    : "❌ We couldn't verify this Qzino username. Update it on your account page to try again.");
 }
 
 // ── challenge claims ───────────────────────────────────────────────────
@@ -140,7 +151,10 @@ export async function claimChallenge(accountId: number, challengeId: number): Pr
       `Player: **${String(acc[0]?.display_name ?? "")}** · Qzino: **${String(acc[0]?.qzino_username ?? "")}**\n\n` +
       `📸 **Send your proof here**: a screenshot or clip where the bet and the win are visible. A staff member will check it.`,
   }).catch((e: Error) => { console.error("challenge ticket failed", e.message); return null; });
-  if (ticket) await pool.query("UPDATE challenge_claims SET ticket = ? WHERE challenge_id = ? AND account_id = ?", [ticket.channelId, challengeId, accountId]);
+  if (ticket) {
+    await pool.query("UPDATE challenge_claims SET ticket = ? WHERE challenge_id = ? AND account_id = ?", [ticket.channelId, challengeId, accountId]);
+    await registerTicket(ticket.channelId, "challenge").catch(() => {});
+  }
   return ticket?.url ?? null;
 }
 

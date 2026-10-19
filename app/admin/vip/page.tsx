@@ -19,7 +19,7 @@ export default async function AdminVip({ searchParams }: { searchParams: Promise
       ) : (
         <ul className="space-y-3">
           {apps.map((a) => (
-            <li key={a.id} className="rounded-2xl border border-line bg-surface p-4">
+            <li key={a.id} className="admin-card p-4">
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div className="min-w-0 text-sm">
                   <p className="font-head text-base font-bold">
