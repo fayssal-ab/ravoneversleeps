@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { saveQzinoUsername } from "@/lib/account";
+import { claimChallenge, qzinoStatusOf, requestQzinoVerification } from "@/lib/verification";
 import { claimMilestone } from "@/lib/milestones";
 import { buyTickets } from "@/lib/raffles";
 import { rateLimit } from "@/lib/ratelimit";
@@ -48,10 +49,18 @@ export async function buyTicketsAction(form: FormData) {
 export async function saveQzinoAction(form: FormData) {
   await run("/account", "saved", (id) => {
     const v = parseForm(z.object({ qzino: z.string().trim().max(64).regex(/^[\w.-]*$/, "letters, numbers, . _ - only") }), form);
-    return saveQzinoUsername(id, v.qzino);
+    return (async () => {
+      const changed = await saveQzinoUsername(id, v.qzino);
+      // a new username (or another try after a rejection) goes to staff verification
+      if (changed || (v.qzino && (await qzinoStatusOf(id)).status === "rejected")) await requestQzinoVerification(id, v.qzino);
+    })();
   });
 }
 
 export async function claimMilestoneAction(form: FormData) {
   await run("/milestones", "claimed", (id) => claimMilestone(id, parseForm(z.object({ milestone: zId }), form).milestone));
+}
+
+export async function claimChallengeAction(form: FormData) {
+  await run("/challenges", "claimed", (id) => claimChallenge(id, parseForm(z.object({ challenge: zId }), form).challenge));
 }

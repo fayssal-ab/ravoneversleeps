@@ -1,3 +1,5 @@
+import { BadgeCheck, Clock } from "lucide-react";
+import { qzinoStatusOf } from "@/lib/verification";
 import type { Metadata } from "next";
 import Image from "next/image";
 import { LogoutButton } from "@/components/account/LogoutButton";
@@ -37,7 +39,7 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
     );
   }
 
-  const [ranks, ledger] = await Promise.all([getRanks(), getLedger(viewer.id).catch(() => [])]);
+  const [ranks, ledger, qz] = await Promise.all([getRanks(), getLedger(viewer.id).catch(() => []), qzinoStatusOf(viewer.id).catch(() => ({ status: "none" as const, ticketUrl: null }))]);
   const prog = rankProgress(ranks, viewer.xp);
   const linked = new Set(viewer.identities.map((i) => i.provider));
   const linkable = providers.filter((p) => !linked.has(p));
@@ -59,7 +61,23 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
             <input name="qzino" defaultValue={viewer.qzino_username} maxLength={64} placeholder="your Qzino username" className="field font-mono" aria-label="Qzino username" />
             <button className="btn btn-neon btn-sm">Save</button>
           </form>
-          <p className="mt-3 text-xs text-dim">We use it to match your wagers and send store rewards.</p>
+          {viewer.qzino_username && qz.status === "verified" && (
+            <p className="mt-3 flex items-center gap-1.5 text-sm font-bold text-neon"><BadgeCheck className="size-4" /> Verified</p>
+          )}
+          {viewer.qzino_username && qz.status === "pending" && (
+            <div className="mt-3 rounded-xl border border-gold/50 bg-gold/10 p-3 text-sm">
+              <p className="flex items-center gap-1.5 font-bold text-gold"><Clock className="size-4" /> Under verification</p>
+              <p className="mt-1 text-muted">
+                {qz.ticketUrl
+                  ? <>A private ticket is open for you on Discord: send a screenshot of your Qzino profile there. <a href={qz.ticketUrl} target="_blank" rel="noopener noreferrer" className="text-neon underline">Open the ticket</a></>
+                  : linked.has("discord") ? "The team will check it shortly." : "Link your Discord below so the team can verify it in a private ticket."}
+              </p>
+            </div>
+          )}
+          {viewer.qzino_username && qz.status === "rejected" && (
+            <p className="mt-3 rounded-xl border border-danger/50 bg-danger/10 p-3 text-sm text-danger">We couldn&apos;t verify this username. Correct it and save again.</p>
+          )}
+          <p className="mt-3 text-xs text-dim">Needed for store rewards, milestones and challenges. The team verifies it once.</p>
         </section>
 
         <section className="panel p-6">

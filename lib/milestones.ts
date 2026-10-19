@@ -4,6 +4,7 @@ import { getPool } from "./db";
 import { d } from "./money";
 import { AppError, withTx } from "./tx";
 import { liveEventScore } from "./qboards";
+import { requireVerifiedQzino } from "./verification";
 
 // Milestones, monthly, on Q-boards points: a viewer's progress is their
 // points in the leaderboard event running now (synced from Q-boards, matched
@@ -57,6 +58,7 @@ export async function claimsFor(accountId: number, month = monthKey()): Promise<
 
 export async function claimMilestone(accountId: number, milestoneId: number): Promise<number> {
   await ensureMonthly();
+  await requireVerifiedQzino(accountId);
   return withTx(async (conn) => {
     const [acc] = await conn.query<RowDataPacket[]>("SELECT qzino_username, banned FROM user_accounts WHERE id = ? FOR UPDATE", [accountId]);
     if (!acc[0]) throw new AppError("not_signed_in");

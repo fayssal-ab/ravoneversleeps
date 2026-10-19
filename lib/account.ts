@@ -85,17 +85,18 @@ export async function applyPoints(
  * A Qzino username can belong to one account only, and is locked once a
  * milestone has been claimed with it (an admin can still change it).
  */
-export async function saveQzinoUsername(accountId: number, username: string): Promise<void> {
+export async function saveQzinoUsername(accountId: number, username: string): Promise<boolean> {
   const pool = getPool();
   const [[cur], [taken], [claims]] = await Promise.all([
     pool.query<RowDataPacket[]>("SELECT qzino_username FROM user_accounts WHERE id = ?", [accountId]),
     pool.query<RowDataPacket[]>("SELECT id FROM user_accounts WHERE ? <> '' AND LOWER(qzino_username) = LOWER(?) AND id <> ? LIMIT 1", [username, username, accountId]),
     pool.query<RowDataPacket[]>("SELECT 1 FROM milestone_claims WHERE account_id = ? LIMIT 1", [accountId]),
   ]);
-  if (String(cur[0]?.qzino_username ?? "").toLowerCase() === username.toLowerCase()) return;
+  if (String(cur[0]?.qzino_username ?? "").toLowerCase() === username.toLowerCase()) return false;
   if (taken[0]) throw new AppError("qzino_taken");
   if (claims[0]) throw new AppError("qzino_locked");
   await pool.query("UPDATE user_accounts SET qzino_username = ? WHERE id = ?", [username, accountId]);
+  return true;
 }
 
 export interface LedgerRow { id: number; delta: number; kind: LedgerKind; note: string; created_at: string }

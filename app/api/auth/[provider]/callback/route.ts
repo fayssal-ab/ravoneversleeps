@@ -3,6 +3,7 @@ import { cookies } from "next/headers";
 import {
   AuthError, OAUTH_COOKIE, USER_COOKIE, createUserSession, currentAccountId, decodeState, fetchProfile, isProvider, publicOrigin, sessionCookieOptions, signInWith,
 } from "@/lib/userAuth";
+import { joinGuild } from "@/lib/discordBot";
 
 export const dynamic = "force-dynamic";
 
@@ -29,6 +30,10 @@ export async function GET(request: Request, { params }: { params: Promise<{ prov
     const profile = await fetchProfile(st, code);
     const current = await currentAccountId().catch(() => null);
     const accountId = await signInWith(provider, profile, current);
+    // Discord: put the viewer in Ravo's server so ticket channels can reach them
+    if (provider === "discord" && profile.accessToken) {
+      await joinGuild(profile.id, profile.accessToken).catch((e: Error) => console.error("discord guild join failed", e.message));
+    }
     const sep = st.n.includes("?") ? "&" : "?";
     const res = done(`${st.n}${sep}${current != null ? "linked" : "signed_in"}=${provider}`);
     if (current == null) res.cookies.set(USER_COOKIE, await createUserSession(accountId), sessionCookieOptions);

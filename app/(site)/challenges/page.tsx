@@ -1,6 +1,10 @@
 import type { Metadata } from "next";
 import { ArrowUpRight, Check, Crown, Target } from "lucide-react";
-import { EmptyState, PageHeader } from "@/components/ui/bits";
+import Link from "next/link";
+import { EmptyState, Flash, PageHeader } from "@/components/ui/bits";
+import { getViewer } from "@/lib/account";
+import { myChallengeClaims, type ClaimInfo } from "@/lib/verification";
+import { claimChallengeAction } from "../actions";
 import { SocialIcon } from "@/components/ui/SocialIcon";
 import { DISCORD_URL, QZINO_CODE, QZINO_URL } from "@/lib/constants";
 import { listChallenges, type Challenge } from "@/lib/challenges";
@@ -11,7 +15,7 @@ export const dynamic = "force-dynamic";
 
 const multi = (v: string) => `${Number(v).toLocaleString("en-US", { maximumFractionDigits: 2 })}x`;
 
-function ChallengeCard({ c }: { c: Challenge }) {
+function ChallengeCard({ c, signedIn, claim }: { c: Challenge; signedIn: boolean; claim?: ClaimInfo }) {
   const open = c.status === "open";
   return (
     <article className={`panel group flex h-full flex-col overflow-hidden ${open ? "hover:border-line-hot" : ""}`}>
@@ -53,7 +57,21 @@ function ChallengeCard({ c }: { c: Challenge }) {
               <span className="min-w-0 truncate">Won by <span className="font-bold text-gold">{c.winner}</span>{c.winner_multi && <> · {multi(c.winner_multi)}</>}</span>
             </p>
           ) : open ? (
-            <a href={QZINO_URL} target="_blank" rel="noopener noreferrer sponsored" className="btn btn-neon btn-sm">Play on Qzino <ArrowUpRight className="size-4" /></a>
+            <div className="flex flex-wrap items-center gap-2">
+              <a href={QZINO_URL} target="_blank" rel="noopener noreferrer sponsored" className="btn btn-ghost btn-sm">Play on Qzino <ArrowUpRight className="size-4" /></a>
+              {claim ? (
+                claim.ticket_url
+                  ? <a href={claim.ticket_url} target="_blank" rel="noopener noreferrer" className="btn btn-discord btn-sm"><SocialIcon name="discord" className="size-4" /> Your ticket</a>
+                  : <span className="chip border-gold/60 text-gold">Claim sent</span>
+              ) : signedIn ? (
+                <form action={claimChallengeAction}>
+                  <input type="hidden" name="challenge" value={c.id} />
+                  <button className="btn btn-neon btn-sm">I hit it · Claim</button>
+                </form>
+              ) : (
+                <Link href="/account" className="btn btn-neon btn-sm">Sign in to claim</Link>
+              )}
+            </div>
           ) : (
             <p className="text-sm text-dim">This challenge is closed.</p>
           )}
@@ -63,8 +81,10 @@ function ChallengeCard({ c }: { c: Challenge }) {
   );
 }
 
-export default async function ChallengesPage() {
-  const list = await listChallenges().catch(() => null);
+export default async function ChallengesPage({ searchParams }: { searchParams: Promise<Record<string, string | undefined>> }) {
+  const sp = await searchParams;
+  const [list, viewer] = await Promise.all([listChallenges().catch(() => null), getViewer()]);
+  const claims = viewer ? await myChallengeClaims(viewer.id).catch(() => new Map<number, ClaimInfo>()) : new Map<number, ClaimInfo>();
   const open = list?.filter((c) => c.status === "open") ?? [];
   const done = list?.filter((c) => c.status !== "open") ?? [];
   return (
@@ -72,6 +92,7 @@ export default async function ChallengesPage() {
       <PageHeader eyebrow="Slot challenges" title="Hit the" accent="target">
         Pick a challenge, land the multiplier first and the reward is yours. Every win is checked by the team.
       </PageHeader>
+      <Flash ok={sp.ok} error={sp.error} detail={sp.detail} okText="Claim sent! A private Discord ticket is open: post your proof there." />
 
       {list == null ? (
         <EmptyState title="Challenges offline">Temporarily unavailable. Try again in a minute.</EmptyState>
@@ -84,7 +105,7 @@ export default async function ChallengesPage() {
           {open.length === 0 ? (
             <EmptyState title="No open challenge right now">New challenges drop on stream and on Discord. Check back soon.</EmptyState>
           ) : (
-            <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">{open.map((c) => <ChallengeCard key={c.id} c={c} />)}</div>
+            <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">{open.map((c) => <ChallengeCard key={c.id} c={c} signedIn={!!viewer} claim={claims.get(c.id)} />)}</div>
           )}
 
           {/* how it works */}
@@ -94,7 +115,7 @@ export default async function ChallengesPage() {
               {[
                 { t: "Play the slot", b: `On Qzino with code ${QZINO_CODE}, at the minimum bet or higher.` },
                 { t: "Hit the multiplier", b: "Take a screenshot or a clip the moment it lands, with the bet and the win visible." },
-                { t: "Send your proof", b: "Post it on Discord. The first verified hit wins; the team sends the reward." },
+                { t: "Claim it", b: "Hit “Claim” on the challenge: a private Discord ticket opens for you. Post your proof there; the first verified hit wins." },
               ].map((s, i) => (
                 <li key={s.t} className="panel relative p-6 pt-8">
                   <span className="absolute -top-4 left-6 grid size-9 place-items-center rounded-full bg-neon font-mono font-bold text-neon-ink">{i + 1}</span>
@@ -112,7 +133,7 @@ export default async function ChallengesPage() {
           {done.length > 0 && (
             <section className="mt-16">
               <h2 className="mb-6 font-display text-3xl"><span className="chrome">Past</span> <span className="neon-text">challenges</span></h2>
-              <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">{done.slice(0, 12).map((c) => <ChallengeCard key={c.id} c={c} />)}</div>
+              <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">{done.slice(0, 12).map((c) => <ChallengeCard key={c.id} c={c} signedIn={!!viewer} claim={claims.get(c.id)} />)}</div>
             </section>
           )}
         </>

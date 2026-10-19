@@ -20,7 +20,7 @@ test("progress = points in the running event; one claim per milestone per event 
   const now = Date.now();
   const tag = `m${now}`;
   await pool.query("DELETE FROM qboards_snapshots");
-  const [acc] = await pool.query<ResultSetHeader>("INSERT INTO user_accounts (display_name, qzino_username) VALUES (?, ?)", [tag, tag.toUpperCase()]);
+  const [acc] = await pool.query<ResultSetHeader>("INSERT INTO user_accounts (display_name, qzino_username, qzino_status) VALUES (?, ?, 'verified')", [tag, tag.toUpperCase()]);
   const accountId = acc.insertId;
   const [ms] = await pool.query<ResultSetHeader>("INSERT INTO milestones (name, min_wager, reward) VALUES (?, ?, 10)", [tag, 1000 + (now % 100000)]);
   const milestoneId = ms.insertId;

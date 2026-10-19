@@ -7,6 +7,7 @@ import { syncCatalog, upgradeTypedSlots } from "@/lib/slots";
 import { deleteClaim, resolveClaim, saveMilestones } from "@/lib/milestones";
 import { addSlot, deleteSlot } from "@/lib/stream";
 import { createChallenge, deleteChallenge, markChallengeWon, setChallengeStatus } from "@/lib/challenges";
+import { decideVerification } from "@/lib/verification";
 import { cancelRaffle, createRaffle, deleteRaffle, drawRaffle } from "@/lib/raffles";
 import { deleteStoreItem, resolveRedemption, saveStoreItem } from "@/lib/store";
 import { AppError, DECIMAL_20_8, parseForm, zId, zLevel, zPoints, zRequiredText, zText, zUtcDateTime } from "@/lib/tx";
@@ -260,6 +261,15 @@ export async function challengeOpAction(form: FormData) {
       await markChallengeWon(v.id, v.winner, v.winner_multi);
     } else if (v.op === "delete") await deleteChallenge(v.id);
     else await setChallengeStatus(v.id, v.op === "close" ? "closed" : "open");
+    return v;
+  });
+}
+
+// ── Qzino username verification ────────────────────────────────────────
+export async function verifyQzinoAction(form: FormData) {
+  await adminAction({ path: "/admin/users", audit: "qzino.verify", revalidate: ["/account"] }, async () => {
+    const v = parseForm(z.object({ account: zId, decision: z.enum(["verify", "reject"]) }), form);
+    await decideVerification(v.account, v.decision === "verify");
     return v;
   });
 }

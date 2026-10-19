@@ -14,7 +14,7 @@ import { SITE_URL } from "./constants";
 // session cookie is a random token whose SHA-256 is stored in user_sessions.
 
 export type Provider = "kick" | "discord";
-export const PROVIDERS: Provider[] = ["kick", "discord"];
+export const PROVIDERS: Provider[] = ["discord", "kick"]; // Discord first: it is the main sign-in
 export const PROVIDER_NAME: Record<Provider, string> = { kick: "Kick", discord: "Discord" };
 export function isProvider(v: string): v is Provider {
   return v === "kick" || v === "discord";
@@ -98,7 +98,8 @@ export function beginOAuth(p: Provider, mode: "login" | "link", next: string, no
     q.set("code_challenge_method", "S256");
     url = `https://id.kick.com/oauth/authorize?${q}`;
   } else {
-    q.set("scope", "identify");
+    // guilds.join: signing in also adds the viewer to Ravo's Discord (tickets)
+    q.set("scope", "identify guilds.join");
     q.set("prompt", "none");
     url = `https://discord.com/oauth2/authorize?${q}`;
   }
@@ -106,7 +107,7 @@ export function beginOAuth(p: Provider, mode: "login" | "link", next: string, no
 }
 
 // ── code exchange + profile ───────────────────────────────────────────────
-export interface Profile { id: string; username: string; avatar: string }
+export interface Profile { id: string; username: string; avatar: string; /** Discord only: to join the server */ accessToken?: string }
 
 async function postForm(url: string, body: Record<string, string>): Promise<Record<string, unknown>> {
   const res = await fetch(url, {
@@ -145,7 +146,7 @@ export async function fetchProfile(st: OAuthState, code: string): Promise<Profil
   const u = (await getJson("https://discord.com/api/users/@me", tok.access_token)) as { id?: string; username?: string; global_name?: string | null; avatar?: string | null };
   if (!u.id || !u.username) throw new AuthError("profile_failed");
   const avatar = u.avatar && /^[a-z0-9_]+$/i.test(u.avatar) ? `https://cdn.discordapp.com/avatars/${u.id}/${u.avatar}.png?size=128` : "";
-  return { id: u.id, username: clip(u.global_name || u.username, 191), avatar };
+  return { id: u.id, username: clip(u.global_name || u.username, 191), avatar, accessToken: tok.access_token };
 }
 
 // ── account resolution ────────────────────────────────────────────────────

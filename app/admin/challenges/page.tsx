@@ -6,6 +6,7 @@ import { SlotArt } from "@/components/ui/SlotArt";
 import { listChallenges } from "@/lib/challenges";
 import { formatMoney } from "@/lib/money";
 import { ensureCatalog } from "@/lib/slots";
+import { challengeClaimsByChallenge, type AdminClaim } from "@/lib/verification";
 import { challengeOpAction, createChallengeAction } from "../actions";
 
 const STATUS = { open: "text-neon", won: "text-gold", closed: "text-dim" } as const;
@@ -14,7 +15,7 @@ const multi = (v: string) => `${Number(v).toLocaleString("en-US", { maximumFract
 export default async function AdminChallenges({ searchParams }: { searchParams: Promise<Record<string, string | undefined>> }) {
   const sp = await searchParams;
   await ensureCatalog();
-  const list = await listChallenges(200);
+  const [list, claims] = await Promise.all([listChallenges(200), challengeClaimsByChallenge().catch(() => new Map<number, AdminClaim[]>())]);
   return (
     <>
       <AdminTitle title="Challenges">
@@ -46,6 +47,16 @@ export default async function AdminChallenges({ searchParams }: { searchParams: 
                 {c.winner && <> · won by <span className="text-text">{c.winner}</span>{c.winner_multi && <> ({multi(c.winner_multi)})</>}</>}
               </p>
             </div>
+            {(claims.get(c.id) ?? []).length > 0 && (
+              <ul className="w-full space-y-1 border-t border-line pt-2 text-sm">
+                {claims.get(c.id)!.map((cl) => (
+                  <li key={cl.display_name + cl.created_at} className="flex flex-wrap items-center justify-between gap-2">
+                    <span><span className="font-bold">{cl.display_name}</span> · Qzino <span className="font-mono text-neon">{cl.qzino_username}</span> <span className="text-xs text-dim">{cl.created_at}</span></span>
+                    {cl.ticket_url ? <a href={cl.ticket_url} target="_blank" rel="noopener noreferrer" className="btn btn-ghost btn-sm">Proof ticket</a> : <span className="text-xs text-dim">no ticket</span>}
+                  </li>
+                ))}
+              </ul>
+            )}
             <div className="flex flex-wrap items-center gap-2">
               {c.status === "open" && (
                 <form action={challengeOpAction} className="flex items-center gap-1.5">

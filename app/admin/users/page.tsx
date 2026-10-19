@@ -4,12 +4,13 @@ import { RankBadge } from "@/components/ui/RankBadge";
 import { getRanks } from "@/lib/account";
 import { rankForXp } from "@/lib/ranks";
 import { searchUsers } from "@/lib/userAdmin";
-import { adjustPointsAction, bulkGrantAction, userFlagsAction } from "../actions";
+import { pendingVerifications } from "@/lib/verification";
+import { adjustPointsAction, bulkGrantAction, userFlagsAction, verifyQzinoAction } from "../actions";
 
 export default async function AdminUsers({ searchParams }: { searchParams: Promise<Record<string, string | undefined>> }) {
   const sp = await searchParams;
   const q = (sp.q ?? "").slice(0, 64);
-  const [users, ranks] = await Promise.all([searchUsers(q), getRanks()]);
+  const [users, ranks, pending] = await Promise.all([searchUsers(q), getRanks(), pendingVerifications().catch(() => [])]);
 
   return (
     <>
@@ -17,6 +18,24 @@ export default async function AdminUsers({ searchParams }: { searchParams: Promi
         Granting points also adds XP (rank). Deducting only lowers the balance. Viewers create accounts by signing in with Kick or Discord.
       </AdminTitle>
       <Flash ok={sp.ok} error={sp.error} detail={sp.detail} okText={sp.ok === "bulk" ? "Points dropped." : "Saved."} />
+
+      {pending.length > 0 && (
+        <Card title={`Qzino usernames to verify (${pending.length})`} className="mb-6">
+          <p className="mb-3 text-sm text-muted">Check the screenshot in the Discord ticket, then verify or reject. The decision is posted in the ticket.</p>
+          <ul className="space-y-2">
+            {pending.map((p) => (
+              <li key={p.account_id} className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-line bg-bg-2 px-4 py-2.5">
+                <span className="text-sm"><span className="font-bold">{p.display_name}</span> · Qzino <span className="font-mono text-neon">{p.qzino_username}</span></span>
+                <span className="flex items-center gap-2">
+                  {p.ticket_url ? <a href={p.ticket_url} target="_blank" rel="noopener noreferrer" className="btn btn-ghost btn-sm">Ticket</a> : <span className="text-xs text-dim">no ticket (no Discord)</span>}
+                  <form action={verifyQzinoAction}><input type="hidden" name="account" value={p.account_id} /><input type="hidden" name="decision" value="verify" /><button className="btn btn-neon btn-sm">Verify</button></form>
+                  <form action={verifyQzinoAction}><input type="hidden" name="account" value={p.account_id} /><input type="hidden" name="decision" value="reject" /><button className="btn btn-ghost btn-sm !text-danger">Reject</button></form>
+                </span>
+              </li>
+            ))}
+          </ul>
+        </Card>
+      )}
 
       <div className="grid gap-6 lg:grid-cols-[1.5fr_1fr]">
         <Card title="Accounts">

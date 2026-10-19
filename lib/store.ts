@@ -1,5 +1,6 @@
 import "server-only";
 import type { ResultSetHeader, RowDataPacket } from "mysql2/promise";
+import { requireVerifiedQzino } from "./verification";
 import { getPool } from "./db";
 import { applyPoints, getRanks } from "./account";
 import { rankForXp } from "./ranks";
@@ -35,6 +36,7 @@ export async function listStoreItems(opts: { includeInactive?: boolean } = {}): 
 
 /** Buy one item: checks rank, stock and balance atomically. Returns the redemption id. */
 export async function redeemItem(accountId: number, itemId: number): Promise<number> {
+  await requireVerifiedQzino(accountId);
   const ranks = await getRanks();
   return withTx(async (conn) => {
     const [items] = await conn.query<RowDataPacket[]>(
