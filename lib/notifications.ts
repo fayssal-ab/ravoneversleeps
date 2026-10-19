@@ -2,6 +2,7 @@ import "server-only";
 import type { RowDataPacket } from "mysql2/promise";
 import { getPool } from "./db";
 import { getLiveStatus } from "./stream";
+import { getQboardsBoard } from "./qboards";
 
 // Bell feed: what's happening on the site right now (live stream, open
 // tournament registration, running hunt, open raffles, live leaderboard) plus,
@@ -20,8 +21,9 @@ export async function getNotifications(accountId: number | null): Promise<Note[]
     safe(async () => (await pool.query<RowDataPacket[]>("SELECT id, title, status, max_players, COALESCE(opened_at, created_at) AS at FROM ko_tournaments WHERE status IN ('open','closed') ORDER BY id DESC LIMIT 1"))[0][0], undefined),
     safe(async () => (await pool.query<RowDataPacket[]>("SELECT id, title, status, created_at FROM bonus_hunts WHERE status <> 'finished' ORDER BY id DESC LIMIT 1"))[0][0], undefined),
     safe(async () => (await pool.query<RowDataPacket[]>("SELECT id, title, prize, created_at FROM raffles WHERE status = 'open' AND ends_at > UTC_TIMESTAMP() ORDER BY ends_at LIMIT 3"))[0], [] as RowDataPacket[]),
-    safe(async () => (await pool.query<RowDataPacket[]>("SELECT id, title, prize_pool, starts_at FROM lb_periods WHERE UTC_TIMESTAMP() BETWEEN starts_at AND ends_at LIMIT 1"))[0][0], undefined),
+    safe(async () => { const b = await getQboardsBoard(1); return b?.period?.state === "live" ? { ...b.period, id: b.eventId } : undefined; }, undefined),
   ]);
+  const challenges = await safe(async () => (await pool.query<RowDataPacket[]>("SELECT id, slot_name, target_multi, reward, created_at FROM challenges WHERE status = 'open' ORDER BY id DESC LIMIT 2"))[0], [] as RowDataPacket[]);
 
   if (live.live) notes.push({ id: "live", kind: "live", title: "Ravo is live on Kick", body: live.title || "Come hang out in chat.", href: "/stream", at: now });
   if (ko) notes.push({
@@ -33,8 +35,25 @@ export async function getNotifications(accountId: number | null): Promise<Note[]
   if (hunt) notes.push({ id: `hunt-${hunt.id}-${hunt.status}`, kind: "event", title: `Bonus hunt ${hunt.status === "opening" ? "opening now" : "collecting"}`, body: String(hunt.title), href: "/bonus-hunts", at: String(hunt.created_at) });
   for (const r of raffles) notes.push({ id: `raffle-${r.id}`, kind: "event", title: `Raffle: ${r.title}`, body: `Win ${r.prize}. Tickets cost points.`, href: "/raffles", at: String(r.created_at) });
   if (period) notes.push({ id: `period-${period.id}`, kind: "event", title: period.title, body: `$${Number(period.prize_pool).toLocaleString("en-US")} on the line this month.`, href: "/leaderboard", at: String(period.starts_at) });
+  for (const c of challenges) notes.push({ id: `challenge-${c.id}`, kind: "event", title: `Challenge: ${c.slot_name}`, body: `First to hit ${Number(c.target_multi).toLocaleString("en-US")}x wins $${Number(c.reward).toLocaleString("en-US")}.`, href: "/challenges", at: String(c.created_at) });
 
   if (accountId != null) {
+    const [acc, vip] = await Promise.all([
+      safe(async () => (await pool.query<RowDataPacket[]>("SELECT qzino_username, qzino_status FROM user_accounts WHERE id = ?", [accountId]))[0][0], undefined),
+      safe(async () => (await pool.query<RowDataPacket[]>("SELECT id, casino, status, admin_note, updated_at FROM vip_applications WHERE account_id = ? ORDER BY id DESC LIMIT 1", [accountId]))[0][0], undefined),
+    ]);
+    if (acc?.qzino_username && (acc.qzino_status === "verified" || acc.qzino_status === "rejected" || acc.qzino_status === "pending")) notes.push({
+      id: `qzino-${acc.qzino_status}`, kind: "personal",
+      title: acc.qzino_status === "verified" ? "Qzino username verified" : acc.qzino_status === "rejected" ? "Qzino username not verified" : "Qzino username under review",
+      body: acc.qzino_status === "verified" ? "Store, milestones and challenges are unlocked." : acc.qzino_status === "rejected" ? "Correct it on your account page." : "Check your Discord ticket.",
+      href: "/account", at: now,
+    });
+    if (vip) notes.push({
+      id: `vip-${vip.id}-${vip.status}`, kind: "personal",
+      title: vip.status === "approved" ? "VIP Transfer approved" : vip.status === "rejected" ? "VIP Transfer not approved" : "VIP Transfer under review",
+      body: vip.admin_note ? String(vip.admin_note) : String(vip.casino),
+      href: "/vip-transfer", at: String(vip.updated_at),
+    });
     const [red, claims] = await Promise.all([
       safe(async () => (await pool.query<RowDataPacket[]>("SELECT id, item_name, status, admin_note, updated_at FROM store_redemptions WHERE account_id = ? ORDER BY updated_at DESC LIMIT 5", [accountId]))[0], [] as RowDataPacket[]),
       safe(async () => (await pool.query<RowDataPacket[]>("SELECT id, milestone_name, reward, status, admin_note, updated_at FROM milestone_claims WHERE account_id = ? ORDER BY updated_at DESC LIMIT 5", [accountId]))[0], [] as RowDataPacket[]),

@@ -159,3 +159,12 @@ export async function challengeClaimsByChallenge(): Promise<Map<number, AdminCla
   }
   return out;
 }
+
+/** Claims waiting on challenges that are still open (admin dashboard). */
+export async function openChallengeClaimCount(): Promise<number> {
+  await ensureVerificationSchema();
+  const [rows] = await getPool().query<RowDataPacket[]>(
+    "SELECT COUNT(*) AS n FROM challenge_claims c JOIN challenges ch ON ch.id = c.challenge_id WHERE ch.status = 'open'");
+  return Number(rows[0].n);
+}
+

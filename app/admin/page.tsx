@@ -3,19 +3,27 @@ import { AdminTitle, Card } from "@/components/admin/ui";
 import { getStats } from "@/lib/userAdmin";
 import { listRedemptions } from "@/lib/store";
 import { listClaims } from "@/lib/milestones";
+import { openChallengeClaimCount, pendingVerifications } from "@/lib/verification";
+import { listVipApplications } from "@/lib/vip";
 
 export default async function AdminDashboard() {
-  const [stats, pending, claims] = await Promise.all([getStats(), listRedemptions({ status: "pending", limit: 8 }), listClaims({ status: "pending", limit: 100 })]);
+  const [stats, pending, claims, toVerify, vip, chClaims] = await Promise.all([
+    getStats(), listRedemptions({ status: "pending", limit: 8 }), listClaims({ status: "pending", limit: 100 }),
+    pendingVerifications().catch(() => []), listVipApplications("pending").catch(() => []), openChallengeClaimCount().catch(() => 0),
+  ]);
   const tiles = [
     { label: "Accounts", value: stats.users.toLocaleString("en-US"), href: "/admin/users" },
     { label: "Points in wallets", value: stats.points_out.toLocaleString("en-US"), href: "/admin/users" },
     { label: "Pending redemptions", value: String(stats.pending), href: "/admin/store", hot: stats.pending > 0 },
+    { label: "Qzino to verify", value: String(toVerify.length), href: "/admin/users", hot: toVerify.length > 0 },
+    { label: "VIP applications", value: String(vip.length), href: "/admin/vip", hot: vip.length > 0 },
+    { label: "Challenge claims", value: String(chClaims), href: "/admin/challenges", hot: chClaims > 0 },
     { label: "Milestone claims", value: String(claims.length), href: "/admin/milestones", hot: claims.length > 0 },
   ];
   return (
     <>
       <AdminTitle title="Dashboard">
-        {stats.live_period ? <>Live period: <span className="text-neon">{stats.live_period}</span> · {stats.board_players} players on the board.</> : "No leaderboard period is live right now."}
+        {stats.live_period ? <>Live leaderboard: <span className="text-neon">{stats.live_period}</span> · {stats.board_players} players on the board.</> : "No Q-boards leaderboard is live right now."}
       </AdminTitle>
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         {tiles.map((t) => (
