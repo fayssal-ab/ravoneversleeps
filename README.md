@@ -6,15 +6,15 @@ a casino and takes no deposits.
 
 ## Pages
 
-Navigation: Home · Leaderboard · **Rewards** (Store, Challenges, VIP Transfer,
-Raffles) · **Stream** (Watch live, Bonus hunts, Tournaments).
+Navigation: Home · Leaderboard · **Rewards** (Challenges, VIP Transfer,
+Milestones) · **Stream** (Watch live, Clips, Bonus hunts, Tournaments).
+The points store, raffles and ranks were removed (their tables stay in the DB).
 
-- **Home**: mascot hero, Qzino bonus card, leaderboard band, Kick stream, VIP Transfer teaser, store preview.
+- **Home**: playable RAVO slot hero, Kick clips strip, leaderboard (top-3 prizes set in admin), Qzino card, stream, VIP teaser.
+- **Clips**: Ravo's Kick clips, played on the site (hls.js).
 - **Leaderboard**: Q-boards points board (podium, countdown, search, rules) with a monthly archive.
-- **Store**: small rewards (Qzino tips, bonus buy splits) bought with points.
 - **Challenges**: "first to hit Nx on a slot wins $X"; claiming opens a Discord proof ticket.
 - **VIP Transfer**: Qzino VIP benefits and an application form reviewed in a Discord ticket.
-- **Raffles**: points tickets with a provably fair draw that viewers can re-check in the browser.
 - **Stream**: Kick player when live (animated pixel banner when offline) and the weekly schedule.
 - **Bonus hunts**: live hunt tracker with stats, biggest multi and break-even multi.
 - **Tournaments**: solo (1v1) or duo (2v2) knockout from `!join` in Kick chat; tall OBS overlay.
@@ -103,12 +103,6 @@ verification (Admin → Users: Verify/Reject), challenge claims (proof; Admin �
 Challenges) and VIP Transfer applications (Admin → VIP Transfer). Decisions are
 posted in the ticket. Without the bot variables everything still works, just
 without tickets.
-
-## Points
-
-Points are only added by the team (Admin → Users & points, one by one or as a
-bulk drop); there is no automatic earning. They are spent in the store (a
-rejected redemption is refunded). Every change is in the points ledger.
 
 ## Tests
 

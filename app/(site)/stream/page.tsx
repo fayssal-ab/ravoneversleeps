@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { CalendarDays, Crosshair, Ticket } from "lucide-react";
+import { CalendarDays, Crosshair, Clapperboard } from "lucide-react";
 import { StreamBox } from "@/components/stream/StreamBox";
 import { PageHeader } from "@/components/ui/bits";
 import { Reveal, SpotlightCard } from "@/components/ui/motion";
@@ -47,7 +47,7 @@ export default async function StreamPage() {
         <div className="grid gap-5">
           {[
             { href: "/bonus-hunts", icon: Crosshair, title: "Bonus hunts", text: "Follow every bonus, multi and the running total live." },
-            { href: "/raffles", icon: Ticket, title: "Raffles", text: "Spend your points on tickets. Drawn on stream, provably fair." },
+            { href: "/clips", icon: Clapperboard, title: "Clips", text: "The best moments from the stream, clipped by chat." },
           ].map((c, i) => (
             <Reveal key={c.href} delay={i * 0.08}>
               <Link href={c.href} className="block h-full">

@@ -1,22 +1,18 @@
 import Link from "next/link";
 import { BadgeCheck, Clock, ExternalLink, Search, ShieldOff, UserX } from "lucide-react";
-import { AdminTitle, Card, Empty, Field, Tabs } from "@/components/admin/ui";
+import { AdminTitle, Card, Empty, Tabs } from "@/components/admin/ui";
 import { Flash } from "@/components/ui/bits";
-import { RankBadge } from "@/components/ui/RankBadge";
-import { getRanks } from "@/lib/account";
-import { rankForXp } from "@/lib/ranks";
-import { recentLedger, searchUsers, userCounts, type AdminUser, type UserFilter, type UserSort } from "@/lib/userAdmin";
+import { searchUsers, userCounts, type AdminUser, type UserFilter, type UserSort } from "@/lib/userAdmin";
 import { pendingVerifications } from "@/lib/verification";
-import { adjustPointsAction, bulkGrantAction, userFlagsAction, verifyQzinoAction } from "../actions";
+import { userFlagsAction, verifyQzinoAction } from "../actions";
 
-type Tab = "verify" | "accounts" | "drop" | "history";
+type Tab = "verify" | "accounts";
 const SORTS: { key: UserSort; label: string }[] = [
-  { key: "name", label: "A → Z" }, { key: "points", label: "Most points" }, { key: "newest", label: "Newest" }, { key: "login", label: "Last login" },
+  { key: "name", label: "A → Z" }, { key: "newest", label: "Newest" }, { key: "login", label: "Last login" },
 ];
 const FILTERS: { key: UserFilter; label: string }[] = [
   { key: "all", label: "All" }, { key: "verified", label: "Verified" }, { key: "pending", label: "Pending" }, { key: "unverified", label: "Not verified" }, { key: "banned", label: "Banned" },
 ];
-const KIND_TONE: Record<string, string> = { grant: "text-neon", refund: "text-neon", deduct: "text-danger", redeem: "text-gold", raffle: "text-gold" };
 
 function QzinoBadge({ u }: { u: Pick<AdminUser, "qzino_username" | "qzino_status"> }) {
   if (!u.qzino_username) return <span className="text-xs text-dim">no Qzino username</span>;
@@ -36,12 +32,10 @@ export default async function AdminUsers({ searchParams }: { searchParams: Promi
   const sort = (SORTS.some((s) => s.key === sp.sort) ? sp.sort : "name") as UserSort;
   const filter = (FILTERS.some((f) => f.key === sp.filter) ? sp.filter : "all") as UserFilter;
   const pending = await pendingVerifications().catch(() => []);
-  const tab = (["verify", "accounts", "drop", "history"].includes(sp.tab ?? "") ? sp.tab : pending.length ? "verify" : "accounts") as Tab;
-  const [users, ranks, counts, ledger] = await Promise.all([
+  const tab = (["verify", "accounts"].includes(sp.tab ?? "") ? sp.tab : pending.length ? "verify" : "accounts") as Tab;
+  const [users, counts] = await Promise.all([
     tab === "accounts" ? searchUsers(q, { sort, filter }) : Promise.resolve([]),
-    getRanks(),
     userCounts().catch(() => null),
-    tab === "history" ? recentLedger() : Promise.resolve([]),
   ]);
   const here = (over: Record<string, string>) => {
     const p = new URLSearchParams({ tab, ...(q ? { q } : {}), sort, filter, ...over });
@@ -51,18 +45,16 @@ export default async function AdminUsers({ searchParams }: { searchParams: Promi
 
   return (
     <>
-      <AdminTitle title="Users & points">
-        Accounts are created by signing in with Discord or Kick. Granting points also adds XP; deducting only lowers the balance.
+      <AdminTitle title="Users">
+        Accounts are created by signing in with Discord (or Kick). Verify Qzino usernames here; a username saved by an admin counts as verified.
       </AdminTitle>
-      <Flash ok={sp.ok} error={sp.error} detail={sp.detail} okText={sp.ok === "bulk" ? "Points dropped." : "Saved."} />
+      <Flash ok={sp.ok} error={sp.error} detail={sp.detail} okText="Saved." />
 
       <Tabs
         current={tab}
         items={[
           { key: "verify", label: "Verification", href: "/admin/users?tab=verify", count: pending.length, hot: pending.length > 0 },
           { key: "accounts", label: "Accounts", href: "/admin/users?tab=accounts", count: counts?.all },
-          { key: "drop", label: "Points drop", href: "/admin/users?tab=drop" },
-          { key: "history", label: "Points history", href: "/admin/users?tab=history" },
         ]}
       />
 
@@ -127,10 +119,9 @@ export default async function AdminUsers({ searchParams }: { searchParams: Promi
           ) : (
             <div className="mt-4 overflow-x-auto lg:overflow-visible">
               <table className="admin-table">
-                <thead><tr><th>Player</th><th>Qzino</th><th className="text-right">Points</th><th>Rank</th><th>Last login</th><th /></tr></thead>
+                <thead><tr><th>Player</th><th>Qzino</th><th>Last login</th><th /></tr></thead>
                 <tbody>
                   {users.map((u) => {
-                    const rank = rankForXp(ranks, u.xp);
                     return (
                       <tr key={u.id} className={u.banned ? "opacity-55" : ""}>
                         <td>
@@ -138,24 +129,12 @@ export default async function AdminUsers({ searchParams }: { searchParams: Promi
                           <p className="text-xs text-dim">{u.providers || "no identity"} · #{u.id}</p>
                         </td>
                         <td><QzinoBadge u={u} /></td>
-                        <td className="text-right font-mono"><span className="text-neon">{u.points.toLocaleString("en-US")}</span><span className="block text-[11px] text-dim">{u.xp.toLocaleString("en-US")} XP</span></td>
-                        <td><RankBadge level={rank.level} compact /></td>
                         <td className="whitespace-nowrap text-xs text-dim">{u.last_login_at ? u.last_login_at.slice(0, 16) : "—"}</td>
                         <td className="w-0">
                           <details className="admin-details">
                             <summary className="btn btn-ghost btn-sm">Manage</summary>
                             <div className="admin-pop">
-                              <form action={adjustPointsAction} className="space-y-2">
-                                <input type="hidden" name="id" value={u.id} />
-                                <input type="hidden" name="back" value={back} />
-                                <p className="label">Points</p>
-                                <div className="flex gap-2">
-                                  <input name="delta" type="number" required placeholder="+100 / -50" className="field !w-28 font-mono" />
-                                  <input name="note" maxLength={255} placeholder="Reason" className="field" />
-                                </div>
-                                <button className="btn btn-neon btn-sm">Apply</button>
-                              </form>
-                              <form action={userFlagsAction} className="mt-4 space-y-2 border-t border-line pt-4">
+                              <form action={userFlagsAction} className="space-y-2">
                                 <input type="hidden" name="id" value={u.id} />
                                 <input type="hidden" name="back" value={back} />
                                 <p className="label">Qzino username (saved by an admin = verified)</p>
@@ -176,45 +155,6 @@ export default async function AdminUsers({ searchParams }: { searchParams: Promi
         </Card>
       )}
 
-      {tab === "drop" && (
-        <Card title="Points drop">
-          <form action={bulkGrantAction} className="grid gap-4 lg:grid-cols-[1fr_18rem]">
-            <Field label="Lines" hint="One player per line: name,points. The name can be a Qzino, Discord or Kick username.">
-              <textarea name="csv" required rows={12} placeholder={"sleepyhead,250\nnightowl,100"} className="field font-mono text-sm" />
-            </Field>
-            <div className="space-y-4">
-              <Field label="Reason (shown in their history)"><input name="note" maxLength={255} placeholder="Stream drop 19/10" className="field" /></Field>
-              <button className="btn btn-neon w-full">Grant points</button>
-              <p className="text-xs text-dim">Names that don&apos;t match an account are listed after the drop; the others are credited.</p>
-            </div>
-          </form>
-        </Card>
-      )}
-
-      {tab === "history" && (
-        <Card title="Points history (latest 150)">
-          {ledger.length === 0 ? (
-            <Empty>No points movements yet.</Empty>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="admin-table">
-                <thead><tr><th>When (UTC)</th><th>Player</th><th>Type</th><th>Note</th><th className="text-right">Points</th></tr></thead>
-                <tbody>
-                  {ledger.map((l) => (
-                    <tr key={l.id}>
-                      <td className="whitespace-nowrap text-xs text-dim">{l.created_at.slice(0, 16)}</td>
-                      <td><Link href={`/admin/users?tab=accounts&q=${encodeURIComponent(l.display_name)}`} className="font-semibold hover:text-neon">{l.display_name}</Link></td>
-                      <td className={`text-xs font-bold uppercase ${KIND_TONE[l.kind] ?? "text-muted"}`}>{l.kind}</td>
-                      <td className="max-w-80 truncate text-sm text-muted">{l.note || "—"}</td>
-                      <td className={`text-right font-mono font-bold ${l.delta >= 0 ? "text-neon" : "text-danger"}`}>{l.delta >= 0 ? "+" : ""}{l.delta.toLocaleString("en-US")}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </Card>
-      )}
     </>
   );
 }

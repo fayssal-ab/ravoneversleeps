@@ -8,7 +8,7 @@ import { Chip, Club, Paw, Spade } from "@/components/decor/shapes";
 // When the site is ready they spin once and land on RAVO; after that the
 // lever (or a tap on the reels) spins them for real: random symbols, each
 // reel stopping a little after the previous one. RAVO across, or 7-7-7-7,
-// is a jackpot.
+// is a jackpot; the second pull always lands RAVO.
 //
 // Glyphs are drawn with CSS (content: attr(data-g)) so the reels add no
 // text to the page: the <h1> reads "RAVONEVERSLEEPS" for search engines,
@@ -65,7 +65,8 @@ export function SlotReels({ start }: { start: boolean }) {
 
   const doSpin = useCallback(() => {
     if (!start || busy) return;
-    const next = outcome();
+    // the visitor's 2nd pull always lands RAVO (spin 0 is the intro)
+    const next = spin === 1 ? LETTERS.map((): Sym => "letter") : outcome();
     setStrips(finals.current.map((from, r) => {
       const fillers = Array.from({ length: 14 + r * 4 }, pick);
       return [from, ...fillers, next[r]];
@@ -75,7 +76,7 @@ export function SlotReels({ start }: { start: boolean }) {
     setSpin((n) => n + 1);
     setPulling(true);
     setTimeout(() => setPulling(false), 850);
-  }, [start, busy]);
+  }, [start, busy, spin]);
 
   // keyboard: Space/Enter on the machine
   const onKey = (e: React.KeyboardEvent) => { if (e.key === " " || e.key === "Enter") { e.preventDefault(); doSpin(); } };

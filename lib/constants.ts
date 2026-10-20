@@ -3,7 +3,7 @@
 export const SITE_NAME = "RAVONEVERSLEEPS";
 export const SITE_SHORT = "RAVO";
 export const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
-export const SITE_TAGLINE = "Play on Qzino with code RAVO50. Climb the monthly leaderboard, transfer your VIP status, spend your points.";
+export const SITE_TAGLINE = "Play on Qzino with code RAVO50. Climb the monthly leaderboard, take on slot challenges, transfer your VIP status.";
 
 export const QZINO_CODE = process.env.NEXT_PUBLIC_QZINO_CODE || "RAVO50";
 export const QZINO_URL = process.env.NEXT_PUBLIC_QZINO_URL || "https://qzino-partners.com/trdj40jfb";
@@ -28,13 +28,12 @@ export const NAV: NavItem[] = [
   { href: "/", label: "Home" },
   { href: "/leaderboard", label: "Leaderboard" },
   {
-    href: "/store",
+    href: "/challenges",
     label: "Rewards",
     children: [
-      { href: "/store", label: "Store", hint: "Spend your points" },
       { href: "/challenges", label: "Challenges", hint: "First to hit the multi wins" },
       { href: "/vip-transfer", label: "VIP Transfer", hint: "Bring your VIP status to Qzino" },
-      { href: "/raffles", label: "Raffles", hint: "Tickets for prizes" },
+      { href: "/milestones", label: "Milestones", hint: "Monthly cash for your points" },
     ],
   },
   {
@@ -53,10 +52,9 @@ export const NAV: NavItem[] = [
 export const NAV_FLAT = [
   { href: "/", label: "Home" },
   { href: "/leaderboard", label: "Leaderboard" },
-  { href: "/store", label: "Store" },
   { href: "/challenges", label: "Challenges" },
   { href: "/vip-transfer", label: "VIP Transfer" },
-  { href: "/raffles", label: "Raffles" },
+  { href: "/milestones", label: "Milestones" },
   { href: "/stream", label: "Stream" },
   { href: "/clips", label: "Clips" },
   { href: "/bonus-hunts", label: "Bonus hunts" },

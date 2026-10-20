@@ -3,9 +3,8 @@
 import Link from "next/link";
 import { AnimatePresence, motion } from "motion/react";
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
-import { Bell, ChevronDown, Coins, Gift, LogOut, Radio, ShoppingBag, Trophy, User } from "lucide-react";
+import { Bell, ChevronDown, Crown, Gift, LogOut, Radio, ShoppingBag, Target, Trophy, User } from "lucide-react";
 import { PromoSteps } from "@/components/promo/PromoSteps";
-import { RankBadge } from "@/components/ui/RankBadge";
 
 // Navbar actions: gift (how to claim the Qzino code), bell (site events and
 // the viewer's own updates; unread = not opened yet on this browser) and the
@@ -163,18 +162,14 @@ function UserMenu({ viewer }: { viewer: NavViewer }) {
         <ChevronDown className={`size-4 text-muted transition ${open ? "rotate-180" : ""}`} />
       </button>
       <Pop open={open} width="w-64">
-        <div className="flex items-center gap-3 rounded-xl bg-bg-2 p-3">
-          <RankBadge level={viewer.level} compact />
-          <span className="min-w-0 flex-1">
-            <span className="block truncate font-head font-bold">{viewer.name}</span>
-            <span className="flex items-center gap-1 font-mono text-sm text-neon"><Coins className="size-3.5" /> {viewer.points.toLocaleString("en-US")} pts</span>
-          </span>
+        <div className="rounded-xl bg-bg-2 p-3">
+          <span className="block truncate font-head font-bold">{viewer.name}</span>
         </div>
         <nav className="mt-2 space-y-0.5 text-sm">
           {[
             { href: "/account", label: "My account", icon: User },
-            { href: "/store", label: "Points store", icon: ShoppingBag },
-            { href: "/ranks", label: "My rank", icon: Trophy },
+            { href: "/challenges", label: "Challenges", icon: Target },
+            { href: "/vip-transfer", label: "VIP Transfer", icon: Crown },
           ].map((l) => (
             <Link key={l.href} href={l.href} onClick={close} className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted transition hover:bg-surface-2 hover:text-text">
               <l.icon className="size-4" /> {l.label}

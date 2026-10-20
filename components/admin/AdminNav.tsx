@@ -2,25 +2,22 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Award, Crosshair, Crown, Flag, Gamepad2, Gauge, MessagesSquare, Radio, ScrollText, ShoppingBag, Swords, Target, Ticket, Trophy, Users } from "lucide-react";
+import { Crosshair, Crown, Flag, Gamepad2, Gauge, MessagesSquare, Radio, ScrollText, Swords, Target, Trophy, Users } from "lucide-react";
 
 const GROUPS = [
   { title: "", links: [{ href: "/admin", label: "Dashboard", icon: Gauge }] },
   {
     title: "Players",
     links: [
-      { href: "/admin/users", label: "Users & points", icon: Users },
+      { href: "/admin/users", label: "Users", icon: Users },
       { href: "/admin/vip", label: "VIP Transfer", icon: Crown },
-      { href: "/admin/ranks", label: "Ranks", icon: Award },
     ],
   },
   {
     title: "Rewards",
     links: [
       { href: "/admin/leaderboard", label: "Leaderboard prizes", icon: Trophy },
-      { href: "/admin/store", label: "Store", icon: ShoppingBag },
       { href: "/admin/challenges", label: "Challenges", icon: Target },
-      { href: "/admin/raffles", label: "Raffles", icon: Ticket },
       { href: "/admin/milestones", label: "Milestones", icon: Flag },
     ],
   },

@@ -5,7 +5,7 @@ import Link from "next/link";
 import { motion, useReducedMotion, useScroll, useTransform } from "motion/react";
 import { useRef } from "react";
 import { ArrowRight, Trophy } from "lucide-react";
-import { DripEdge, Paw } from "@/components/decor/shapes";
+import { Paw } from "@/components/decor/shapes";
 import { CopyCode } from "@/components/ui/CopyCode";
 import { useSiteReady } from "@/components/shell/siteReady";
 import { HeroBackdrop } from "./HeroBackdrop";
@@ -33,9 +33,8 @@ export function Hero({ code, qzinoUrl, pool }: { code: string; qzinoUrl: string;
       className="relative isolate -mt-[calc(var(--nav-h)+1.5rem)] pt-[calc(var(--nav-h)+2rem)]"
     >
       {/* band */}
-      <div className="absolute inset-x-0 top-0 bottom-16 -z-10 overflow-hidden sm:bottom-24">
+      <div className="absolute inset-0 -z-10 overflow-hidden">
         <HeroBackdrop y={bgY} />
-        <div className="absolute inset-x-0 bottom-0 h-32 bg-gradient-to-b from-transparent to-[#061505]" />
       </div>
 
       <div className="relative mx-auto flex max-w-6xl flex-col items-center px-4 pb-16 text-center sm:px-6 sm:pb-20">
@@ -88,7 +87,7 @@ export function Hero({ code, qzinoUrl, pool }: { code: string; qzinoUrl: string;
 
         <p style={{ "--d": "0.35s" } as React.CSSProperties} className="hero-intro mx-auto mt-6 max-w-xl text-base text-text/80 sm:text-lg">
           Play on Qzino with code <span className="font-mono font-bold text-neon">{code}</span> for a <b>$50 bonus</b>, a monthly leaderboard,
-          slot challenges and a points store that pays you back.
+          slot challenges and VIP transfers.
         </p>
 
         <div style={{ "--d": "0.5s" } as React.CSSProperties} className="hero-intro mt-8 flex flex-col items-center gap-4 sm:flex-row">
@@ -117,11 +116,6 @@ export function Hero({ code, qzinoUrl, pool }: { code: string; qzinoUrl: string;
         </div>
       </div>
 
-      {/* slime dripping into the page */}
-      <div className="relative -mt-px h-16 sm:h-24" aria-hidden>
-        <DripEdge className="absolute inset-0 size-full translate-y-[3px] text-neon/80" />
-        <DripEdge className="absolute inset-0 size-full text-[#061505]" />
-      </div>
     </section>
   );
 }

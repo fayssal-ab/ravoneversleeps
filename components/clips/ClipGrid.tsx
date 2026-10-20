@@ -2,7 +2,7 @@
 
 import { AnimatePresence, motion } from "motion/react";
 import { ExternalLink, Eye, Play, X } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import type { Clip } from "@/lib/clips";
 
@@ -50,15 +50,58 @@ function Player({ clip }: { clip: Clip }) {
   return <video ref={ref} controls playsInline poster={clip.thumbnail} onError={() => setFailed(true)} className="size-full bg-black object-contain" />;
 }
 
-export function ClipGrid({ clips }: { clips: Clip[] }) {
-  const [open, setOpen] = useState<Clip | null>(null);
+/** Clip player in a modal (portal, Esc/backdrop to close). */
+export function ClipModal({ clip, onClose }: { clip: Clip | null; onClose: () => void }) {
   useEffect(() => {
-    if (!open) return;
-    const esc = (e: KeyboardEvent) => { if (e.key === "Escape") setOpen(null); };
+    if (!clip) return;
+    const esc = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
     document.addEventListener("keydown", esc);
     document.documentElement.style.overflow = "hidden";
     return () => { document.removeEventListener("keydown", esc); document.documentElement.style.overflow = ""; };
-  }, [open]);
+  }, [clip, onClose]);
+  if (typeof document === "undefined") return null;
+  return (
+    <>
+      {/* portal: above the fixed navbar, outside the page's stacking context */}
+      {createPortal(
+      <AnimatePresence>
+        {clip && (
+          <motion.div
+            role="dialog" aria-modal aria-label={clip.title}
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[100] grid place-items-center bg-black/85 p-3 backdrop-blur-sm sm:p-8"
+            onClick={() => onClose()}
+          >
+            <motion.div
+              initial={{ scale: 0.96, y: 10 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.96, y: 10 }}
+              className="w-full max-w-5xl overflow-hidden rounded-2xl border border-line-hot bg-surface"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="aspect-video"><Player clip={clip} /></div>
+              <div className="flex flex-wrap items-center justify-between gap-3 p-4">
+                <div className="min-w-0">
+                  <p className="truncate font-head text-lg font-bold">{clip.title}</p>
+                  <p className="text-xs text-muted">{clip.views.toLocaleString("en-US")} views{clip.creator && ` · clipped by ${clip.creator}`}</p>
+                </div>
+                <div className="flex gap-2">
+                  <a href={clip.url} target="_blank" rel="noopener noreferrer" className="btn btn-ghost btn-sm"><ExternalLink className="size-4" /> On Kick</a>
+                  <button type="button" onClick={() => onClose()} className="btn btn-neon btn-sm" aria-label="Close"><X className="size-4" /> Close</button>
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>, document.body)}
+    </>
+  );
+}
+
+export const clipDuration = dur;
+export const clipAgo = ago;
+
+export function ClipGrid({ clips }: { clips: Clip[] }) {
+  const [open, setOpen] = useState<Clip | null>(null);
+  const close = useCallback(() => setOpen(null), []);
 
   return (
     <>
@@ -89,36 +132,7 @@ export function ClipGrid({ clips }: { clips: Clip[] }) {
         ))}
       </ul>
 
-      {/* portal: above the fixed navbar, outside the page's stacking context */}
-      {typeof document !== "undefined" && createPortal(
-      <AnimatePresence>
-        {open && (
-          <motion.div
-            role="dialog" aria-modal aria-label={open.title}
-            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[100] grid place-items-center bg-black/85 p-3 backdrop-blur-sm sm:p-8"
-            onClick={() => setOpen(null)}
-          >
-            <motion.div
-              initial={{ scale: 0.96, y: 10 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.96, y: 10 }}
-              className="w-full max-w-5xl overflow-hidden rounded-2xl border border-line-hot bg-surface"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div className="aspect-video"><Player clip={open} /></div>
-              <div className="flex flex-wrap items-center justify-between gap-3 p-4">
-                <div className="min-w-0">
-                  <p className="truncate font-head text-lg font-bold">{open.title}</p>
-                  <p className="text-xs text-muted">{open.views.toLocaleString("en-US")} views{open.creator && ` · clipped by ${open.creator}`}</p>
-                </div>
-                <div className="flex gap-2">
-                  <a href={open.url} target="_blank" rel="noopener noreferrer" className="btn btn-ghost btn-sm"><ExternalLink className="size-4" /> On Kick</a>
-                  <button type="button" onClick={() => setOpen(null)} className="btn btn-neon btn-sm" aria-label="Close"><X className="size-4" /> Close</button>
-                </div>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>, document.body)}
+      <ClipModal clip={open} onClose={close} />
     </>
   );
 }

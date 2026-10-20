@@ -27,7 +27,7 @@ export default async function VipTransferPage({ searchParams }: { searchParams: 
       <Flash ok={sp.ok} error={sp.error} detail={sp.detail} okText="Application sent! Your private Discord ticket is open: post your VIP proof there (link in the Apply section)." />
       {/* hero */}
       <section className="relative isolate overflow-hidden rounded-[2rem] border border-line-hot px-6 py-16 text-center sm:px-12 sm:py-24">
-        <Image src="/media/hero/bg.webp" alt="" fill priority sizes="(min-width: 1152px) 1152px, 100vw" className="-z-10 object-cover opacity-50" />
+        <Image src="/media/hero/bg-3d.webp" alt="" fill priority sizes="(min-width: 1152px) 1152px, 100vw" className="-z-10 object-cover opacity-50" />
         <div className="absolute inset-0 -z-10 bg-[radial-gradient(ellipse_at_50%_40%,rgb(4_10_5/0.35),rgb(4_10_5/0.92)_70%)]" />
         <p className="eyebrow">Qzino VIP Transfer</p>
         <h1 className="mt-4 font-display text-6xl leading-[0.9] sm:text-8xl"><span className="chrome">VIP</span> <span className="neon-text">Transfer</span></h1>

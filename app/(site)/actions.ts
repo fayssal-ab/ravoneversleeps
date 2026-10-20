@@ -7,9 +7,7 @@ import { saveQzinoUsername } from "@/lib/account";
 import { claimChallenge, qzinoStatusOf, requestQzinoVerification } from "@/lib/verification";
 import { applyVipTransfer, WAGER_RANGES } from "@/lib/vip";
 import { claimMilestone } from "@/lib/milestones";
-import { buyTickets } from "@/lib/raffles";
 import { rateLimit } from "@/lib/ratelimit";
-import { redeemItem } from "@/lib/store";
 import { AppError, parseForm, zId } from "@/lib/tx";
 import { currentAccountId } from "@/lib/userAuth";
 
@@ -34,17 +32,6 @@ async function run(path: string, ok: string, fn: (accountId: number) => Promise<
   }
   revalidatePath("/", "layout");
   redirect(`${path}?${query}`);
-}
-
-export async function redeemAction(form: FormData) {
-  await run("/store", "redeemed", (id) => redeemItem(id, parseForm(z.object({ item: zId }), form).item));
-}
-
-export async function buyTicketsAction(form: FormData) {
-  await run("/raffles", "tickets", (id) => {
-    const v = parseForm(z.object({ raffle: zId, count: z.coerce.number().int().min(1).max(1000) }), form);
-    return buyTickets(id, v.raffle, v.count);
-  });
 }
 
 export async function saveQzinoAction(form: FormData) {

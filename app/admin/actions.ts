@@ -11,64 +11,14 @@ import { decideVerification } from "@/lib/verification";
 import { discordSetup } from "@/lib/discordBot";
 import { saveTopPrizes } from "@/lib/leaderboardPrizes";
 import { decideVipApplication } from "@/lib/vip";
-import { cancelRaffle, createRaffle, deleteRaffle, drawRaffle } from "@/lib/raffles";
-import { deleteStoreItem, resolveRedemption, saveStoreItem } from "@/lib/store";
-import { AppError, DECIMAL_20_8, parseForm, zId, zLevel, zPoints, zRequiredText, zText, zUtcDateTime } from "@/lib/tx";
-import { adjustPoints, adminSetQzino, bulkGrant, saveRanks, setBanned } from "@/lib/userAdmin";
+import { AppError, DECIMAL_20_8, parseForm, zId, zRequiredText, zText } from "@/lib/tx";
+import { adminSetQzino, setBanned } from "@/lib/userAdmin";
 
 // Admin Server Actions. adminAction re-checks the session, writes the audit
 // log and redirects back with ?ok= / ?error=.
 
-const optionalId = z.union([z.literal(""), zId]).transform((v) => (v === "" ? null : v));
 const checkbox = z.literal("on").optional().transform((v) => v === "on");
 
-/** "name,amount" per line (also tab or ; separated). Header lines are skipped. */
-function parseLines(raw: string, amount: RegExp): { name: string; value: string }[] {
-  const out: { name: string; value: string }[] = [];
-  for (const [i, line] of raw.split(/\r?\n/).entries()) {
-    const t = line.trim();
-    if (!t) continue;
-    const parts = t.split(/[,;\t]/).map((s) => s.trim().replace(/^"|"$/g, ""));
-    const name = parts[0];
-    const value = (parts[1] ?? "").replace(/[$\s]/g, "");
-    if (!amount.test(value)) {
-      if (i === 0) continue; // header row
-      throw new AppError("invalid_input", `line ${i + 1}: "${t.slice(0, 60)}"`);
-    }
-    if (!name || name.length > 64) throw new AppError("invalid_input", `line ${i + 1}: bad name`);
-    out.push({ name, value });
-  }
-  if (!out.length) throw new AppError("invalid_input", "no rows found");
-  return out;
-}
-
-// ── store ──────────────────────────────────────────────────────────────
-export async function saveItemAction(form: FormData) {
-  await adminAction({ path: "/admin/store", audit: "store.item.save", revalidate: ["/store", "/"] }, async () => {
-    const v = parseForm(z.object({
-      id: optionalId, name: zRequiredText(120), description: zText(500), kind: z.enum(["cash", "bonus", "merch", "other"]),
-      price: zPoints, min_rank: zLevel, stock: z.union([z.literal(""), z.coerce.number().int().min(0).max(1_000_000)]).transform((s) => (s === "" ? null : s)),
-      sort: z.coerce.number().int().min(-1000).max(1000), active: checkbox,
-    }), form);
-    return { id: await saveStoreItem(v.id, v), name: v.name };
-  });
-}
-
-export async function deleteItemAction(form: FormData) {
-  await adminAction({ path: "/admin/store", audit: "store.item.delete", revalidate: ["/store", "/"] }, async () => {
-    const { id } = parseForm(z.object({ id: zId }), form);
-    await deleteStoreItem(id);
-    return { id };
-  });
-}
-
-export async function resolveRedemptionAction(form: FormData) {
-  await adminAction({ path: "/admin/store", audit: "store.redemption.resolve", revalidate: ["/store"] }, async () => {
-    const v = parseForm(z.object({ id: zId, status: z.enum(["fulfilled", "rejected"]), note: zText(255) }), form);
-    await resolveRedemption(v.id, v.status, v.note);
-    return v;
-  });
-}
 
 // ── users ──────────────────────────────────────────────────────────────
 /** Back to the same Users tab/search/sort (only /admin/users URLs). */
@@ -77,66 +27,11 @@ function usersBack(form: FormData): string {
   return /^\/admin\/users(\?[\w=&%.+-]*)?$/.test(back) ? back : "/admin/users";
 }
 
-export async function adjustPointsAction(form: FormData) {
-  await adminAction({ path: usersBack(form), audit: "points.adjust" }, async () => {
-    const v = parseForm(z.object({ id: zId, delta: z.coerce.number().int().min(-1_000_000_000).max(1_000_000_000), note: zText(255) }), form);
-    await adjustPoints(v.id, v.delta, v.note || "Admin adjustment");
-    return v;
-  });
-}
-
-export async function bulkGrantAction(form: FormData) {
-  await adminAction({ path: "/admin/users?tab=drop", audit: "points.bulk", ok: "bulk" }, async () => {
-    const v = parseForm(z.object({ csv: zRequiredText(200_000), note: zText(255) }), form);
-    const lines = parseLines(v.csv, /^\d{1,9}$/).map((l) => ({ name: l.name, points: Number(l.value) }));
-    const res = await bulkGrant(lines, v.note || "Points drop");
-    // the known names are already credited; report the rest
-    if (res.unknown.length) throw new AppError("unknown_user", `granted ${res.granted}; not found: ${res.unknown.slice(0, 20).join(", ")}`);
-    return res;
-  });
-}
-
 export async function userFlagsAction(form: FormData) {
   await adminAction({ path: usersBack(form), audit: "user.update" }, async () => {
     const v = parseForm(z.object({ id: zId, qzino: z.string().trim().max(64), banned: checkbox }), form);
     await adminSetQzino(v.id, v.qzino);
     await setBanned(v.id, v.banned);
-    return v;
-  });
-}
-
-// ── ranks ──────────────────────────────────────────────────────────────
-export async function saveRanksAction(form: FormData) {
-  await adminAction({ path: "/admin/ranks", audit: "ranks.save", revalidate: ["/ranks", "/store"] }, async () => {
-    const rows: { level: number; name: string; min_xp: number }[] = [];
-    for (let level = 1; level <= 40; level++) {
-      const name = String(form.get(`name_${level}`) ?? "").trim();
-      const xp = Number(form.get(`xp_${level}`));
-      if (!name || name.length > 64 || !Number.isSafeInteger(xp) || xp < 0) throw new AppError("invalid_input", `level ${level}`);
-      rows.push({ level, name, min_xp: xp });
-    }
-    await saveRanks(rows);
-    return { levels: rows.length };
-  });
-}
-
-// ── raffles ────────────────────────────────────────────────────────────
-export async function createRaffleAction(form: FormData) {
-  await adminAction({ path: "/admin/raffles", audit: "raffle.create", revalidate: ["/raffles", "/"] }, async () => {
-    const v = parseForm(z.object({
-      title: zRequiredText(120), prize: zRequiredText(120), cost: zPoints, max_tickets: z.coerce.number().int().min(1).max(1000),
-      min_rank: zLevel, winners: z.coerce.number().int().min(1).max(100), ends_at: zUtcDateTime,
-    }), form);
-    return { id: await createRaffle(v), title: v.title };
-  });
-}
-
-export async function raffleOpAction(form: FormData) {
-  await adminAction({ path: "/admin/raffles", audit: `raffle.${String(form.get("op"))}`.slice(0, 64), revalidate: ["/raffles", "/"] }, async () => {
-    const v = parseForm(z.object({ id: zId, op: z.enum(["draw", "cancel", "delete"]) }), form);
-    if (v.op === "draw") return { id: v.id, winners: await drawRaffle(v.id) };
-    if (v.op === "cancel") await cancelRaffle(v.id);
-    else await deleteRaffle(v.id);
     return v;
   });
 }
