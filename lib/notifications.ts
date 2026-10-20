@@ -43,7 +43,7 @@ export async function getNotifications(accountId: number | null): Promise<Note[]
     if (acc?.qzino_username && (acc.qzino_status === "verified" || acc.qzino_status === "rejected" || acc.qzino_status === "pending")) notes.push({
       id: `qzino-${acc.qzino_status}`, kind: "personal",
       title: acc.qzino_status === "verified" ? "Qzino username verified" : acc.qzino_status === "rejected" ? "Qzino username not verified" : "Qzino username under review",
-      body: acc.qzino_status === "verified" ? "Store, milestones and challenges are unlocked." : acc.qzino_status === "rejected" ? "Correct it on your account page." : "Check your Discord ticket.",
+      body: acc.qzino_status === "verified" ? "Challenges are unlocked." : acc.qzino_status === "rejected" ? "Correct it on your account page." : "Check your Discord ticket.",
       href: "/account", at: now,
     });
     if (vip) notes.push({
@@ -51,15 +51,6 @@ export async function getNotifications(accountId: number | null): Promise<Note[]
       title: vip.status === "approved" ? "VIP Transfer approved" : vip.status === "rejected" ? "VIP Transfer not approved" : "VIP Transfer under review",
       body: vip.admin_note ? String(vip.admin_note) : String(vip.casino),
       href: "/vip-transfer", at: String(vip.updated_at),
-    });
-    const [claims] = await Promise.all([
-      safe(async () => (await pool.query<RowDataPacket[]>("SELECT id, milestone_name, reward, status, admin_note, updated_at FROM milestone_claims WHERE account_id = ? ORDER BY updated_at DESC LIMIT 5", [accountId]))[0], [] as RowDataPacket[]),
-    ]);
-    for (const c of claims) notes.push({
-      id: `claim-${c.id}-${c.status}`, kind: "personal",
-      title: c.status === "paid" ? `Milestone paid: ${c.milestone_name}` : c.status === "rejected" ? `Milestone claim rejected: ${c.milestone_name}` : `Milestone claimed: ${c.milestone_name}`,
-      body: c.admin_note ? String(c.admin_note) : `$${Number(c.reward).toLocaleString("en-US")} reward`,
-      href: "/milestones", at: String(c.updated_at),
     });
   }
   return notes.sort((a, b) => (a.kind === "live" ? -1 : b.kind === "live" ? 1 : b.at.localeCompare(a.at))).slice(0, 12);

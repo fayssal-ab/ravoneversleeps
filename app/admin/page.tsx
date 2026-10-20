@@ -1,8 +1,7 @@
 import Link from "next/link";
-import { ArrowRight, CheckCircle2, Crosshair, Crown, Flag, Gamepad2, MessagesSquare, Radio, Swords, Target, Trophy, Users } from "lucide-react";
+import { ArrowRight, CheckCircle2, Crosshair, Crown, Gamepad2, MessagesSquare, Radio, Swords, Target, Trophy, Users } from "lucide-react";
 import { AdminTitle } from "@/components/admin/ui";
 import { getStats } from "@/lib/userAdmin";
-import { listClaims } from "@/lib/milestones";
 import { openChallengeClaimCount, pendingVerifications } from "@/lib/verification";
 import { listVipApplications } from "@/lib/vip";
 
@@ -11,7 +10,6 @@ const SECTIONS = [
   { href: "/admin/vip", icon: Crown, label: "VIP Transfer", body: "Approve or reject VIP applications." },
   { href: "/admin/leaderboard", icon: Trophy, label: "Leaderboard prizes", body: "Top-3 prizes shown on the board." },
   { href: "/admin/challenges", icon: Target, label: "Challenges", body: "Create slot challenges, pick winners." },
-  { href: "/admin/milestones", icon: Flag, label: "Milestones", body: "Point goals and cash-out claims." },
   { href: "/admin/tournaments", icon: Swords, label: "Tournament", body: "Run the knockout bracket live." },
   { href: "/admin/hunts", icon: Crosshair, label: "Bonus hunts", body: "Track bonuses and wins on stream." },
   { href: "/admin/stream", icon: Radio, label: "Stream & schedule", body: "Weekly schedule and live status." },
@@ -20,15 +18,14 @@ const SECTIONS = [
 ];
 
 export default async function AdminDashboard() {
-  const [stats, claims, toVerify, vip, chClaims] = await Promise.all([
-    getStats(), listClaims({ status: "pending", limit: 100 }),
+  const [stats, toVerify, vip, chClaims] = await Promise.all([
+    getStats(),
     pendingVerifications().catch(() => []), listVipApplications("pending").catch(() => []), openChallengeClaimCount().catch(() => 0),
   ]);
   const todo = [
     { n: toVerify.length, label: "Qzino username", verb: "to verify", href: "/admin/users?tab=verify" },
     { n: vip.length, label: "VIP application", verb: "to review", href: "/admin/vip" },
     { n: chClaims, label: "challenge claim", verb: "to check", href: "/admin/challenges" },
-    { n: claims.length, label: "milestone claim", verb: "to pay", href: "/admin/milestones" },
   ].filter((t) => t.n > 0);
 
   return (

@@ -14,17 +14,6 @@ const STORE: { min_rank: number; price: number; name: string; kind: "cash" | "bo
   { min_rank: 1, price: 400, name: "$100 bonus buy split", kind: "bonus", description: "Ravo opens a $100 bonus buy on stream for you and splits the win with you." },
 ];
 
-const MILESTONES: [string, number, number][] = [
-  ["Dreamer", 5_000, 10],
-  ["Restless", 10_000, 25],
-  ["Night Owl", 25_000, 50],
-  ["Insomniac", 50_000, 75],
-  ["Midnight", 100_000, 150],
-  ["Nocturnal", 250_000, 300],
-  ["Sleepless", 500_000, 500],
-  ["Never Sleeps", 1_000_000, 1_000],
-];
-
 async function main() {
   const conn = await mysql.createConnection({
     host: process.env.DB_HOST ?? "127.0.0.1",
@@ -52,16 +41,6 @@ async function main() {
     console.log(`store: ${STORE.length} items added`);
   } else {
     console.log("store: already has items, left alone");
-  }
-  // Wager milestones: placeholders to edit in Admin → Milestones before launch.
-  const [[{ m }]] = await conn.query<mysql.RowDataPacket[]>("SELECT COUNT(*) AS m FROM milestones");
-  if (Number(m) === 0) {
-    for (const [name, wager, reward] of MILESTONES) {
-      await conn.query("INSERT INTO milestones (name, min_wager, reward) VALUES (?, ?, ?)", [name, wager, reward]);
-    }
-    console.log(`milestones: ${MILESTONES.length} added`);
-  } else {
-    console.log("milestones: already set, left alone");
   }
   await conn.end();
 }

@@ -6,20 +6,20 @@ a casino and takes no deposits.
 
 ## Pages
 
-Navigation: Home · Leaderboard · **Rewards** (Challenges, VIP Transfer,
-Milestones) · **Stream** (Watch live, Clips, Bonus hunts, Tournaments).
+Navigation: Home · Leaderboard · **Rewards** (Challenges, VIP Transfer) ·
+**Stream** (Watch live, Clips, Bonus hunts, Tournaments).
 The points store, raffles and ranks were removed (their tables stay in the DB).
+Milestones were removed too; migration 0017 drops their tables.
 
 - **Home**: playable RAVO slot hero, Kick clips strip, leaderboard (top-3 prizes set in admin), Qzino card, stream, VIP teaser.
 - **Clips**: Ravo's Kick clips, played on the site (hls.js).
 - **Leaderboard**: Q-boards points board (podium, countdown, search, rules) with a monthly archive.
 - **Challenges**: "first to hit Nx on a slot wins $X"; claiming opens a Discord proof ticket.
 - **VIP Transfer**: Qzino VIP benefits and an application form reviewed in a Discord ticket.
-- **Stream**: Kick player when live (animated pixel banner when offline) and the weekly schedule.
+- **Stream**: Kick player when live (Ravo's pug film when offline) and the weekly schedule.
 - **Bonus hunts**: live hunt tracker with stats, biggest multi and break-even multi.
 - **Tournaments**: solo (1v1) or duo (2v2) knockout from `!join` in Kick chat; tall OBS overlay.
-- **Account**: Discord (main) / Kick sign-in, Qzino username + verification, points history.
-- Not in the menu: **Milestones** (`/milestones`, monthly points milestones) and **Ranks** (`/ranks`).
+- **Account**: Discord-only sign-in, Kick linked from the account page, Qzino username + ownership verification.
 
 Admin lives at **`/login`**. Credentials are `ADMIN_USERNAME` / `ADMIN_PASSWORD`.
 Every admin change is written to the audit log.
@@ -45,7 +45,7 @@ Fonts come from Google via `next/font`:
 cp .env.example .env.local   # DB_*, ADMIN_*, SESSION_SECRET, …
 npm install
 npm run migrate              # creates the DB if allowed + applies db/migrations/*
-npm run seed                 # ranks, store rewards, starter milestones
+npm run seed                 # ranks, store rewards
 npm run dev
 ```
 
@@ -70,9 +70,6 @@ route every 8 hours (00:00, 08:00, 16:00 UTC). Set a strong `CRON_SECRET`
 (Functions scope too). Other hosts can call `/api/cron/leaderboard` with
 `Authorization: Bearer <CRON_SECRET>`. Failed syncs keep the last snapshot; the
 page flags a delay after 9 hours.
-
-Milestones use the viewer's points in the running event (matched by Qzino
-username), one claim per milestone per event month.
 
 ## Kick (tournament `!join`)
 

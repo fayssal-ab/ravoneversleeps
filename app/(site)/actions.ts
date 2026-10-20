@@ -6,7 +6,6 @@ import { z } from "zod";
 import { saveQzinoUsername } from "@/lib/account";
 import { claimChallenge, qzinoStatusOf, requestQzinoVerification } from "@/lib/verification";
 import { applyVipTransfer, WAGER_RANGES } from "@/lib/vip";
-import { claimMilestone } from "@/lib/milestones";
 import { rateLimit } from "@/lib/ratelimit";
 import { AppError, parseForm, zId } from "@/lib/tx";
 import { currentAccountId } from "@/lib/userAuth";
@@ -45,9 +44,6 @@ export async function saveQzinoAction(form: FormData) {
   });
 }
 
-export async function claimMilestoneAction(form: FormData) {
-  await run("/milestones", "claimed", (id) => claimMilestone(id, parseForm(z.object({ milestone: zId }), form).milestone));
-}
 
 export async function claimChallengeAction(form: FormData) {
   await run("/challenges", "claimed", (id) => claimChallenge(id, parseForm(z.object({ challenge: zId }), form).challenge));

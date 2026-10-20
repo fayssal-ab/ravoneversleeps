@@ -33,7 +33,6 @@ export const NAV: NavItem[] = [
     children: [
       { href: "/challenges", label: "Challenges", hint: "First to hit the multi wins" },
       { href: "/vip-transfer", label: "VIP Transfer", hint: "Bring your VIP status to Qzino" },
-      { href: "/milestones", label: "Milestones", hint: "Monthly cash for your points" },
     ],
   },
   {
@@ -54,7 +53,6 @@ export const NAV_FLAT = [
   { href: "/leaderboard", label: "Leaderboard" },
   { href: "/challenges", label: "Challenges" },
   { href: "/vip-transfer", label: "VIP Transfer" },
-  { href: "/milestones", label: "Milestones" },
   { href: "/stream", label: "Stream" },
   { href: "/clips", label: "Clips" },
   { href: "/bonus-hunts", label: "Bonus hunts" },

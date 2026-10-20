@@ -15,8 +15,8 @@ import { AppError } from "./tx";
 // someone else's screenshot. An admin verifies or rejects it in Admin →
 // Users, seeing the linked Discord + Kick, the username's leaderboard
 // standing and any other account claiming the same username. A username is
-// only ever verified on one account. Store rewards, milestones and challenge
-// claims need a verified username.
+// only ever verified on one account. Challenge claims need a verified
+// username.
 
 export type QzinoStatus = "none" | "pending" | "verified" | "rejected";
 
@@ -172,7 +172,7 @@ export async function decideVerification(accountId: number, verified: boolean, r
     "UPDATE user_accounts SET qzino_status = ?, qzino_note = ? WHERE id = ? AND qzino_status = 'pending'", [verified ? "verified" : "rejected", note, accountId]);
   if (!res.affectedRows) throw new AppError("invalid_input", "not pending");
   await scheduleClose(me[0].qzino_ticket ? String(me[0].qzino_ticket) : null, verified
-    ? "✅ Your Qzino username is **verified**. Store rewards, milestones and challenges are unlocked."
+    ? "✅ Your Qzino username is **verified**. Challenges are unlocked."
     : `❌ We couldn't verify this Qzino username: ${note} Update it on your account page to try again.`);
   if (verified) {
     // the username is taken now: every other claim on it is turned down

@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Image from "next/image";
-import { BadgeCheck, Check, Clock, ExternalLink, ShieldCheck, Trophy, Target, Crown, Flag, XCircle } from "lucide-react";
+import { BadgeCheck, Check, Clock, ExternalLink, ShieldCheck, Trophy, Target, Crown, XCircle } from "lucide-react";
 import { LogoutButton } from "@/components/account/LogoutButton";
 import { DiscordIcon, KickIcon, LinkKickButton, SignInButtons } from "@/components/account/SignInPanel";
 import { Flash } from "@/components/ui/bits";
@@ -14,7 +14,6 @@ export const dynamic = "force-dynamic";
 
 const PERKS = [
   { icon: Target, text: "Claim slot challenges" },
-  { icon: Flag, text: "Cash out points milestones" },
   { icon: Crown, text: "Apply for a VIP Transfer" },
   { icon: Trophy, text: "Get your Qzino username verified" },
 ];
@@ -44,7 +43,7 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
             <p className="font-head text-xs font-bold uppercase tracking-[0.25em] text-neon">Join the pack</p>
             <h1 className="mt-2 font-display text-5xl leading-[0.9] sm:text-6xl"><span className="chrome">Sign in</span></h1>
             <p className="mt-3 max-w-sm text-sm text-muted">One click with Discord. Your account unlocks everything on RAVO:</p>
-            <ul className="mt-5 grid gap-2 sm:grid-cols-2">
+            <ul className="mt-5 grid gap-2">
               {PERKS.map((p) => (
                 <li key={p.text} className="flex items-center gap-2.5 rounded-xl border border-white/[0.06] bg-white/[0.02] px-3 py-2.5 text-sm">
                   <span className="grid size-7 shrink-0 place-items-center rounded-lg bg-neon/10 text-neon"><p.icon className="size-4" /></span>
@@ -153,7 +152,7 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
               <p className="mt-1 text-muted">{qz.note ?? "We couldn't verify this username."} Save it again to get a new code and try once more.</p>
             </div>
           )}
-          <p className="mt-4 text-xs text-dim">Needed for milestones and challenges. Each Qzino username can only be verified on one account, so nobody can use someone else&apos;s.</p>
+          <p className="mt-4 text-xs text-dim">Needed for challenges. Each Qzino username can only be verified on one account, so nobody can use someone else&apos;s.</p>
         </section>
 
         {/* connections */}

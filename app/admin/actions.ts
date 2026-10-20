@@ -4,7 +4,6 @@ import { z } from "zod";
 import { adminAction } from "@/lib/admin";
 import { addBonus, createHunt, deleteBonus, deleteHunt, finishHunt, moveBonus, reopenHunt, setBonusWin, updateHunt } from "@/lib/hunts";
 import { syncCatalog, upgradeTypedSlots } from "@/lib/slots";
-import { deleteClaim, resolveClaim, saveMilestones } from "@/lib/milestones";
 import { addSlot, deleteSlot } from "@/lib/stream";
 import { createChallenge, deleteChallenge, markChallengeWon, setChallengeStatus } from "@/lib/challenges";
 import { decideVerification, REJECT_REASONS, type RejectReason } from "@/lib/verification";
@@ -32,34 +31,6 @@ export async function userFlagsAction(form: FormData) {
     const v = parseForm(z.object({ id: zId, qzino: z.string().trim().max(64), banned: checkbox }), form);
     await adminSetQzino(v.id, v.qzino);
     await setBanned(v.id, v.banned);
-    return v;
-  });
-}
-
-// ── milestones ─────────────────────────────────────────────────────────
-export async function saveMilestonesAction(form: FormData) {
-  await adminAction({ path: "/admin/milestones", audit: "milestones.save", revalidate: ["/milestones", "/"] }, async () => {
-    const rows: { id: number | null; name: string; min_wager: string; reward: string }[] = [];
-    for (let i = 0; i < 50; i++) {
-      const name = String(form.get(`name_${i}`) ?? "").trim();
-      const wager = String(form.get(`wager_${i}`) ?? "").trim();
-      const reward = String(form.get(`reward_${i}`) ?? "").trim();
-      if (!name && !wager && !reward) continue;
-      if (!name || name.length > 64 || !DECIMAL_20_8.test(wager) || !DECIMAL_20_8.test(reward)) throw new AppError("invalid_input", `row ${i + 1}`);
-      const id = String(form.get(`id_${i}`) ?? "");
-      rows.push({ id: /^\d+$/.test(id) ? Number(id) : null, name, min_wager: wager, reward });
-    }
-    if (new Set(rows.map((r) => Number(r.min_wager))).size !== rows.length) throw new AppError("invalid_input", "two milestones share the same wager");
-    await saveMilestones(rows);
-    return { count: rows.length };
-  });
-}
-
-export async function resolveClaimAction(form: FormData) {
-  await adminAction({ path: "/admin/milestones", audit: "milestones.claim", revalidate: ["/milestones"] }, async () => {
-    const v = parseForm(z.object({ id: zId, status: z.enum(["paid", "rejected", "delete"]), note: zText(255) }), form);
-    if (v.status === "delete") await deleteClaim(v.id);
-    else await resolveClaim(v.id, v.status, v.note);
     return v;
   });
 }
