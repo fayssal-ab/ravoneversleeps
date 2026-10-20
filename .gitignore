@@ -24,3 +24,6 @@ deploy.env
 # hosting env with real credentials (never commit)
 envofnetlify.txt
 .qa/
+
+# local 4K master of the pug film (not served by the site)
+/4K/

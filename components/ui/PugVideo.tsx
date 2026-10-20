@@ -2,9 +2,8 @@
 
 import { useEffect, useRef, useState } from "react";
 
-// Ravo's pug-run film (AI-upscaled to 4K). Nothing downloads until it is near
-// the screen; wide screens get the 4K file, phones the 1080p one. Pauses when
-// scrolled away; reduced motion keeps the poster.
+// Ravo's pug-run film (1080p). Nothing downloads until it is near the
+// screen; pauses when scrolled away; reduced motion keeps the poster.
 
 export function PugVideo({ className = "" }: { className?: string }) {
   const ref = useRef<HTMLVideoElement>(null);
@@ -31,7 +30,6 @@ export function PugVideo({ className = "" }: { className?: string }) {
 
   return (
     <video ref={ref} muted loop playsInline preload="none" poster="/media/pug-run-poster.jpg" aria-hidden className={className}>
-      {near && <source src="/media/pug-run-4k.mp4" type="video/mp4" media="(min-width: 1280px)" />}
       {near && <source src="/media/pug-run-1080.mp4" type="video/mp4" />}
     </video>
   );
