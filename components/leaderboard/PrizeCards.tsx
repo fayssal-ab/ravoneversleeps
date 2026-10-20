@@ -1,96 +1,93 @@
 "use client";
 
-import { motion, useMotionValue, useReducedMotion, useSpring, useTransform } from "motion/react";
-import { useState } from "react";
+import { motion, useMotionTemplate, useMotionValue, useReducedMotion, useSpring, useTransform } from "motion/react";
+import type { CSSProperties } from "react";
 import type { BoardRowView } from "./Board";
 
-// Top 3 as playing cards laid on a table: 2 · 1 · 3, the champion raised.
-// The card follows the pointer in 3D; hover, focus or tap flips it to show
-// the prize on its back. Transforms only (GPU), long eased transitions.
+// Top 3 as award plaques hanging on cables from a rail: 2 · 1 · 3, the
+// champion hung highest. Brushed-metal frame in the place colour, a dark glass
+// panel with screws, and the prize on a metal nameplate (always visible).
+// The plaques sway slightly at rest and swing toward the pointer around
+// their hanging point on soft springs, with a glare that follows it.
 
 const SLOTS = [
-  { place: 2, suit: "♥", label: "Runner-up", tilt: -6, lift: 28, color: "var(--color-silver)" },
-  { place: 1, suit: "♠", label: "Champion", tilt: 0, lift: 0, color: "var(--color-gold)" },
-  { place: 3, suit: "♣", label: "Third", tilt: 6, lift: 28, color: "var(--color-bronze)" },
+  { place: 2, suit: "♥", label: "Runner-up", drop: "3.5rem", color: "var(--color-silver)" },
+  { place: 1, suit: "♠", label: "Champion", drop: "1.5rem", color: "var(--color-gold)" },
+  { place: 3, suit: "♣", label: "Third", drop: "4.5rem", color: "var(--color-bronze)" },
 ] as const;
+
+const SOFT = { stiffness: 70, damping: 16, mass: 0.8 };
 
 const points = (n: number) => n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " pts";
 const money = (n: number) => "$" + n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
-function Corner({ place, suit, color, flip = false }: { place: number; suit: string; color: string; flip?: boolean }) {
-  return (
-    <span className={`absolute flex flex-col items-center leading-none ${flip ? "bottom-2 right-2 rotate-180 sm:bottom-3 sm:right-3" : "left-2 top-2 sm:left-3 sm:top-3"}`} style={{ color }}>
-      <span className="font-display text-lg sm:text-3xl">{place}</span>
-      <span className="text-xs sm:text-lg">{suit}</span>
-    </span>
-  );
-}
-
-function Card({ slot, row, prize, score, index }: {
+function Plaque({ slot, row, prize, score, index }: {
   slot: (typeof SLOTS)[number]; row?: BoardRowView; prize?: string; score: (n: number) => string; index: number;
 }) {
   const reduce = useReducedMotion();
-  const [flipped, setFlipped] = useState(false);
   const px = useMotionValue(0), py = useMotionValue(0);
-  const rx = useSpring(useTransform(py, [-0.5, 0.5], [8, -8]), { stiffness: 140, damping: 18 });
-  const ry = useSpring(useTransform(px, [-0.5, 0.5], [-10, 10]), { stiffness: 140, damping: 18 });
+  const rx = useSpring(useTransform(py, [-0.5, 0.5], [10, -6]), SOFT);
+  const ry = useSpring(useTransform(px, [-0.5, 0.5], [-14, 14]), SOFT);
+  const rz = useSpring(useTransform(px, [-0.5, 0.5], [2.5, -2.5]), SOFT);
+  const gx = useTransform(px, [-0.5, 0.5], ["10%", "90%"]);
+  const gy = useTransform(py, [-0.5, 0.5], ["0%", "100%"]);
+  const glare = useMotionTemplate`radial-gradient(circle at ${gx} ${gy}, rgb(255 255 255 / 0.14), transparent 50%)`;
   const champ = slot.place === 1;
 
   return (
     <motion.li
-      className="relative list-none [perspective:1100px]"
-      style={{ marginTop: slot.lift }}
-      initial={reduce ? false : { opacity: 0, y: 60, rotate: slot.tilt * 2 }}
-      whileInView={{ opacity: 1, y: 0, rotate: slot.tilt }}
+      className="plaque-slot relative list-none [perspective:1100px]"
+      style={{ paddingTop: slot.drop, "--c": slot.color } as CSSProperties}
+      initial={reduce ? false : { opacity: 0, y: -80 }}
+      whileInView={{ opacity: 1, y: 0 }}
       viewport={{ once: true, margin: "-60px" }}
-      transition={{ duration: 0.9, delay: [0.15, 0, 0.3][index], ease: [0.2, 0.7, 0.2, 1] }}
+      transition={{ type: "spring", stiffness: 55, damping: 11, delay: [0.15, 0, 0.3][index] }}
     >
-      <motion.button
-        type="button"
-        aria-label={`${slot.label}: ${row ? row.name : "open spot"}${prize ? `, prize ${prize}` : ""}. Flip the card`}
-        aria-pressed={flipped}
-        onClick={() => setFlipped((f) => !f)}
-        onPointerEnter={(e) => { if (e.pointerType === "mouse") setFlipped(true); }}
-        onPointerLeave={(e) => { if (e.pointerType === "mouse") setFlipped(false); px.set(0); py.set(0); }}
-        onPointerMove={(e) => {
-          if (reduce) return;
-          const r = e.currentTarget.getBoundingClientRect();
-          px.set((e.clientX - r.left) / r.width - 0.5);
-          py.set((e.clientY - r.top) / r.height - 0.5);
-        }}
-        onFocus={() => setFlipped(true)}
-        onBlur={() => setFlipped(false)}
-        style={reduce ? undefined : { rotateX: rx, rotateY: ry }}
-        className={`relative block aspect-[5/7] w-full cursor-pointer rounded-2xl outline-offset-4 [transform-style:preserve-3d] ${champ ? "drop-shadow-[0_30px_40px_rgb(0_0_0/0.7)]" : "drop-shadow-[0_22px_30px_rgb(0_0_0/0.6)]"}`}
-      >
-        <span
-          className="absolute inset-0 [transform-style:preserve-3d]"
-          style={{ transform: `rotateY(${flipped ? 180 : 0}deg)`, transition: reduce ? "none" : "transform 0.75s cubic-bezier(0.2, 0.7, 0.2, 1)" }}
+      <div className="plaque-sway" style={{ animationDelay: `-${index * 2.1}s`, transformOrigin: `50% -${slot.drop}` }}>
+        {/* cables up to the ceiling */}
+        <span aria-hidden className="plaque-cable left-[22%]" style={{ height: slot.drop }} />
+        <span aria-hidden className="plaque-cable right-[22%]" style={{ height: slot.drop }} />
+
+        <motion.div
+          className="plaque relative [transform-style:preserve-3d] [will-change:transform]"
+          style={reduce ? undefined : { rotateX: rx, rotateY: ry, rotateZ: rz }}
+          onPointerMove={(e) => {
+            if (reduce) return;
+            const r = e.currentTarget.getBoundingClientRect();
+            px.set((e.clientX - r.left) / r.width - 0.5);
+            py.set((e.clientY - r.top) / r.height - 0.5);
+          }}
+          onPointerLeave={() => { px.set(0); py.set(0); }}
         >
-          {/* front: who */}
-          <span className="absolute inset-0 overflow-hidden rounded-2xl border bg-[linear-gradient(160deg,#121c15,#0a100c_60%)] [backface-visibility:hidden]" style={{ borderColor: `color-mix(in oklab, ${slot.color} 45%, transparent)` }}>
-            <span className="absolute inset-x-0 top-0 h-1" style={{ background: slot.color }} />
-            <Corner place={slot.place} suit={slot.suit} color={slot.color} />
-            <Corner place={slot.place} suit={slot.suit} color={slot.color} flip />
-            <span aria-hidden className="pointer-events-none absolute inset-0 grid place-items-center text-[9rem] leading-none opacity-[0.06] sm:text-[11rem]" style={{ color: slot.color }}>{slot.suit}</span>
-            <span className="relative flex size-full flex-col items-center justify-center gap-1 px-5 text-center sm:px-6">
-              <span className="text-[8px] font-semibold uppercase tracking-[0.15em] text-muted sm:text-[10px] sm:tracking-[0.25em]">{slot.label}</span>
-              <span className={`max-w-full truncate font-head font-bold ${champ ? "text-sm sm:text-3xl" : "text-xs sm:text-2xl"} ${row ? "text-text" : "text-dim"}`}>{row ? row.name : "Open spot"}</span>
-              <span className="mt-3 hidden text-[10px] font-semibold uppercase tracking-[0.25em] text-dim sm:block">Points</span>
-              <span className="mt-1 font-mono text-[10px] font-bold leading-tight sm:mt-0 sm:text-lg" style={{ color: slot.color }}>{score(row?.score ?? 0)}</span>
-            </span>
-          </span>
-          {/* back: the prize */}
-          <span className="absolute inset-0 grid place-items-center overflow-hidden rounded-2xl border bg-[radial-gradient(ellipse_at_50%_40%,#17251b,#070b08_75%)] p-3 [backface-visibility:hidden] [transform:rotateY(180deg)]" style={{ borderColor: slot.color }}>
-            <span className="absolute inset-2 rounded-xl border border-white/[0.06]" />
-            <span className="relative text-center">
-              <span className="block text-[10px] font-semibold uppercase tracking-[0.3em] text-muted">Prize</span>
-              <span className={`mt-1 block font-display leading-none ${prize && prize.length > 9 ? "text-2xl sm:text-4xl" : "text-4xl sm:text-6xl"}`} style={{ color: slot.color }}>{prize ?? "—"}</span>
-              <span className="mt-2 block text-xs text-muted">for {slot.label.toLowerCase()}</span>
-            </span>
-          </span>
-        </span>
-      </motion.button>
+          {/* thickness */}
+          {[-5, -3.5, -2].map((z) => <span key={z} aria-hidden className="plaque-edge" style={{ transform: `translateZ(${z}px)` }} />)}
+
+          <div className={`plaque-frame ${champ ? "plaque-frame-champ" : ""}`}>
+            <div className="plaque-glass">
+              {/* screws */}
+              {["left-2 top-2", "right-2 top-2", "left-2 bottom-2", "right-2 bottom-2"].map((p) => <span key={p} aria-hidden className={`plaque-screw ${p}`} />)}
+
+              <div className="relative flex h-full flex-col items-center px-2 pb-2 pt-4 text-center sm:px-5 sm:pb-4 sm:pt-7">
+                <span className="flex items-center gap-1.5 sm:gap-2.5">
+                  <span className="plaque-rank font-display leading-none" style={{ fontSize: champ ? "clamp(2.2rem,6vw,4.4rem)" : "clamp(1.9rem,5vw,3.6rem)" }}>{String(slot.place).padStart(2, "0")}</span>
+                  <span aria-hidden className="text-base text-[var(--c)] sm:text-3xl">{slot.suit}</span>
+                </span>
+                <span className="mt-1 text-[8px] font-semibold uppercase tracking-[0.15em] text-muted sm:mt-2 sm:text-[10px] sm:tracking-[0.3em]">{slot.label}</span>
+                <span className="plaque-rule my-2 sm:my-3" aria-hidden />
+                <span className={`max-w-full truncate font-head font-bold ${champ ? "text-sm sm:text-3xl" : "text-xs sm:text-2xl"} ${row ? "text-text" : "text-dim"}`}>{row ? row.name : "Open spot"}</span>
+                <span className="mt-0.5 font-mono text-[10px] font-bold text-[var(--c)] sm:mt-1 sm:text-base">{score(row?.score ?? 0)}</span>
+
+                {/* nameplate */}
+                <span className="plaque-plate mt-auto w-full">
+                  <span className="block text-[7px] font-bold uppercase tracking-[0.25em] text-black/60 sm:text-[9px]">Prize</span>
+                  <span className={`block truncate font-head font-bold text-[#0b0f0c] ${prize && prize.length > 9 ? "text-[10px] sm:text-base" : "text-sm sm:text-2xl"}`}>{prize ?? "—"}</span>
+                </span>
+              </div>
+              <motion.span aria-hidden className="pointer-events-none absolute inset-0" style={{ background: glare }} />
+            </div>
+          </div>
+        </motion.div>
+      </div>
     </motion.li>
   );
 }
@@ -99,14 +96,13 @@ export function PrizeCards({ rows, prizes, scoreKind = "points" }: { rows: Board
   const score = scoreKind === "points" ? points : money;
   return (
     <div className="relative mx-auto max-w-4xl">
-      {/* table */}
-      <div aria-hidden className="pointer-events-none absolute inset-x-[-10%] bottom-[-8%] top-[35%] rounded-[50%] border-t border-neon/15 bg-[radial-gradient(ellipse_at_50%_0%,rgb(141_255_74/0.07),transparent_65%)]" />
+      {/* the rail they hang from */}
+      <div aria-hidden className="plaque-rail" />
       <ol className="relative grid grid-cols-3 items-start gap-2 px-1 sm:gap-6">
         {SLOTS.map((slot, i) => (
-          <Card key={slot.place} slot={slot} index={i} row={rows.find((r) => r.rank === slot.place)} prize={prizes[slot.place]} score={score} />
+          <Plaque key={slot.place} slot={slot} index={i} row={rows.find((r) => r.rank === slot.place)} prize={prizes[slot.place]} score={score} />
         ))}
       </ol>
-      <p className="relative mt-8 text-center text-xs text-dim">Hover, tap or focus a card to see the prize.</p>
     </div>
   );
 }
