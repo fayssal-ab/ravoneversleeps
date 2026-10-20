@@ -1,10 +1,15 @@
 "use client";
 
 import { AnimatePresence, motion } from "motion/react";
-import { useRef, useState, type ReactNode } from "react";
+import { useRef, useState, useSyncExternalStore, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 
 // A submit button that asks first, in the site's own dialog (never the
-// browser confirm). Put it inside the <form> it submits.
+// browser confirm). Put it inside the <form> it submits. The dialog is
+// portalled to <body>: an animated ancestor (e.g. .reveal's translate)
+// would otherwise trap `position: fixed` inside the row.
+const noop = () => () => {};
+
 export function ConfirmButton({
   children,
   title,
@@ -24,11 +29,14 @@ export function ConfirmButton({
 }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLButtonElement>(null);
+  // false while server-rendering and hydrating, true after: no mismatch
+  const client = useSyncExternalStore(noop, () => true, () => false);
   return (
     <>
       <button ref={ref} type="button" className={className} disabled={disabled} onClick={() => setOpen(true)}>
         {children}
       </button>
+      {client && createPortal(
       <AnimatePresence>
         {open && (
           <motion.div
@@ -67,7 +75,8 @@ export function ConfirmButton({
             </motion.div>
           </motion.div>
         )}
-      </AnimatePresence>
+      </AnimatePresence>,
+      document.body)}
     </>
   );
 }
