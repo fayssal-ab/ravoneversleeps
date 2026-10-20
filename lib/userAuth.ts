@@ -162,6 +162,21 @@ export async function signInWith(p: Provider, profile: Profile, currentAccountId
     const [rows] = await conn.query<RowDataPacket[]>(
       "SELECT account_id FROM user_identities WHERE provider = ? AND provider_user_id = ? FOR UPDATE", [p, profile.id]);
     const owner = rows[0] ? Number(rows[0].account_id) : null;
+    if (owner != null && p === "kick" && currentAccountId != null && currentAccountId !== owner) {
+      // A Kick-only account from before sign-in became Discord-only: when it
+      // holds nothing (no Discord, no Qzino username, no points / xp), move
+      // the Kick identity onto the Discord account instead of refusing.
+      const [old] = await conn.query<RowDataPacket[]>(
+        `SELECT 1 FROM user_accounts a WHERE a.id = ? AND a.qzino_username = '' AND a.points = 0 AND a.xp = 0
+            AND NOT EXISTS (SELECT 1 FROM user_identities i WHERE i.account_id = a.id AND i.provider = 'discord') FOR UPDATE`, [owner]);
+      const [has] = await conn.query<RowDataPacket[]>("SELECT 1 FROM user_identities WHERE account_id = ? AND provider = 'kick' FOR UPDATE", [currentAccountId]);
+      if (old[0] && !has.length) {
+        await conn.query("UPDATE user_identities SET account_id = ?, username = ?, avatar = ? WHERE provider = 'kick' AND provider_user_id = ?",
+          [currentAccountId, profile.username, profile.avatar, profile.id]);
+        await conn.query("DELETE FROM user_sessions WHERE account_id = ?", [owner]);
+        return currentAccountId;
+      }
+    }
     if (owner != null) {
       if (currentAccountId != null && currentAccountId !== owner) throw new AuthError("identity_taken");
       const [ban] = await conn.query<RowDataPacket[]>("SELECT banned FROM user_accounts WHERE id = ?", [owner]);
@@ -238,7 +253,7 @@ export const AUTH_MESSAGES: Record<string, string> = {
   not_configured: "This sign-in method isn't set up yet.",
   exchange_failed: "The provider refused the sign-in. Please try again.",
   profile_failed: "Couldn't read your profile from the provider. Please try again.",
-  identity_taken: "That account is already linked to another RAVO account. Sign in with it and unlink it there first.",
+  identity_taken: "That account is already linked to another RAVO account with points or a Qzino username on it. Ask the team on Discord to merge them.",
   provider_already_linked: "You already have an account of that type linked. Unlink it first.",
   last_identity: "You can't unlink your only sign-in method. Link the other one first.",
   banned: "This account is suspended. Contact the team on Discord if you think it's a mistake.",

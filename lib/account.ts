@@ -93,8 +93,9 @@ export async function saveQzinoUsername(accountId: number, username: string): Pr
     pool.query<RowDataPacket[]>("SELECT id FROM user_accounts WHERE ? <> '' AND LOWER(qzino_username) = LOWER(?) AND id <> ? AND qzino_status = 'verified' LIMIT 1", [username, username, accountId]),
     pool.query<RowDataPacket[]>("SELECT 1 FROM milestone_claims WHERE account_id = ? LIMIT 1", [accountId]),
   ]);
-  if (String(cur[0]?.qzino_username ?? "").toLowerCase() === username.toLowerCase()) return false;
+  // checked first: re-saving a name another account got verified must not reopen a claim
   if (taken[0]) throw new AppError("qzino_taken");
+  if (String(cur[0]?.qzino_username ?? "").toLowerCase() === username.toLowerCase()) return false;
   if (claims[0]) throw new AppError("qzino_locked");
   await pool.query("UPDATE user_accounts SET qzino_username = ? WHERE id = ?", [username, accountId]);
   return true;
