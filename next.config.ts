@@ -11,8 +11,9 @@ const csp = [
   "img-src 'self' data: blob: https://files.kick.com https://*.kick.com https://cdn.discordapp.com https://mediumrare.imgix.net",
   "font-src 'self' data:",
   "frame-src https://player.kick.com https://kick.com",
-  "connect-src 'self'",
-  "media-src 'self'",
+  // Kick clips stream (HLS) straight from Kick's CDN
+  "connect-src 'self' https://clips.kick.com",
+  "media-src 'self' blob: https://clips.kick.com",
   "object-src 'none'",
   "base-uri 'self'",
   "form-action 'self'",

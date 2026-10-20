@@ -42,6 +42,7 @@ export const NAV: NavItem[] = [
     label: "Stream",
     children: [
       { href: "/stream", label: "Watch live", hint: "Kick stream & schedule" },
+      { href: "/clips", label: "Clips", hint: "Best moments from Kick" },
       { href: "/bonus-hunts", label: "Bonus hunts", hint: "Live hunt tracker" },
       { href: "/tournaments", label: "Tournaments", hint: "1v1 and 2v2 slot battles" },
     ],
@@ -57,6 +58,7 @@ export const NAV_FLAT = [
   { href: "/vip-transfer", label: "VIP Transfer" },
   { href: "/raffles", label: "Raffles" },
   { href: "/stream", label: "Stream" },
+  { href: "/clips", label: "Clips" },
   { href: "/bonus-hunts", label: "Bonus hunts" },
   { href: "/tournaments", label: "Tournaments" },
 ];
