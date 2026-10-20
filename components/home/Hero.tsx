@@ -56,8 +56,10 @@ export function Hero({ code, qzinoUrl, pool }: { code: string; qzinoUrl: string;
           </div>
         </motion.div>
 
-        <h1 className="relative z-10 -mt-10 font-display leading-[0.82] sm:-mt-14">
-          <span className="sr-only">RAVO</span>
+        {/* the playable machine is a sibling of the real heading, so the lever
+            (a button) never ends up inside the <h1> text */}
+        <h1 className="sr-only">RAVONEVERSLEEPS</h1>
+        <div className="relative z-10 -mt-10 font-display leading-[0.82] sm:-mt-14">
           <span className="relative block">
             <SlotReels start={ready} />
             {/* paws gripping the reels' top edge before the climb */}
@@ -75,14 +77,14 @@ export function Hero({ code, qzinoUrl, pool }: { code: string; qzinoUrl: string;
               </motion.span>
             ))}
           </span>
-          <span className="mt-3 block text-[clamp(1.9rem,7vw,5rem)]" aria-label="never sleeps">
+          <span className="mt-3 block text-[clamp(1.9rem,7vw,5rem)]" aria-hidden>
             {TITLE.map((ch, i) => (
               <span key={i} aria-hidden className="hero-intro hero-drop neon-text inline-block" style={{ "--d": `${1 + i * 0.04}s` } as React.CSSProperties}>
                 {ch}
               </span>
             ))}
           </span>
-        </h1>
+        </div>
 
         <p style={{ "--d": "0.35s" } as React.CSSProperties} className="hero-intro mx-auto mt-6 max-w-xl text-base text-text/80 sm:text-lg">
           Play on Qzino with code <span className="font-mono font-bold text-neon">{code}</span> for a <b>$50 bonus</b>, a monthly leaderboard,
