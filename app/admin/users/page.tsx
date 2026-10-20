@@ -46,7 +46,7 @@ export default async function AdminUsers({ searchParams }: { searchParams: Promi
   return (
     <>
       <AdminTitle title="Users">
-        Accounts are created by signing in with Discord (or Kick). Verify Qzino usernames here; a username saved by an admin counts as verified.
+        Accounts are created by signing in with Discord; Kick is linked from the player&apos;s account page. Verify Qzino usernames here; a username saved by an admin counts as verified.
       </AdminTitle>
       <Flash ok={sp.ok} error={sp.error} detail={sp.detail} okText="Saved." />
 
@@ -59,37 +59,91 @@ export default async function AdminUsers({ searchParams }: { searchParams: Promi
       />
 
       {tab === "verify" && (
-        <Card title="Qzino usernames waiting for verification">
-          <p className="mb-4 text-sm text-muted">Open the ticket, check the screenshot of the Qzino profile, then verify or reject. The decision is posted in the ticket and shown to the player.</p>
+        <div className="space-y-4">
+          <div className="admin-card p-5 text-sm text-muted">
+            <p className="font-semibold text-text">How to verify</p>
+            <ol className="mt-2 list-decimal space-y-1 pl-5">
+              <li>Open the player&apos;s Discord ticket.</li>
+              <li>Watch their screen recording: it must start on Qzino, logged in, on the profile with this exact username, then switch to the ticket and type <span className="font-mono text-neon">their code</span>, with no cut.</li>
+              <li>Tick the three checks and press <span className="font-semibold text-neon">Verify</span>, or pick a reason and <span className="font-semibold text-danger">Reject</span>. The player sees the reason.</li>
+            </ol>
+            <p className="mt-2">Big leaderboard names and usernames claimed by several accounts are flagged: be extra careful there (ask for a voice call if unsure).</p>
+          </div>
           {pending.length === 0 ? (
             <Empty>Nothing to verify right now.</Empty>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="admin-table">
-                <thead><tr><th>Player</th><th>Qzino username</th><th>Linked</th><th>Joined</th><th className="text-right">Decision</th></tr></thead>
-                <tbody>
-                  {pending.map((p) => (
-                    <tr key={p.account_id}>
-                      <td className="font-semibold">{p.display_name} <span className="text-xs text-dim">#{p.account_id}</span></td>
-                      <td className="font-mono text-neon">{p.qzino_username}</td>
-                      <td className="text-xs text-muted">{[p.discord && `Discord: ${p.discord}`, p.kick && `Kick: ${p.kick}`].filter(Boolean).join(" · ") || "—"}</td>
-                      <td className="whitespace-nowrap text-xs text-dim">{p.joined.slice(0, 10)}</td>
-                      <td>
-                        <div className="flex justify-end gap-2">
-                          {p.ticket_url
-                            ? <a href={p.ticket_url} target="_blank" rel="noopener noreferrer" className="btn btn-ghost btn-sm"><ExternalLink className="size-3.5" /> Ticket</a>
-                            : <span className="self-center text-xs text-dim">no ticket</span>}
-                          <form action={verifyQzinoAction}><input type="hidden" name="account" value={p.account_id} /><input type="hidden" name="decision" value="verify" /><button className="btn btn-neon btn-sm">Verify</button></form>
-                          <form action={verifyQzinoAction}><input type="hidden" name="account" value={p.account_id} /><input type="hidden" name="decision" value="reject" /><button className="btn btn-ghost btn-sm !text-danger">Reject</button></form>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </Card>
+          ) : pending.map((p) => {
+            const risky = (p.standing && p.standing.rank <= 10) || p.rivals.length > 0 || p.age_days < 1;
+            return (
+              <article key={p.account_id} className={`admin-card p-5 ${risky ? "!border-gold/50" : ""}`}>
+                <div className="flex flex-wrap items-start justify-between gap-4">
+                  <div className="flex items-center gap-3">
+                    {p.avatar
+                      // eslint-disable-next-line @next/next/no-img-element
+                      ? <img src={p.avatar} alt="" className="size-11 rounded-full" />
+                      : <span className="grid size-11 place-items-center rounded-full bg-surface-3 font-bold">{p.display_name.slice(0, 1)}</span>}
+                    <div>
+                      <p className="font-semibold">{p.display_name} <span className="text-xs text-dim">#{p.account_id} · joined {p.age_days === 0 ? "today" : `${p.age_days} d ago`}</span></p>
+                      <p className="mt-0.5 flex flex-wrap gap-1.5 text-xs">
+                        <span className={`rounded-md px-2 py-0.5 ${p.discord ? "bg-discord/20 text-text" : "bg-danger/15 text-danger"}`}>Discord: {p.discord ?? "not linked"}</span>
+                        <span className={`rounded-md px-2 py-0.5 ${p.kick ? "bg-neon/15 text-neon" : "bg-surface-3 text-dim"}`}>Kick: {p.kick ?? "not linked"}</span>
+                      </p>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-[11px] uppercase tracking-wider text-dim">Claims Qzino username</p>
+                    <p className="font-mono text-xl font-bold text-neon">{p.qzino_username}</p>
+                    <p className="text-xs text-muted">Code: <span className="font-mono font-bold text-text">{p.code ?? "—"}</span></p>
+                  </div>
+                </div>
+
+                {(p.standing || p.rivals.length > 0) && (
+                  <div className="mt-4 space-y-1.5 text-sm">
+                    {p.standing && (
+                      <p className={`rounded-lg px-3 py-2 ${p.standing.rank <= 10 ? "bg-gold/10 text-gold" : "bg-surface-3 text-muted"}`}>
+                        On the live board: <b>#{p.standing.rank}</b> with {Number(p.standing.score).toLocaleString("en-US")} pts{p.standing.rank <= 10 ? " · prize money at stake, check carefully" : ""}
+                      </p>
+                    )}
+                    {p.rivals.map((r) => (
+                      <p key={r.account_id} className="rounded-lg bg-danger/10 px-3 py-2 text-danger">
+                        ⚠ Also claimed by <b>{r.display_name}</b> #{r.account_id} ({r.status}). Only one account can own it.
+                      </p>
+                    ))}
+                  </div>
+                )}
+
+                <div className="mt-4 grid gap-3 border-t border-line pt-4 lg:grid-cols-[1fr_auto]">
+                  <form action={verifyQzinoAction} className="space-y-2">
+                    <input type="hidden" name="account" value={p.account_id} />
+                    <input type="hidden" name="decision" value="verify" />
+                    <div className="flex flex-wrap gap-x-5 gap-y-1.5 text-sm">
+                      <label className="flex items-center gap-2"><input type="checkbox" name="c_profile" required /> Profile shows <span className="font-mono text-neon">{p.qzino_username}</span>, logged in</label>
+                      <label className="flex items-center gap-2"><input type="checkbox" name="c_code" required /> Code <span className="font-mono">{p.code}</span> typed in the ticket</label>
+                      <label className="flex items-center gap-2"><input type="checkbox" name="c_cut" required /> One recording, no cut</label>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      {p.ticket_url
+                        ? <a href={p.ticket_url} target="_blank" rel="noopener noreferrer" className="btn btn-ghost btn-sm"><ExternalLink className="size-3.5" /> Open ticket</a>
+                        : <span className="self-center text-xs text-dim">no ticket (Discord bot off?)</span>}
+                      <button className="btn btn-neon btn-sm"><BadgeCheck className="size-4" /> Verify</button>
+                    </div>
+                  </form>
+                  <form action={verifyQzinoAction} className="flex flex-wrap items-end gap-2 lg:justify-end">
+                    <input type="hidden" name="account" value={p.account_id} />
+                    <input type="hidden" name="decision" value="reject" />
+                    <select name="reason" className="field !w-auto text-sm" aria-label="Reject reason" defaultValue="no_code">
+                      <option value="no_code">Code not shown</option>
+                      <option value="no_recording">Screenshot, not a recording</option>
+                      <option value="not_owner">Not logged in as this username</option>
+                      <option value="not_ravo">Not under code RAVO50</option>
+                      <option value="other">Other</option>
+                    </select>
+                    <button className="btn btn-ghost btn-sm !text-danger"><UserX className="size-4" /> Reject</button>
+                  </form>
+                </div>
+              </article>
+            );
+          })}
+        </div>
       )}
 
       {tab === "accounts" && (

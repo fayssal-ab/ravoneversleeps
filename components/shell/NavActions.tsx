@@ -5,6 +5,7 @@ import { AnimatePresence, motion } from "motion/react";
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { Bell, ChevronDown, Crown, Gift, LogOut, Radio, ShoppingBag, Target, Trophy, User } from "lucide-react";
 import { PromoSteps } from "@/components/promo/PromoSteps";
+import { DiscordIcon } from "@/components/account/SignInPanel";
 
 // Navbar actions: gift (how to claim the Qzino code), bell (site events and
 // the viewer's own updates; unread = not opened yet on this browser) and the
@@ -190,7 +191,7 @@ export function NavActions({ viewer }: { viewer: NavViewer | null }) {
     <div className="flex items-center gap-1.5 sm:gap-2">
       <GiftButton />
       <BellButton />
-      {viewer ? <UserMenu viewer={viewer} /> : <Link href="/account" className="btn btn-neon btn-sm">Log in</Link>}
+      {viewer ? <UserMenu viewer={viewer} /> : <Link href="/account" className="btn btn-discord btn-sm discord-login" aria-label="Log in with Discord"><DiscordIcon className="size-4" /> Log in</Link>}
     </div>
   );
 }

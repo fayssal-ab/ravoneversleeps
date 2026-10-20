@@ -33,7 +33,12 @@ const GROUPS = [
   { title: "System", links: [{ href: "/admin/discord", label: "Discord", icon: MessagesSquare }, { href: "/admin/audit", label: "Audit log", icon: ScrollText }] },
 ];
 
-export function AdminNav() {
+/** Items waiting for the admin on that page. */
+function Badge({ n }: { n: number }) {
+  return <span className="min-w-5 rounded-full bg-gold px-1.5 text-center font-mono text-[11px] font-bold leading-5 text-bg" aria-label={`${n} waiting`}>{n > 99 ? "99+" : n}</span>;
+}
+
+export function AdminNav({ counts = {} }: { counts?: Record<string, number> }) {
   const pathname = usePathname();
   const isActive = (href: string) => (href === "/admin" ? pathname === "/admin" : pathname.startsWith(href));
   return (
@@ -43,6 +48,7 @@ export function AdminNav() {
         {GROUPS.flatMap((g) => g.links).map((l) => (
           <Link key={l.href} href={l.href} className={`flex shrink-0 items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold ${isActive(l.href) ? "bg-neon/10 text-neon" : "text-muted"}`}>
             <l.icon className="size-4" /> {l.label}
+            {counts[l.href] ? <Badge n={counts[l.href]} /> : null}
           </Link>
         ))}
       </div>
@@ -62,7 +68,8 @@ export function AdminNav() {
                   }`}
                 >
                   <l.icon className="size-4 shrink-0" />
-                  {l.label}
+                  <span className="flex-1">{l.label}</span>
+                  {counts[l.href] ? <Badge n={counts[l.href]} /> : null}
                 </Link>
               ))}
             </div>

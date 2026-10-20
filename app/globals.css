@@ -691,3 +691,15 @@ iframe[src*=".netlify/scripts/hud"],
     linear-gradient(180deg, #111a14, #070b08);
 }
 @media (prefers-reduced-motion: reduce) { .plaque-sway { animation: none; } }
+
+/* Discord sign-in: brand blurple with a slow sheen (account page CTA, header) */
+.btn-discord { position: relative; overflow: hidden; isolation: isolate; }
+.btn-discord::after {
+  content: ""; position: absolute; inset: 0; z-index: -1; translate: -120% 0;
+  background: linear-gradient(105deg, transparent 35%, rgb(255 255 255 / 0.28) 50%, transparent 65%);
+  animation: sheen-pass 4.5s ease-in-out infinite;
+}
+.btn-discord:hover { filter: brightness(1.08); box-shadow: 0 4px 0 0 var(--edge), 0 0 26px rgb(88 101 242 / 0.45); }
+.discord-cta { box-shadow: 0 4px 0 0 var(--edge), 0 12px 36px -8px rgb(88 101 242 / 0.6); }
+.signin-card { box-shadow: 0 40px 80px -20px rgb(0 0 0 / 0.8), 0 0 0 1px rgb(141 255 74 / 0.05); }
+@media (prefers-reduced-motion: reduce) { .btn-discord::after { animation: none; } }

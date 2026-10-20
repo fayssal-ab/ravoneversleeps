@@ -25,7 +25,7 @@ export const ERROR_TEXT: Record<string, string> = {
   challenge_closed: "This challenge is no longer open.",
   no_live_board: "No leaderboard is running right now, so milestones can't be claimed.",
   already_claimed: "You already claimed this one.",
-  qzino_taken: "That Qzino username is already linked to another account. Contact the team on Discord.",
+  qzino_taken: "That Qzino username is already verified on another account. If it is really yours, contact the team on Discord.",
   qzino_locked: "Your Qzino username is locked after your first claim. Contact the team on Discord to change it.",
   slot_feed_failed: "The slot catalogue couldn't be downloaded. Try again later.",
   slot_pool_empty: "The slot catalogue is empty. Sync it in Admin → Slots first.",

@@ -111,6 +111,11 @@ export async function setBanned(accountId: number, banned: boolean): Promise<voi
 /** Admin-entered usernames are trusted: a new one is verified straight away. */
 export async function adminSetQzino(accountId: number, username: string): Promise<void> {
   await ensureVerificationSchema();
+  if (username) {
+    const [other] = await getPool().query<RowDataPacket[]>(
+      "SELECT id FROM user_accounts WHERE LOWER(qzino_username) = LOWER(?) AND id <> ? AND qzino_status = 'verified' LIMIT 1", [username, accountId]);
+    if (other[0]) throw new AppError("qzino_taken", `already verified on account #${other[0].id}`);
+  }
   await getPool().query(
     `UPDATE user_accounts SET qzino_status = IF(? = '', 'none', IF(LOWER(qzino_username) = LOWER(?), qzino_status, 'verified')), qzino_username = ? WHERE id = ?`,
     [username, username, username, accountId]);

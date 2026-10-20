@@ -7,7 +7,7 @@ import { syncCatalog, upgradeTypedSlots } from "@/lib/slots";
 import { deleteClaim, resolveClaim, saveMilestones } from "@/lib/milestones";
 import { addSlot, deleteSlot } from "@/lib/stream";
 import { createChallenge, deleteChallenge, markChallengeWon, setChallengeStatus } from "@/lib/challenges";
-import { decideVerification } from "@/lib/verification";
+import { decideVerification, REJECT_REASONS, type RejectReason } from "@/lib/verification";
 import { discordSetup } from "@/lib/discordBot";
 import { saveTopPrizes } from "@/lib/leaderboardPrizes";
 import { decideVipApplication } from "@/lib/vip";
@@ -170,8 +170,14 @@ export async function challengeOpAction(form: FormData) {
 // ── Qzino username verification ────────────────────────────────────────
 export async function verifyQzinoAction(form: FormData) {
   await adminAction({ path: "/admin/users?tab=verify", audit: "qzino.verify", revalidate: ["/account"] }, async () => {
-    const v = parseForm(z.object({ account: zId, decision: z.enum(["verify", "reject"]) }), form);
-    await decideVerification(v.account, v.decision === "verify");
+    const v = parseForm(z.object({
+      account: zId, decision: z.enum(["verify", "reject"]),
+      reason: z.enum(Object.keys(REJECT_REASONS) as [RejectReason, ...RejectReason[]]).default("other"),
+      // the admin confirms each point of the proof before verifying
+      c_profile: checkbox, c_code: checkbox, c_cut: checkbox,
+    }), form);
+    if (v.decision === "verify" && !(v.c_profile && v.c_code && v.c_cut)) throw new AppError("invalid_input", "tick every check before verifying");
+    await decideVerification(v.account, v.decision === "verify", v.reason);
     return v;
   });
 }

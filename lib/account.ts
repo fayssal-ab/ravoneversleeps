@@ -89,7 +89,8 @@ export async function saveQzinoUsername(accountId: number, username: string): Pr
   const pool = getPool();
   const [[cur], [taken], [claims]] = await Promise.all([
     pool.query<RowDataPacket[]>("SELECT qzino_username FROM user_accounts WHERE id = ?", [accountId]),
-    pool.query<RowDataPacket[]>("SELECT id FROM user_accounts WHERE ? <> '' AND LOWER(qzino_username) = LOWER(?) AND id <> ? LIMIT 1", [username, username, accountId]),
+    // only a verified owner blocks a username: a squatter claiming it first must not lock out the real owner
+    pool.query<RowDataPacket[]>("SELECT id FROM user_accounts WHERE ? <> '' AND LOWER(qzino_username) = LOWER(?) AND id <> ? AND qzino_status = 'verified' LIMIT 1", [username, username, accountId]),
     pool.query<RowDataPacket[]>("SELECT 1 FROM milestone_claims WHERE account_id = ? LIMIT 1", [accountId]),
   ]);
   if (String(cur[0]?.qzino_username ?? "").toLowerCase() === username.toLowerCase()) return false;

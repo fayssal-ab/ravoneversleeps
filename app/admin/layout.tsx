@@ -5,12 +5,23 @@ import { LogoutButton } from "@/components/account/LogoutButton";
 import { AdminNav } from "@/components/admin/AdminNav";
 import { ConfirmHost } from "@/components/ui/confirm";
 import { requireAdmin } from "@/lib/admin";
+import { listClaims } from "@/lib/milestones";
+import { openChallengeClaimCount, pendingVerifications } from "@/lib/verification";
+import { listVipApplications } from "@/lib/vip";
 
 export const metadata: Metadata = { title: "Admin", robots: { index: false } };
 export const dynamic = "force-dynamic";
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   await requireAdmin();
+  // what's waiting, shown as badges in the sidebar on every admin page
+  const [verify, vip, challenges, milestones] = await Promise.all([
+    pendingVerifications().then((r) => r.length).catch(() => 0),
+    listVipApplications("pending").then((r) => r.length).catch(() => 0),
+    openChallengeClaimCount().catch(() => 0),
+    listClaims({ status: "pending", limit: 100 }).then((r) => r.length).catch(() => 0),
+  ]);
+  const counts = { "/admin/users": verify, "/admin/vip": vip, "/admin/challenges": challenges, "/admin/milestones": milestones };
   return (
     <div className="min-h-dvh bg-bg lg:grid lg:grid-cols-[15rem_1fr]">
       <aside className="border-b border-white/[0.06] bg-bg-2 lg:sticky lg:top-0 lg:flex lg:h-dvh lg:flex-col lg:border-b-0 lg:border-r">
@@ -21,7 +32,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
           </Link>
           <div className="lg:hidden"><LogoutButton endpoint="/api/auth/logout" to="/login" /></div>
         </div>
-        <div className="px-3 py-3 lg:flex-1 lg:overflow-y-auto lg:py-6"><AdminNav /></div>
+        <div className="px-3 py-3 lg:flex-1 lg:overflow-y-auto lg:py-6"><AdminNav counts={counts} /></div>
         <div className="hidden border-t border-white/[0.06] p-4 lg:block"><LogoutButton endpoint="/api/auth/logout" to="/login" /></div>
       </aside>
       <main className="mx-auto w-full max-w-6xl px-4 py-6 sm:px-8 sm:py-8">{children}</main>

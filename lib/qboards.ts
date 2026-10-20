@@ -114,3 +114,20 @@ export async function liveEventScore(username: string): Promise<{ score: string;
   return null;
 }
 
+
+/**
+ * Rank and points of a Qzino username in the event running now (admin only:
+ * how much is at stake when verifying who owns it). Null when not on it.
+ */
+export async function liveStanding(username: string): Promise<{ rank: number; score: string; title: string } | null> {
+  if (!username) return null;
+  const [records] = await getPool().query<RowDataPacket[]>("SELECT snapshot FROM qboards_snapshots");
+  const now = Date.now();
+  for (const r of records) {
+    const s: QboardsSnapshot = typeof r.snapshot === "string" ? JSON.parse(r.snapshot) : r.snapshot;
+    if (!(Date.parse(s.startsAt) <= now && now < Date.parse(s.endsAt))) continue;
+    const row = s.rows.find((x) => x.username.toLowerCase() === username.toLowerCase());
+    if (row) return { rank: row.rank, score: row.score, title: s.title };
+  }
+  return null;
+}

@@ -6,7 +6,8 @@ export const dynamic = "force-dynamic";
 
 // GET /api/auth/kick/start?next=/account — redirects to the provider's
 // consent screen. Signed in already → the new identity is linked to the
-// current account; otherwise it signs in (creating the account if new).
+// current account; otherwise it signs in. Only Discord creates accounts
+// (signInWith refuses a new Kick identity without a session).
 export async function GET(request: Request, { params }: { params: Promise<{ provider: string }> }) {
   const { provider } = await params;
   const url = new URL(request.url);

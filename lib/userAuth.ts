@@ -6,8 +6,10 @@ import { getPool } from "./db";
 import { withTx } from "./tx";
 import { SITE_URL } from "./constants";
 
-// Viewer accounts: "Continue with Kick" / "Continue with Discord", and
-// linking the other provider from /account. The account holds the points
+// Viewer accounts: sign-in is Discord only ("Continue with Discord"); Kick
+// is linked afterwards from /account (it can't create an account). Kick
+// identities created before that rule can still sign in, and are asked to
+// link Discord. The account holds the points
 // balance and lifetime xp (rank). OAuth authorization-code flow
 // (Kick additionally requires PKCE). The flow state (CSRF state, PKCE
 // verifier, mode, return path) rides in a short-lived signed cookie; the
@@ -168,6 +170,8 @@ export async function signInWith(p: Provider, profile: Profile, currentAccountId
       await conn.query("UPDATE user_accounts SET last_login_at = CURRENT_TIMESTAMP, avatar = IF(avatar = '', ?, avatar) WHERE id = ?", [profile.avatar, owner]);
       return owner;
     }
+    // Kick never creates an account: link it while signed in with Discord
+    if (p === "kick" && currentAccountId == null) throw new AuthError("kick_link_only");
     let accountId = currentAccountId;
     if (accountId != null) {
       const [has] = await conn.query<RowDataPacket[]>("SELECT 1 FROM user_identities WHERE account_id = ? AND provider = ? FOR UPDATE", [accountId, p]);
@@ -185,6 +189,7 @@ export async function signInWith(p: Provider, profile: Profile, currentAccountId
 }
 
 export async function unlinkProvider(accountId: number, p: Provider): Promise<void> {
+  if (p === "discord") throw new AuthError("discord_required");
   await withTx(async (conn) => {
     const [rows] = await conn.query<RowDataPacket[]>("SELECT provider, username, avatar FROM user_identities WHERE account_id = ? FOR UPDATE", [accountId]);
     if (!rows.some((r) => r.provider === p)) throw new AuthError("not_linked");
@@ -238,6 +243,8 @@ export const AUTH_MESSAGES: Record<string, string> = {
   last_identity: "You can't unlink your only sign-in method. Link the other one first.",
   banned: "This account is suspended. Contact the team on Discord if you think it's a mistake.",
   not_linked: "That account isn't linked.",
+  kick_link_only: "Sign in with Discord first, then link your Kick account from your account page.",
+  discord_required: "Discord is your sign-in, it can't be removed.",
   rate_limited: "Too many attempts. Wait a minute and try again.",
   failed: "Sign-in failed. Please try again.",
 };
