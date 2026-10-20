@@ -3,11 +3,14 @@ import Link from "next/link";
 import { ArrowRight, Timer } from "lucide-react";
 import { ClipStrip } from "@/components/home/ClipStrip";
 import { Hero } from "@/components/home/Hero";
+import { Podium3D } from "@/components/home/Podium3D";
+import { BonusCard } from "@/components/promo/BonusCard";
 import { PromoSteps } from "@/components/promo/PromoSteps";
 import { StreamBox } from "@/components/stream/StreamBox";
 import { SectionTitle } from "@/components/ui/bits";
 import { CopyCode } from "@/components/ui/CopyCode";
 import { Reveal, Stagger } from "@/components/ui/motion";
+import { PugVideo } from "@/components/ui/PugVideo";
 import { QzinoLogo } from "@/components/ui/QzinoLogo";
 import { SocialIcon } from "@/components/ui/SocialIcon";
 import { getClips } from "@/lib/clips";
@@ -19,8 +22,6 @@ import { getLiveStatus } from "@/lib/stream";
 import { VIP_BENEFITS } from "@/lib/vipBenefits";
 
 export const dynamic = "force-dynamic";
-
-const MEDAL = ["var(--color-gold)", "var(--color-silver)", "var(--color-bronze)"];
 
 function daysLeft(end: string): number {
   return Math.max(0, Math.ceil((new Date(end.replace(" ", "T") + "Z").getTime() - Date.now()) / 86_400_000));
@@ -46,8 +47,14 @@ export default async function HomePage() {
       {/* clips right under RAVO */}
       <ClipStrip clips={clips} />
 
+      {/* board + Qzino on the chrome-claw wallpaper */}
+      <div className="claws-band mt-8 py-12">
+        <div aria-hidden className="claws-band-bg">
+          <Image src="/media/claws-bg.webp" alt="" fill sizes="100vw" className="object-cover object-center" />
+        </div>
+
       {/* leaderboard */}
-      <section className="mx-auto mt-20 max-w-6xl px-4 sm:px-6">
+      <section className="mx-auto max-w-6xl px-4 sm:px-6">
         <Reveal>
           <div className="grid items-center gap-10 lg:grid-cols-[1fr_1.4fr]">
             <div>
@@ -61,27 +68,16 @@ export default async function HomePage() {
               </p>
               <Link href="/leaderboard" className="btn btn-neon mt-6">Open the leaderboard <ArrowRight className="size-4" /></Link>
             </div>
-            <ol className="space-y-2">
-              {[0, 1, 2].map((i) => {
+            <Podium3D
+              entries={[0, 1, 2].map((i) => {
                 const r = top[i];
-                return (
-                  <li key={i} className="flex items-center gap-4 rounded-2xl border border-white/[0.06] bg-surface px-4 py-3.5">
-                    <span className="w-10 font-display text-4xl leading-none" style={{ color: MEDAL[i] }}>{String(i + 1).padStart(2, "0")}</span>
-                    <span className="grid size-11 shrink-0 place-items-center rounded-xl border bg-bg text-xl" style={{ borderColor: MEDAL[i], color: MEDAL[i] }} aria-hidden>{["♠", "♥", "♣"][i]}</span>
-                    <span className="min-w-0 flex-1">
-                      <span className="block truncate font-head font-bold">{r ? r.name : "Open spot"}</span>
-                      <span className="block font-mono text-xs text-muted">{r ? `${Number(r.wagered).toLocaleString("en-US", { maximumFractionDigits: 2 })} pts` : "—"}</span>
-                    </span>
-                    {pv?.byPlace[i + 1] && (
-                      <span className="text-right">
-                        <span className="block text-[10px] font-semibold uppercase tracking-[0.2em] text-dim">Prize</span>
-                        <span className="block max-w-40 truncate font-head text-base font-bold" style={{ color: MEDAL[i] }}>{pv.byPlace[i + 1]}</span>
-                      </span>
-                    )}
-                  </li>
-                );
+                return {
+                  name: r ? r.name : null,
+                  score: r ? `${Number(r.wagered).toLocaleString("en-US", { maximumFractionDigits: 2 })} pts` : null,
+                  prize: pv?.byPlace[i + 1] ?? null,
+                };
               })}
-            </ol>
+            />
           </div>
         </Reveal>
       </section>
@@ -89,7 +85,7 @@ export default async function HomePage() {
       {/* Qzino */}
       <section className="mx-auto mt-20 max-w-6xl px-4 sm:px-6">
         <Reveal>
-          <div className="relative overflow-hidden rounded-3xl border border-white/[0.06] bg-surface p-6 sm:p-10">
+          <div className="relative rounded-3xl border border-white/[0.08] bg-surface/80 p-6 backdrop-blur-md sm:p-10">
             <div className="relative grid items-center gap-8 lg:grid-cols-[1.4fr_1fr]">
               <div>
                 <a href={QZINO_URL} target="_blank" rel="noopener noreferrer sponsored" className="inline-block" aria-label="Qzino">
@@ -111,32 +107,13 @@ export default async function HomePage() {
                   <CopyCode code={QZINO_CODE} />
                 </div>
               </div>
-              <a
-                href={QZINO_URL}
-                target="_blank"
-                rel="noopener noreferrer sponsored"
-                aria-label={`Claim a $50 bonus on Qzino with code ${QZINO_CODE}`}
-                className="relative mx-auto block aspect-[4/5] w-full max-w-xs -rotate-2 overflow-hidden rounded-3xl border border-white/10 shadow-2xl transition duration-500 hover:rotate-0"
-              >
-                <Image src="/media/hero/bg-3d-m.webp" alt="" fill sizes="320px" className="object-cover opacity-70" />
-                <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_50%_45%,rgb(4_10_5/0.25),rgb(4_10_5/0.9)_75%)]" />
-                <div className="relative flex size-full flex-col items-center justify-between p-6 text-center">
-                  <QzinoLogo className="h-7 w-auto" />
-                  <div>
-                    <p className="font-head text-xs font-bold uppercase tracking-[0.3em] text-neon">Welcome bonus</p>
-                    <p className="chrome mt-1 font-display text-8xl leading-none">$50</p>
-                  </div>
-                  <div>
-                    <p className="text-[0.65rem] uppercase tracking-[0.25em] text-muted">Promo code</p>
-                    <p className="mt-1 rounded-xl border border-neon/40 bg-bg/70 px-4 py-2 font-mono text-2xl font-bold tracking-[0.2em] text-neon">{QZINO_CODE}</p>
-                    <p className="mt-3 text-[0.65rem] text-dim">18+ · terms apply on Qzino</p>
-                  </div>
-                </div>
-              </a>
+              <BonusCard href={QZINO_URL} code={QZINO_CODE} />
             </div>
           </div>
         </Reveal>
       </section>
+
+      </div>
 
       {/* how to claim the code */}
       <section className="mx-auto mt-14 max-w-6xl px-4 sm:px-6">
@@ -163,6 +140,21 @@ export default async function HomePage() {
             </div>
           ))}
         </Stagger>
+      </section>
+
+      {/* Ravo's film */}
+      <section className="relative mx-auto mt-20 max-w-6xl px-4 sm:px-6">
+        <Reveal>
+          <div className="relative overflow-hidden rounded-3xl border border-white/[0.08] bg-black shadow-[0_40px_80px_rgb(0_0_0/0.6)]">
+            <PugVideo className="aspect-video w-full object-cover" />
+            <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(90deg,rgb(4_6_5/0.85),transparent_55%)]" />
+            <div className="absolute inset-y-0 left-0 flex max-w-md flex-col justify-end gap-3 p-5 sm:justify-center sm:p-10">
+              <p className="font-head text-xs font-bold uppercase tracking-[0.25em] text-neon">Ravo never sleeps</p>
+              <p className="font-display text-4xl leading-[0.9] sm:text-6xl"><span className="chrome">$5,000+ in giveaways</span></p>
+              <Link href="/leaderboard" className="btn btn-neon btn-sm hidden w-fit sm:inline-flex">See the prizes <ArrowRight className="size-4" /></Link>
+            </div>
+          </div>
+        </Reveal>
       </section>
 
       {/* follow */}

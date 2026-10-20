@@ -1,9 +1,9 @@
-import Image from "next/image";
 import { KICK_CHANNEL, KICK_URL } from "@/lib/constants";
 import type { LiveStatus } from "@/lib/stream";
+import { PugVideo } from "@/components/ui/PugVideo";
 import { SocialIcon } from "@/components/ui/SocialIcon";
 
-// Live → the Kick player. Offline → Ravo's own banner with the sleeping pug
+// Live → the Kick player. Offline → Ravo's pug film with the sleeping pug
 // line (an offline Kick embed is just a black box).
 export function StreamBox({ live }: { live: LiveStatus }) {
   return (
@@ -26,15 +26,8 @@ export function StreamBox({ live }: { live: LiveStatus }) {
           />
         ) : (
           <a href={KICK_URL} target="_blank" rel="noopener noreferrer" className="group absolute inset-0 block overflow-hidden">
-            {/* Ravo's pixel banner, animated (still poster with reduced motion) */}
-            <Image src="/media/stream-offline.webp" alt="" fill sizes="(min-width: 1152px) 1152px, 100vw" className="object-cover opacity-70" />
-            <video
-              src="/media/stream-offline.mp4"
-              poster="/media/stream-offline.webp"
-              autoPlay muted loop playsInline preload="metadata"
-              aria-hidden
-              className="absolute inset-0 size-full object-cover opacity-70 transition duration-700 group-hover:scale-105 group-hover:opacity-85 motion-reduce:hidden"
-            />
+            {/* Ravo's pug film (4K), dimmed behind the message */}
+            <PugVideo className="absolute inset-0 size-full object-cover opacity-75 transition duration-700 group-hover:scale-105 group-hover:opacity-90" />
             <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,transparent_20%,rgb(4_6_5/0.85)_85%)]" />
             <div className="absolute inset-x-0 bottom-0 flex flex-col items-center gap-3 p-6 text-center sm:p-10">
               <p className="font-display text-[2.1rem] leading-[0.95] sm:text-6xl"><span className="chrome">Ravo is</span> <span className="neon-text">resting his eyes</span></p>
