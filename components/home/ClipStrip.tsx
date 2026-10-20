@@ -1,60 +1,60 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowRight, Clock, Play } from "lucide-react";
+import { ArrowRight, Play } from "lucide-react";
 import { useCallback, useState } from "react";
 import { ClipModal, clipDuration } from "@/components/clips/ClipGrid";
 import type { Clip } from "@/lib/clips";
 
-// "From the stream": Ravo's latest Kick clips as a row of slightly tilted
-// cards right under the hero (scrolls sideways on phones), then a ticker of
-// clip titles. Clicking a card plays the clip on the site.
+// "From the stream": Ravo's latest Kick clips on a film strip right under
+// the hero. It drifts sideways on its own (pauses on hover / focus, stays
+// still with reduced motion); clicking a frame plays the clip on the site.
 
-const TILT = ["-rotate-2", "rotate-1", "-rotate-1", "rotate-2", "-rotate-1", "rotate-1"];
+function Frame({ c, onOpen, tabbable }: { c: Clip; onOpen: (c: Clip) => void; tabbable: boolean }) {
+  return (
+    <button
+      type="button"
+      onClick={() => onOpen(c)}
+      tabIndex={tabbable ? 0 : -1}
+      aria-hidden={!tabbable}
+      className="group relative w-60 shrink-0 overflow-hidden rounded-lg bg-black text-left ring-1 ring-white/10 transition duration-300 hover:-translate-y-1 hover:ring-neon/60 sm:w-72"
+    >
+      <span className="relative block aspect-video">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={c.thumbnail} alt="" loading="lazy" draggable={false} className="size-full object-cover opacity-90 transition duration-500 group-hover:scale-105 group-hover:opacity-100" />
+        <span className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/10 to-transparent" />
+        <span className="absolute right-2 top-2 rounded bg-black/70 px-1.5 py-0.5 font-mono text-[11px] text-white/90">{clipDuration(c.duration)}</span>
+        <span className="absolute left-2 top-2 grid size-8 place-items-center rounded-full bg-neon/90 text-neon-ink opacity-0 transition group-hover:opacity-100">
+          <Play className="ml-0.5 size-4 fill-current" />
+        </span>
+        <span className="absolute inset-x-3 bottom-2">
+          <span className="block truncate font-head text-sm font-bold text-white">{c.title}</span>
+          <span className="block text-[11px] text-white/60">{c.views.toLocaleString("en-US")} views{c.creator ? ` · ${c.creator}` : ""}</span>
+        </span>
+      </span>
+      <span className="absolute inset-x-0 bottom-0 h-0.5 origin-left scale-x-0 bg-neon transition duration-500 group-hover:scale-x-100" />
+    </button>
+  );
+}
 
 export function ClipStrip({ clips }: { clips: Clip[] }) {
   const [open, setOpen] = useState<Clip | null>(null);
   const close = useCallback(() => setOpen(null), []);
   if (!clips.length) return null;
-  const list = clips.slice(0, 6);
-  const ticker = [...list, ...list];
+  const list = clips.slice(0, 8);
   return (
     <section className="relative">
       <div className="mx-auto flex max-w-6xl items-end justify-between px-4 sm:px-6">
-        <p className="font-head text-xs font-bold uppercase tracking-[0.25em] text-muted">From the stream</p>
+        <p className="font-head text-xs font-bold uppercase tracking-[0.25em] text-muted">Fresh from the stream</p>
         <Link href="/clips" className="inline-flex items-center gap-1.5 py-2 font-head text-xs font-bold uppercase tracking-[0.2em] text-neon hover:text-text">
           All clips <ArrowRight className="size-3.5" />
         </Link>
       </div>
 
-      <ul className="mx-auto mt-4 flex max-w-[90rem] snap-x gap-5 overflow-x-auto px-4 pb-6 pt-3 sm:px-6 [scrollbar-width:none] lg:justify-center">
-        {list.map((c, i) => (
-          <li key={c.id} className={`w-64 shrink-0 snap-start sm:w-72 ${TILT[i % TILT.length]} transition duration-300 hover:rotate-0 hover:-translate-y-1.5`}>
-            <button type="button" onClick={() => setOpen(c)} className="group block w-full rounded-xl bg-[#e9f5ec] p-2 pb-3 text-left text-bg shadow-[0_18px_40px_-14px_rgb(0_0_0/0.9)]">
-              <span className="relative block aspect-video overflow-hidden rounded-lg bg-black">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={c.thumbnail} alt="" loading="lazy" draggable={false} className="size-full object-cover" />
-                <span className="absolute left-2 top-1 font-display text-3xl text-white drop-shadow-[0_2px_6px_rgb(0_0_0/0.9)]">{String(i + 1).padStart(2, "0")}</span>
-                <span className="absolute bottom-1.5 left-1.5 inline-flex items-center gap-1 rounded-md bg-black/75 px-1.5 py-0.5 font-mono text-[11px] font-bold text-white"><Clock className="size-3" />{clipDuration(c.duration)}</span>
-                <span className="absolute inset-0 grid place-items-center bg-black/0 transition group-hover:bg-black/35">
-                  <span className="grid size-11 scale-90 place-items-center rounded-full bg-neon text-neon-ink opacity-0 transition group-hover:scale-100 group-hover:opacity-100"><Play className="ml-0.5 size-5 fill-current" /></span>
-                </span>
-              </span>
-              <span className="mt-2 block truncate px-1 font-head text-sm font-bold">{c.title}</span>
-              <span className="block px-1 text-xs text-bg/60">{c.views.toLocaleString("en-US")} views</span>
-            </button>
-          </li>
-        ))}
-      </ul>
-
-      {/* ticker of clip titles */}
-      <div className="overflow-hidden border-y border-white/[0.06] bg-surface/60 py-3">
-        <div className="flex w-max animate-marquee gap-10 whitespace-nowrap font-head text-sm font-bold uppercase tracking-wider text-text/80">
-          {ticker.map((c, i) => (
-            <span key={`${c.id}-${i}`} className="inline-flex items-center gap-2">
-              <span className="text-[10px] tracking-[0.2em] text-neon">Clip</span>{c.title} <span className="text-dim">{clipDuration(c.duration)}</span>
-            </span>
-          ))}
+      {/* film strip: sprocket holes top and bottom, frames drifting by */}
+      <div className="film-strip group/strip mt-3 overflow-hidden py-5">
+        <div className="film-track flex w-max gap-4 px-2">
+          {[...list, ...list].map((c, i) => <Frame key={`${c.id}-${i}`} c={c} onOpen={setOpen} tabbable={i < list.length} />)}
         </div>
       </div>
 

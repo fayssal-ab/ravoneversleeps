@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
-import Image from "next/image";
+import { Crown } from "lucide-react";
 import Link from "next/link";
-import { BoardExplorer, Podium } from "@/components/leaderboard/Board";
+import { BoardExplorer } from "@/components/leaderboard/Board";
+import { PrizeCards } from "@/components/leaderboard/PrizeCards";
 import { EmptyState } from "@/components/ui/bits";
 import { CopyCode } from "@/components/ui/CopyCode";
 import { Countdown, Reveal, Stagger } from "@/components/ui/motion";
@@ -97,7 +98,7 @@ export default async function LeaderboardPage({ searchParams }: { searchParams: 
           </header>
 
           {rows.length ? (
-            <Podium rows={rows} prizes={prizes} scoreKind={board.scoreKind} />
+            <PrizeCards rows={rows} prizes={prizes} scoreKind={board.scoreKind} />
           ) : (
             <EmptyState title="Nobody on the board yet" action={<CopyCode code={QZINO_CODE} />}>
               Scores show up here once they&apos;re counted. Sign up with the code and start climbing.
@@ -126,9 +127,7 @@ export default async function LeaderboardPage({ searchParams }: { searchParams: 
           <Stagger className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {board.previous.map((x) => (
               <div key={x.id} className="panel neon-frame flex h-full flex-col items-center p-6 text-center">
-                <div className="relative size-20 overflow-hidden rounded-full border-2 border-gold bg-black shadow-[0_0_24px_rgb(255_215_106/0.3)]">
-                  <Image src="/media/podium/1.webp" alt="King" fill sizes="80px" className="object-cover" />
-                </div>
+                <div className="grid size-16 place-items-center rounded-2xl border border-gold/50 bg-gold/10 text-gold"><Crown className="size-8" /></div>
                 <p className="mt-2 text-[0.65rem] uppercase tracking-[0.2em] text-dim">Winner</p>
                 <p className="font-head font-bold">{x.winner ?? "No entries"}</p>
                 <div className="my-4 h-px w-full bg-line" />

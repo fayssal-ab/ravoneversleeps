@@ -439,3 +439,50 @@ iframe[src*=".netlify/scripts/hud"],
   mask-composite: intersect;
 }
 
+
+/* home clips: a film strip (sprocket holes top and bottom) drifting sideways */
+.film-strip {
+  position: relative;
+  background:
+    radial-gradient(circle, var(--color-bg) 3.5px, transparent 4px) 0 7px / 22px 14px repeat-x,
+    radial-gradient(circle, var(--color-bg) 3.5px, transparent 4px) 0 calc(100% - 7px) / 22px 14px repeat-x,
+    #0c120e;
+  border-block: 1px solid rgb(255 255 255 / 0.05);
+  -webkit-mask-image: linear-gradient(to right, transparent, #000 6%, #000 94%, transparent);
+  mask-image: linear-gradient(to right, transparent, #000 6%, #000 94%, transparent);
+}
+.film-track { animation: film-drift 60s linear infinite; }
+.film-strip:hover .film-track, .film-strip:focus-within .film-track { animation-play-state: paused; }
+@keyframes film-drift { to { transform: translateX(-50%); } }
+@media (prefers-reduced-motion: reduce) {
+  .film-track { animation: none; }
+  .film-strip { overflow-x: auto; }
+}
+
+/* hero 3D objects (components/home/Float3D.tsx) */
+.die3d { position: relative; transform-style: preserve-3d; animation: tumble 18s linear infinite; }
+.die3d-face {
+  position: absolute; inset: 0; display: grid; grid-template-columns: repeat(3, 1fr); padding: 16%; gap: 6%;
+  border-radius: 18%; backface-visibility: hidden;
+  background: radial-gradient(circle at 30% 25%, #2a352d, #0c120e 70%);
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.08), inset 0 -6px 12px rgb(0 0 0 / 0.6);
+}
+.die3d-face i { border-radius: 50%; }
+.die3d-face i.pip { background: radial-gradient(circle at 35% 30%, #c8ff9e, #6bd931 60%, #2e7d12); box-shadow: 0 0 6px rgb(141 255 74 / 0.5); }
+@keyframes tumble { from { transform: rotateX(0deg) rotateY(0deg) rotateZ(0deg); } to { transform: rotateX(360deg) rotateY(720deg) rotateZ(360deg); } }
+
+.chip3d { position: relative; transform-style: preserve-3d; animation: chip-turn 14s linear infinite; }
+.chip3d-layer, .chip3d-face { position: absolute; inset: 0; border-radius: 50%; backface-visibility: visible; }
+.chip3d-green .chip3d-layer { background: #1f6b2b; }
+.chip3d-black .chip3d-layer { background: #1a1f1c; }
+.chip3d-face {
+  background:
+    radial-gradient(circle, transparent 54%, rgb(255 255 255 / 0.85) 55% 57%, transparent 58%),
+    radial-gradient(circle at 50% 50%, var(--chip-mid) 0 52%, transparent 53%),
+    repeating-conic-gradient(var(--chip-edge) 0 22.5deg, #e9f5ec 22.5deg 45deg);
+  box-shadow: inset 0 0 0 2px rgb(0 0 0 / 0.35);
+}
+.chip3d-green { --chip-edge: #2e9a3e; --chip-mid: #23722f; }
+.chip3d-black { --chip-edge: #10140f; --chip-mid: #1c221e; }
+@keyframes chip-turn { from { transform: rotateX(62deg) rotateZ(0deg) rotateY(0deg); } 50% { transform: rotateX(48deg) rotateZ(180deg) rotateY(25deg); } to { transform: rotateX(62deg) rotateZ(360deg) rotateY(0deg); } }
+@media (prefers-reduced-motion: reduce) { .die3d, .chip3d { animation: none; transform: rotateX(-25deg) rotateY(35deg); } }

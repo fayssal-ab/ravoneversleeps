@@ -67,9 +67,7 @@ export default async function HomePage() {
                 return (
                   <li key={i} className="flex items-center gap-4 rounded-2xl border border-white/[0.06] bg-surface px-4 py-3.5">
                     <span className="w-10 font-display text-4xl leading-none" style={{ color: MEDAL[i] }}>{String(i + 1).padStart(2, "0")}</span>
-                    <span className="relative size-11 shrink-0 overflow-hidden rounded-full border bg-black" style={{ borderColor: MEDAL[i] }}>
-                      <Image src={`/media/podium/${i + 1}.webp`} alt="" fill sizes="44px" className="object-cover brightness-125" />
-                    </span>
+                    <span className="grid size-11 shrink-0 place-items-center rounded-xl border bg-bg text-xl" style={{ borderColor: MEDAL[i], color: MEDAL[i] }} aria-hidden>{["♠", "♥", "♣"][i]}</span>
                     <span className="min-w-0 flex-1">
                       <span className="block truncate font-head font-bold">{r ? r.name : "Open spot"}</span>
                       <span className="block font-mono text-xs text-muted">{r ? `${Number(r.wagered).toLocaleString("en-US", { maximumFractionDigits: 2 })} pts` : "—"}</span>

@@ -1,72 +1,15 @@
 "use client";
 
 import { AnimatePresence, motion } from "motion/react";
-import { Crown, History, ScrollText, Search } from "lucide-react";
+import { History, ScrollText, Search } from "lucide-react";
 import { useState } from "react";
 
 /** prize: a label, "$3,000" or "AirPods Pro Max 2" */
 export interface BoardRowView { rank: number; name: string; score: number; prize: string | null }
 
-const PODIUM = [
-  { place: 2, color: "var(--color-silver)", delay: 0.15, glow: "rgb(217 225 220 / 0.3)", lift: "sm:mt-10" },
-  { place: 1, color: "var(--color-gold)", delay: 0, glow: "rgb(255 215 106 / 0.4)", lift: "" },
-  { place: 3, color: "var(--color-bronze)", delay: 0.3, glow: "rgb(224 154 92 / 0.3)", lift: "sm:mt-10" },
-];
-
-const PODIUM_ALT: Record<number, string> = { 1: "King", 2: "Prince", 3: "Aristocrat" };
-
 const points = (n: number) => n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " pts";
 
 const money = (n: number) => "$" + n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-
-/** Top-3 cards, #1 raised in the middle. Missing places render as an open seat. */
-export function Podium({ rows, prizes, scoreKind = "wagered" }: { rows: BoardRowView[]; prizes: Record<number, string>; scoreKind?: "points" | "wagered" }) {
-  const score = scoreKind === "points" ? points : money;
-  return (
-    <div className="mx-auto grid max-w-5xl grid-cols-3 items-start gap-2 sm:gap-5">
-      {PODIUM.map((slot) => {
-        const r = rows.find((x) => x.rank === slot.place);
-        const prize = prizes[slot.place];
-        return (
-          <motion.div
-            key={slot.place}
-            initial={{ opacity: 0, y: 60 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ delay: slot.delay, duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
-            whileHover={{ y: -6 }}
-            className={`relative flex flex-col items-center rounded-[1.4rem] border-2 bg-surface px-2 pb-5 pt-6 text-center sm:px-5 sm:pb-7 sm:pt-8 ${slot.lift}`}
-            style={{ borderColor: slot.color, boxShadow: `0 6px 0 ${slot.glow}, 0 30px 60px -30px ${slot.glow}` }}
-          >
-            {slot.place === 1 && (
-              <motion.div className="absolute -top-6 left-1/2 -translate-x-1/2" animate={{ y: [0, -5, 0], rotate: [-6, 6, -6] }} transition={{ duration: 3, repeat: Infinity }}>
-                <Crown className="size-9" style={{ color: slot.color, filter: `drop-shadow(0 0 10px ${slot.glow})` }} />
-              </motion.div>
-            )}
-            <div className="relative">
-              <div
-                className="relative size-16 overflow-hidden rounded-full border-[3px] bg-black sm:size-28"
-                style={{ borderColor: slot.color, boxShadow: `0 0 30px ${slot.glow}` }}
-              >
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={`/media/podium/${slot.place}.webp`} alt={PODIUM_ALT[slot.place]} draggable={false} className="size-full scale-110 object-cover brightness-125" />
-              </div>
-              <span className="absolute -bottom-2 left-1/2 grid size-7 -translate-x-1/2 place-items-center rounded-full font-mono text-sm font-bold text-bg" style={{ background: slot.color }}>{slot.place}</span>
-            </div>
-            <p className="mt-5 max-w-full truncate font-head text-sm font-bold sm:text-lg">{r ? r.name : "Open seat"}</p>
-            <p className="mt-2 text-[0.6rem] uppercase tracking-[0.2em] text-dim">{scoreKind === "points" ? "Points" : "Wagered"}</p>
-            <p className="font-mono text-sm font-bold sm:text-xl" style={{ color: slot.color }}>{score(r?.score ?? 0)}</p>
-            {prize != null && (
-              <span className="mt-4 max-w-full rounded-xl px-3 py-1.5 text-center font-head text-xs font-bold leading-tight text-bg shadow-[0_3px_0_rgb(0_0_0/0.4)] sm:px-5 sm:text-lg" style={{ background: slot.color }}>
-                {prize}
-              </span>
-            )}
-          </motion.div>
-        );
-      })}
-    </div>
-  );
-}
 
 /** Ranked rows from 4th place down (or everything with `fromRank` = 1). */
 export function BoardTable({ rows, fromRank = 4, scoreKind = "wagered" }: { rows: BoardRowView[]; fromRank?: number; scoreKind?: "points" | "wagered" }) {
