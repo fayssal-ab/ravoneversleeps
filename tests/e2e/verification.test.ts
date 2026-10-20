@@ -20,6 +20,10 @@ globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
   if (!url.startsWith("https://discord.com/api/")) return realFetch(input, init);
   const path = url.replace("https://discord.com/api/v10", "");
   calls.push({ method: init?.method ?? "GET", path, body: init?.body ? JSON.parse(String(init.body)) : null });
+  if (path === "/users/@me") return Response.json({ id: "444", username: "bot" });
+  if (path === "/guilds/111") return Response.json({ id: "111", name: "Ravo" });
+  if (path === "/guilds/111/roles" && (init?.method ?? "GET") === "GET") return Response.json([{ id: "333", name: "Staff" }]);
+  if (path === "/guilds/111/channels" && (init?.method ?? "GET") === "GET") return Response.json([{ id: "222", name: "Tickets", type: 4 }]);
   return Response.json(path.endsWith("/channels") ? { id: String(900000 + calls.length) } : {});
 }) as typeof fetch;
 
@@ -34,8 +38,8 @@ test("username → pending + ticket → verified unlocks claims; one claim per c
   await requestQzinoVerification(id, tag);
   let st = await qzinoStatusOf(id);
   assert.equal(st.status, "pending");
-  assert.match(st.ticketUrl ?? "", /discord\.com\/channels\/111\/9000\d+/);
-  const create = calls.find((c) => c.path === "/guilds/111/channels")!;
+  assert.match(st.ticketUrl ?? "", /^\/api\/discord\/ticket\/9000\d+$/);
+  const create = calls.find((c) => c.path === "/guilds/111/channels" && c.method === "POST")!;
   assert.equal(create.body!.parent_id, "222");
   const ow = create.body!.permission_overwrites as { id: string; allow?: string; deny?: string }[];
   assert.ok(ow.some((o) => o.id === "111" && o.deny), "@everyone denied");
@@ -54,7 +58,7 @@ test("username → pending + ticket → verified unlocks claims; one claim per c
   assert.ok(calls.some((c) => c.method === "POST" && /\/channels\/9000\d+\/messages/.test(c.path) && String(c.body?.content).includes("verified")));
 
   const url = await claimChallenge(id, challenge);
-  assert.match(url ?? "", /discord\.com\/channels\/111\//);
+  assert.match(url ?? "", /^\/api\/discord\/ticket\/\d+$/);
   await assert.rejects(claimChallenge(id, challenge), /already_claimed/);
   assert.ok((await myChallengeClaims(id)).get(challenge)?.ticket_url);
 

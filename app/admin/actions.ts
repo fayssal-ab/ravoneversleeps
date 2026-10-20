@@ -8,6 +8,7 @@ import { deleteClaim, resolveClaim, saveMilestones } from "@/lib/milestones";
 import { addSlot, deleteSlot } from "@/lib/stream";
 import { createChallenge, deleteChallenge, markChallengeWon, setChallengeStatus } from "@/lib/challenges";
 import { decideVerification } from "@/lib/verification";
+import { discordSetup } from "@/lib/discordBot";
 import { decideVipApplication } from "@/lib/vip";
 import { cancelRaffle, createRaffle, deleteRaffle, drawRaffle } from "@/lib/raffles";
 import { deleteStoreItem, resolveRedemption, saveStoreItem } from "@/lib/store";
@@ -285,6 +286,18 @@ export async function decideVipAction(form: FormData) {
     const v = parseForm(z.object({ id: zId, decision: z.enum(["approve", "reject"]), note: zText(255).default("") }), form);
     await decideVipApplication(v.id, v.decision === "approve", v.note);
     return v;
+  });
+}
+
+// ── Discord ────────────────────────────────────────────────────────────
+export async function discordSetupAction() {
+  await adminAction({ path: "/admin/discord", audit: "discord.setup" }, async () => {
+    try {
+      const s = await discordSetup(true);
+      return { guild: s.guildName, categoryCreated: s.categoryCreated, staffCreated: s.staffCreated };
+    } catch (e) {
+      throw new AppError("unexpected", e instanceof Error ? e.message : "discord error");
+    }
   });
 }
 

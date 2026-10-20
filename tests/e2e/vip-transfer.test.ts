@@ -14,6 +14,11 @@ const realFetch = globalThis.fetch;
 globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
   const url = String(input);
   if (!url.startsWith("https://discord.com/api/")) return realFetch(input, init);
+  const path = url.replace("https://discord.com/api/v10", "");
+  if (path === "/users/@me") return Response.json({ id: "444", username: "bot" });
+  if (path === "/guilds/111") return Response.json({ id: "111", name: "Ravo" });
+  if (path === "/guilds/111/roles" && !init?.method) return Response.json([{ id: "333", name: "Staff" }]);
+  if (path === "/guilds/111/channels" && !init?.method) return Response.json([{ id: "222", name: "Tickets", type: 4 }]);
   if (init?.body) posted.push(String(JSON.parse(String(init.body)).content ?? ""));
   return Response.json(url.endsWith("/channels") ? { id: "777000" } : {});
 }) as typeof fetch;
@@ -28,7 +33,7 @@ test("apply → ticket with the details; one pending application; decision poste
   const id = await applyVipTransfer(acc.insertId, form);
   const app = (await myVipApplication(acc.insertId))!;
   assert.equal(app.status, "pending");
-  assert.match(app.ticket_url ?? "", /channels\/111\/777000/);
+  assert.equal(app.ticket_url, "/api/discord/ticket/777000");
   assert.ok(posted.some((m) => m.includes("Platinum III") && m.includes("Stake") && m.includes("$50k – $250k") && m.includes("Never share passwords")));
   await assert.rejects(applyVipTransfer(acc.insertId, form), /vip_pending/);
   assert.ok((await listVipApplications("pending")).some((a) => a.id === id));
