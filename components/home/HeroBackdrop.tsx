@@ -3,11 +3,9 @@
 import Image from "next/image";
 import { motion, useReducedMotion, type MotionValue } from "motion/react";
 
-// Hero wallpaper: chrome spikes over green smoke. The card suits were lifted
-// out of the artwork into their own sprites (public/media/hero/*.webp) and sit
-// back on their original spots (percent of the 2400×1157 art), flipping like
-// coins. The art box keeps its aspect ratio and covers the band, so the
-// sprites stay aligned at every screen size.
+// Hero background: Ravo's looping card-suit video (public/media/hero/bg-loop.*,
+// made seamless with a crossfade). On phones, where only the dark middle of
+// the loop shows, suit sprites lifted from the old wallpaper flip at the edges.
 
 const SUITS = [
   { k: "heartL", left: 4.38, top: 29.39, width: 8.71, height: 19.79, dur: 5.5, delay: 0 },
@@ -50,31 +48,22 @@ function Suit({ s, reduce, style }: { s: SuitDef; reduce: boolean; style: React.
 export function HeroBackdrop({ y }: { y: MotionValue<string> }) {
   const reduce = useReducedMotion();
   return (
-    <div className="absolute inset-0 overflow-hidden bg-[#040a05] [container-type:size]">
-      <motion.div
-        className="absolute left-1/2 top-0 aspect-[2400/1157] w-[max(100cqw,calc(100cqh*2400/1157))] -translate-x-1/2"
-        style={{ y }}
-      >
-        <motion.div
-          className="absolute inset-0"
-          animate={reduce ? undefined : { scale: [1, 1.035, 1] }}
-          transition={{ duration: 18, repeat: Infinity, ease: "easeInOut" }}
-        >
-          <Image src="/media/hero/bg.webp" alt="" fill priority quality={90} sizes="(max-width: 640px) 200vw, 100vw" className="object-cover" />
-          <div className="absolute inset-0 [perspective:900px]">
-            {SUITS.map((s) => (
-              <Suit key={s.k} s={s} reduce={!!reduce} style={{ left: `${s.left}%`, top: `${s.top}%`, width: `${s.width}%`, height: `${s.height}%` }} />
-            ))}
-          </div>
-          {/* neon breathing over the spikes */}
-          <motion.div
-            className="absolute inset-0 bg-[radial-gradient(ellipse_at_50%_45%,rgb(141_255_74/0.16),transparent_55%)]"
-            animate={reduce ? undefined : { opacity: [0.4, 1, 0.4] }}
-            transition={{ duration: 6, repeat: Infinity, ease: "easeInOut" }}
-          />
-        </motion.div>
+    <div className="absolute inset-0 overflow-hidden bg-[#040a05]">
+      {/* Ravo's animated card-suit loop (seamless 5 s, muted); poster while it
+          loads and for reduced motion */}
+      <motion.div className="absolute inset-0" style={{ y }}>
+        <Image src="/media/hero/bg-loop.webp" alt="" fill priority sizes="100vw" className="object-cover" />
+        {!reduce && (
+          <video
+            autoPlay muted loop playsInline preload="auto" poster="/media/hero/bg-loop.webp" aria-hidden
+            className="absolute inset-0 size-full object-cover"
+          >
+            <source src="/media/hero/bg-loop.webm" type="video/webm" />
+            <source src="/media/hero/bg-loop.mp4" type="video/mp4" />
+          </video>
+        )}
       </motion.div>
-      {/* phones only see the middle of the art: bring a few suits in from the edges */}
+      {/* phones only see the dark middle of the loop: a few suits at the edges */}
       <div className="absolute inset-0 [perspective:700px] sm:hidden">
         {MOBILE.map((m) => {
           const s = SUITS.find((x) => x.k === m.k)!;
@@ -82,7 +71,7 @@ export function HeroBackdrop({ y }: { y: MotionValue<string> }) {
         })}
       </div>
       {/* keep the copy readable in the middle */}
-      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_50%_55%,rgb(4_10_5/0.55),transparent_60%)]" />
+      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_50%_55%,rgb(4_10_5/0.5),transparent_60%)]" />
     </div>
   );
 }

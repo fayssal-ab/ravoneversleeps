@@ -263,13 +263,13 @@ export function KoDashboard({ initial, overlayUrl }: { initial: KoState | null; 
         )}
         {tab === "final" && (
           <div className="space-y-6">
-            {state.matches.filter((m) => m.round === state.rounds).sort((a, b) => b.match_index - a.match_index).map((m) => <VsScreen key={m.id} match={m} size={size} />)}
+            {state.matches.filter((m) => m.round === state.rounds && m.match_index === 0).map((m) => <VsScreen key={m.id} match={m} size={size} />)}
           </div>
         )}
       </section>
 
       <p className="text-xs text-dim">
-        OBS: add a Browser Source (1920×1080) with <code className="text-neon">{overlayUrl}</code>. It updates by itself.
+        OBS: add a Browser Source <b>480×860</b> (tall card, resize freely) with <code className="text-neon">{overlayUrl}</code>. For the wide 1920×1080 layout add <code className="text-neon">?wide</code>. It updates by itself.
       </p>
     </div>
   );

@@ -242,11 +242,11 @@ function BracketCell({ m, champion }: { m: KoMatch; champion: number | null }) {
     const won = p && m.winner_id === p.id;
     const lost = p && m.winner_id != null && m.winner_id !== p.id;
     return (
-      <div className={`flex items-center gap-2 px-2 py-1.5 ${won ? "bg-gold/10" : ""} ${lost ? "opacity-40" : ""}`}>
-        <span className="h-5 w-0.5 rounded-full" style={{ background: SIDE[side].color }} />
-        {p ? <SlotArt name={p.slot_name} src={p.slot_image} size={26} rounded="rounded-md" /> : <span className="size-[26px] rounded-md border border-dashed border-line" />}
-        <span className={`min-w-0 flex-1 truncate text-xs ${won ? "font-bold text-gold" : "text-muted"}`}>{p ? teamName(p) : m.status === "void" ? "—" : "TBD"}</span>
-        {res && <span className={`font-mono text-[10px] ${won ? "text-gold" : "text-dim"}`}>x{res}</span>}
+      <div className={`flex items-center gap-2.5 px-2.5 py-2 ${won ? "bg-gold/10" : ""} ${lost ? "opacity-45" : ""}`}>
+        <span className="h-6 w-0.5 rounded-full" style={{ background: SIDE[side].color }} />
+        {p ? <SlotArt name={p.slot_name} src={p.slot_image} size={34} rounded="rounded-md" /> : <span className="size-[34px] rounded-md border border-dashed border-line" />}
+        <span className={`min-w-0 flex-1 truncate text-sm ${won ? "font-bold text-gold" : "text-text/80"}`}>{p ? teamName(p) : m.status === "void" ? "—" : "TBD"}</span>
+        {res && <span className={`font-mono text-xs ${won ? "font-bold text-gold" : "text-dim"}`}>x{res}</span>}
         {won && champion === p?.id && <Crown className="size-3.5 text-gold" />}
       </div>
     );
@@ -266,18 +266,19 @@ export function Bracket({ state }: { state: KoState }) {
   const size = state.tournament.max_players;
   const champ = state.tournament.champion_id ? Number(state.tournament.champion_id) : null;
   const rounds = Array.from({ length: state.rounds }, (_, i) => i + 1);
-  const byRound = (r: number) => state.matches.filter((m) => m.round === r);
+  // only the champion is awarded: the 3rd-place match of older tournaments is hidden
+  const byRound = (r: number) => state.matches.filter((m) => m.round === r && !(r === state.rounds && m.match_index === 1));
   return (
     <>
       <div className="hidden overflow-x-auto pb-2 lg:block">
-        <div className="grid gap-4" style={{ gridTemplateColumns: `repeat(${rounds.length + 1}, minmax(170px, 1fr))`, minWidth: (rounds.length + 1) * 190 }}>
+        <div className="grid gap-5" style={{ gridTemplateColumns: `repeat(${rounds.length + 1}, minmax(200px, 1fr))`, minWidth: (rounds.length + 1) * 220 }}>
           {rounds.map((r) => (
             <div key={r} className="flex flex-col">
               <p className="mb-3 text-center font-head text-xs font-bold uppercase tracking-[0.18em] text-muted">{roundName(size, r)}</p>
               <div className="flex flex-1 flex-col justify-around gap-3">
                 {byRound(r).map((m) => (
                   <div key={m.id}>
-                    {r === state.rounds && <p className="mb-1 text-center text-[10px] uppercase tracking-wider text-dim">{matchLabel(m, size)}</p>}
+
                     <BracketCell m={m} champion={champ} />
                   </div>
                 ))}
@@ -297,7 +298,7 @@ export function Bracket({ state }: { state: KoState }) {
             <p className="mb-2 font-head text-xs font-bold uppercase tracking-[0.18em] text-muted">{roundName(size, r)}</p>
             <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
               {byRound(r).map((m) => (
-                <div key={m.id}>{r === state.rounds && <p className="mb-1 text-[10px] uppercase tracking-wider text-dim">{matchLabel(m, size)}</p>}<BracketCell m={m} champion={champ} /></div>
+                <div key={m.id}><BracketCell m={m} champion={champ} /></div>
               ))}
             </div>
           </section>

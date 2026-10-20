@@ -85,8 +85,8 @@ export function Hero({ code, qzinoUrl, pool }: { code: string; qzinoUrl: string;
         </h1>
 
         <p style={{ "--d": "0.35s" } as React.CSSProperties} className="hero-intro mx-auto mt-6 max-w-xl text-base text-text/80 sm:text-lg">
-          Play on Qzino with code <span className="font-mono font-bold text-neon">{code}</span> for a <b>$50 bonus</b>, monthly wager leaderboards,
-          milestones and a points store that pays you back.
+          Play on Qzino with code <span className="font-mono font-bold text-neon">{code}</span> for a <b>$50 bonus</b>, a monthly leaderboard,
+          slot challenges and a points store that pays you back.
         </p>
 
         <div style={{ "--d": "0.5s" } as React.CSSProperties} className="hero-intro mt-8 flex flex-col items-center gap-4 sm:flex-row">
