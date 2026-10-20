@@ -7,6 +7,7 @@ import { CopyCode } from "@/components/ui/CopyCode";
 import { Countdown, Reveal, Stagger } from "@/components/ui/motion";
 import { QZINO_CODE, QZINO_URL } from "@/lib/constants";
 import { getBoard } from "@/lib/leaderboard";
+import { getTopPrizes, prizeView } from "@/lib/leaderboardPrizes";
 import { QBOARDS_URL } from "@/lib/qboardsFeed";
 import { formatMoney } from "@/lib/money";
 
@@ -38,8 +39,11 @@ export default async function LeaderboardPage({ searchParams }: { searchParams: 
     "Scores and prizes sync every 8 hours (3 times a day). Check the official board for the latest results and payout rules.",
     "Usernames are partly hidden for privacy.",
   ] : RULES;
-  const rows = (board?.rows ?? []).map((r) => ({ ...r, score: Number(r.wagered), prize: r.prize != null ? Number(r.prize) : null }));
-  const prizes = Object.fromEntries((board?.prizes ?? []).map((x) => [x.place, Number(x.amount)]));
+  // the running month uses Ravo's prizes for the top 3; archived months show what Q-boards recorded
+  const top = board && !archived ? await getTopPrizes().catch(() => null) : null;
+  const pv = board ? prizeView(board, top) : { byPlace: {}, pool: "" };
+  const rows = (board?.rows ?? []).map((r) => ({ ...r, score: Number(r.wagered), prize: pv.byPlace[r.rank] ?? null }));
+  const prizes = pv.byPlace;
 
   return (
     <div className="mx-auto max-w-6xl px-4 sm:px-6">
@@ -70,9 +74,15 @@ export default async function LeaderboardPage({ searchParams }: { searchParams: 
               </p>
             )}
             <p className="eyebrow mb-2">Qzino {board.scoreKind === "points" ? "points" : "wager"} leaderboard · prize pool</p>
-            <p className="font-mono text-6xl font-bold text-gold drop-shadow-[0_0_30px_rgb(255_215_106/0.35)] sm:text-8xl">
-              {formatMoney(period.prize_pool)}
-            </p>
+            {(() => {
+              const [cash, ...items] = (pv.pool || formatMoney(period.prize_pool)).split(" + ");
+              return (
+                <>
+                  <p className="font-mono text-6xl font-bold text-gold drop-shadow-[0_0_30px_rgb(255_215_106/0.35)] sm:text-8xl">{cash}</p>
+                  {items.length > 0 && <p className="mt-1 font-head text-xl font-bold text-gold/90 sm:text-3xl">+ {items.join(" + ")}</p>}
+                </>
+              );
+            })()}
             <h1 className="mt-2 font-display text-3xl sm:text-4xl"><span className="chrome">{period.title}</span></h1>
             <p className="mt-2 text-sm text-muted">
               {period.state === "live" ? <span className="text-neon">● Live</span> : period.state === "upcoming" ? "Starts soon" : "Ended"} · {fmtDate(period.starts_at)} – {fmtDate(period.ends_at)} (UTC)

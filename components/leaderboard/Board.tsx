@@ -3,9 +3,9 @@
 import { AnimatePresence, motion } from "motion/react";
 import { Crown, History, ScrollText, Search } from "lucide-react";
 import { useState } from "react";
-import { CountUp } from "@/components/ui/motion";
 
-export interface BoardRowView { rank: number; name: string; score: number; prize: number | null }
+/** prize: a label, "$3,000" or "AirPods Pro Max 2" */
+export interface BoardRowView { rank: number; name: string; score: number; prize: string | null }
 
 const PODIUM = [
   { place: 2, color: "var(--color-silver)", delay: 0.15, glow: "rgb(217 225 220 / 0.3)", lift: "sm:mt-10" },
@@ -20,7 +20,7 @@ const points = (n: number) => n.toLocaleString("en-US", { minimumFractionDigits:
 const money = (n: number) => "$" + n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 /** Top-3 cards, #1 raised in the middle. Missing places render as an open seat. */
-export function Podium({ rows, prizes, scoreKind = "wagered" }: { rows: BoardRowView[]; prizes: Record<number, number>; scoreKind?: "points" | "wagered" }) {
+export function Podium({ rows, prizes, scoreKind = "wagered" }: { rows: BoardRowView[]; prizes: Record<number, string>; scoreKind?: "points" | "wagered" }) {
   const score = scoreKind === "points" ? points : money;
   return (
     <div className="mx-auto grid max-w-5xl grid-cols-3 items-start gap-2 sm:gap-5">
@@ -57,8 +57,8 @@ export function Podium({ rows, prizes, scoreKind = "wagered" }: { rows: BoardRow
             <p className="mt-2 text-[0.6rem] uppercase tracking-[0.2em] text-dim">{scoreKind === "points" ? "Points" : "Wagered"}</p>
             <p className="font-mono text-sm font-bold sm:text-xl" style={{ color: slot.color }}>{score(r?.score ?? 0)}</p>
             {prize != null && (
-              <span className="mt-4 rounded-xl px-3 py-1.5 font-mono text-sm font-bold text-bg shadow-[0_3px_0_rgb(0_0_0/0.4)] sm:px-5 sm:text-lg" style={{ background: slot.color }}>
-                <CountUp value={prize} prefix="$" decimals={2} />
+              <span className="mt-4 max-w-full rounded-xl px-3 py-1.5 text-center font-head text-xs font-bold leading-tight text-bg shadow-[0_3px_0_rgb(0_0_0/0.4)] sm:px-5 sm:text-lg" style={{ background: slot.color }}>
+                {prize}
               </span>
             )}
           </motion.div>
@@ -95,10 +95,10 @@ export function BoardTable({ rows, fromRank = 4, scoreKind = "wagered" }: { rows
             </span>
             <span className="text-right font-mono text-sm font-bold text-neon">
               {score(r.score)}
-              {r.prize != null && <span className="mt-1 block text-xs text-gold sm:hidden">{money(r.prize)}</span>}
+              {r.prize != null && <span className="mt-1 block text-xs text-gold sm:hidden">{r.prize}</span>}
             </span>
             <span className="hidden justify-end sm:flex">
-              {r.prize != null ? <span className="rounded-full bg-gold px-3 py-0.5 font-mono text-xs font-bold text-bg">{money(r.prize)}</span> : <span className="text-dim">—</span>}
+              {r.prize != null ? <span className="rounded-full bg-gold px-3 py-0.5 font-mono text-xs font-bold text-bg">{r.prize}</span> : <span className="text-dim">—</span>}
             </span>
           </motion.li>
         ))}

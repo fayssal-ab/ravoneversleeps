@@ -17,6 +17,7 @@ import { getRanks } from "@/lib/account";
 import { DISCORD_URL, KICK_URL, QZINO_CODE, QZINO_PERKS, QZINO_URL, X_URL } from "@/lib/constants";
 import { getBoard } from "@/lib/leaderboard";
 import { VIP_BENEFITS } from "@/lib/vipBenefits";
+import { getTopPrizes, prizeView } from "@/lib/leaderboardPrizes";
 import { formatMoney } from "@/lib/money";
 import { listStoreItems } from "@/lib/store";
 import { getLiveStatus } from "@/lib/stream";
@@ -30,14 +31,15 @@ function daysLeft(end: string): number {
 }
 
 export default async function HomePage() {
-  const [board, items, ranks, , live] = await Promise.all([
+  const [board, items, ranks, topPrizes, live] = await Promise.all([
     getBoard(undefined, 3).catch(() => null),
     listStoreItems().catch(() => []),
     getRanks(),
-    Promise.resolve(null),
+    getTopPrizes().catch(() => null),
     getLiveStatus(),
   ]);
   const period = board?.period ?? null;
+  const pv = board ? prizeView(board, period?.state === "ended" ? null : topPrizes) : null;
   const top = board?.rows ?? [];
   const rankName = new Map(ranks.map((r) => [r.level, r.name]));
   const left = period ? daysLeft(period.state === "upcoming" ? period.starts_at : period.ends_at) : 0;
@@ -45,7 +47,7 @@ export default async function HomePage() {
   return (
     <div className="relative">
       <FloatingDecor />
-      <Hero code={QZINO_CODE} qzinoUrl={QZINO_URL} pool={period ? formatMoney(period.prize_pool, { cents: false }) : null} />
+      <Hero code={QZINO_CODE} qzinoUrl={QZINO_URL} pool={pv?.pool || (period ? formatMoney(period.prize_pool, { cents: false }) : null)} />
 
       {/* Qzino card */}
       <section className="mx-auto mt-6 max-w-6xl px-4 sm:px-6">
@@ -121,9 +123,15 @@ export default async function HomePage() {
             <div className="relative grid items-center gap-8 lg:grid-cols-[1fr_1.4fr]">
               <div>
                 <p className="eyebrow !text-neon-bright">Monthly leaderboard</p>
-                <p className="mt-2 font-mono text-5xl font-bold text-gold drop-shadow-[0_0_20px_rgb(255_215_106/0.35)] sm:text-6xl">
-                  {period ? formatMoney(period.prize_pool) : "Soon"}
-                </p>
+                {(() => {
+                  const [cash, ...extra] = (pv?.pool || (period ? formatMoney(period.prize_pool) : "Soon")).split(" + ");
+                  return (
+                    <>
+                      <p className="mt-2 font-mono text-5xl font-bold text-gold drop-shadow-[0_0_20px_rgb(255_215_106/0.35)] sm:text-6xl">{cash}</p>
+                      {extra.length > 0 && <p className="font-head text-lg font-bold text-gold/90">+ {extra.join(" + ")}</p>}
+                    </>
+                  );
+                })()}
                 <p className="mt-2 flex items-center gap-2 font-head text-lg font-bold">
                   <Timer className="size-5 text-neon" />
                   {period ? (period.state === "ended" ? "Final results" : `${left} day${left === 1 ? "" : "s"} ${period.state === "upcoming" ? "to start" : "left"}`) : "First period coming"}
@@ -141,9 +149,9 @@ export default async function HomePage() {
                       </div>
                       <p className="mt-4 truncate font-head text-sm font-bold">{r ? r.name : "Open seat"}</p>
                       <p className="font-mono text-xs text-text/60">{board?.scoreKind === "points" ? `${Number(r?.wagered ?? 0).toLocaleString("en-US", { maximumFractionDigits: 2 })} pts` : r ? formatMoney(r.wagered) : "$0.00"}</p>
-                      {board?.prizes[i] && (
-                        <span className="mt-2 inline-block rounded-full px-2.5 py-0.5 font-mono text-xs font-bold text-bg" style={{ background: MEDAL[i] }}>
-                          {formatMoney(board.prizes[i].amount)}
+                      {pv?.byPlace[i + 1] && (
+                        <span className="mt-2 inline-block max-w-full rounded-full px-2.5 py-0.5 text-center font-head text-xs font-bold leading-tight text-bg" style={{ background: MEDAL[i] }}>
+                          {pv.byPlace[i + 1]}
                         </span>
                       )}
                     </div>

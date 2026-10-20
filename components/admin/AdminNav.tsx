@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Award, Crosshair, Crown, Flag, Gamepad2, Gauge, MessagesSquare, Radio, ScrollText, ShoppingBag, Swords, Target, Ticket, Users } from "lucide-react";
+import { Award, Crosshair, Crown, Flag, Gamepad2, Gauge, MessagesSquare, Radio, ScrollText, ShoppingBag, Swords, Target, Ticket, Trophy, Users } from "lucide-react";
 
 const GROUPS = [
   { title: "", links: [{ href: "/admin", label: "Dashboard", icon: Gauge }] },
@@ -17,6 +17,7 @@ const GROUPS = [
   {
     title: "Rewards",
     links: [
+      { href: "/admin/leaderboard", label: "Leaderboard prizes", icon: Trophy },
       { href: "/admin/store", label: "Store", icon: ShoppingBag },
       { href: "/admin/challenges", label: "Challenges", icon: Target },
       { href: "/admin/raffles", label: "Raffles", icon: Ticket },

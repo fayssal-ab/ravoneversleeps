@@ -9,6 +9,7 @@ import { addSlot, deleteSlot } from "@/lib/stream";
 import { createChallenge, deleteChallenge, markChallengeWon, setChallengeStatus } from "@/lib/challenges";
 import { decideVerification } from "@/lib/verification";
 import { discordSetup } from "@/lib/discordBot";
+import { saveTopPrizes } from "@/lib/leaderboardPrizes";
 import { decideVipApplication } from "@/lib/vip";
 import { cancelRaffle, createRaffle, deleteRaffle, drawRaffle } from "@/lib/raffles";
 import { deleteStoreItem, resolveRedemption, saveStoreItem } from "@/lib/store";
@@ -298,6 +299,15 @@ export async function discordSetupAction() {
     } catch (e) {
       throw new AppError("unexpected", e instanceof Error ? e.message : "discord error");
     }
+  });
+}
+
+// ── leaderboard prizes ─────────────────────────────────────────────────
+export async function saveTopPrizesAction(form: FormData) {
+  await adminAction({ path: "/admin/leaderboard", audit: "leaderboard.prizes", revalidate: ["/leaderboard", "/"] }, async () => {
+    const v = parseForm(z.object({ p1: zText(60), p2: zText(60), p3: zText(60) }), form);
+    await saveTopPrizes([v.p1, v.p2, v.p3]);
+    return v;
   });
 }
 
