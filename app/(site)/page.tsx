@@ -147,11 +147,12 @@ export default async function HomePage() {
         <Reveal>
           <div className="relative overflow-hidden rounded-3xl border border-white/[0.08] bg-black shadow-[0_40px_80px_rgb(0_0_0/0.6)]">
             <PugVideo className="aspect-video w-full object-cover" />
-            <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(90deg,rgb(4_6_5/0.85),transparent_55%)]" />
-            <div className="absolute inset-y-0 left-0 flex max-w-md flex-col justify-end gap-3 p-5 sm:justify-center sm:p-10">
+            <div className="pointer-events-none absolute inset-0 hidden bg-[linear-gradient(90deg,rgb(4_6_5/0.85),transparent_55%)] sm:block" />
+            {/* phones: text under the film; wider: over its dark left side */}
+            <div className="flex flex-col gap-3 p-5 sm:absolute sm:inset-y-0 sm:left-0 sm:max-w-md sm:justify-center sm:p-10">
               <p className="font-head text-xs font-bold uppercase tracking-[0.25em] text-neon">Ravo never sleeps</p>
               <p className="font-display text-4xl leading-[0.9] sm:text-6xl"><span className="chrome">$5,000+ in giveaways</span></p>
-              <Link href="/leaderboard" className="btn btn-neon btn-sm hidden w-fit sm:inline-flex">See the prizes <ArrowRight className="size-4" /></Link>
+              <Link href="/leaderboard" className="btn btn-neon btn-sm w-fit">See the prizes <ArrowRight className="size-4" /></Link>
             </div>
           </div>
         </Reveal>

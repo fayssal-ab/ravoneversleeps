@@ -19,7 +19,7 @@ export function Footer() {
     <footer className="relative mt-40 text-text">
       {/* peeking pug: rises out of the slime, body hidden behind it */}
       <div className="pointer-events-none absolute -top-[5rem] left-[8%] z-0 h-[9rem] w-40 overflow-hidden sm:left-[12%] sm:-top-[5.75rem] sm:h-[11rem] sm:w-48" aria-hidden>
-        <Image src="/media/ravo-mascot.webp" alt="" width={192} height={210} className="animate-peek absolute inset-x-0 top-3 h-auto w-full" />
+        <Image src="/media/ravo-mascot.webp" alt="" width={760} height={834} sizes="192px" className="animate-peek absolute inset-x-0 top-3 h-auto w-full" />
       </div>
       {/* paws gripping the slime, right side */}
       <div className="pointer-events-none absolute top-4 right-[14%] z-20 hidden gap-4 sm:flex" aria-hidden>
@@ -49,14 +49,14 @@ export function Footer() {
             <a href={QZINO_URL} target="_blank" rel="noopener noreferrer sponsored" className="btn btn-neon shrink-0">Claim on Qzino</a>
           </div>
 
-          <div className="flex flex-col items-center justify-between gap-8 md:flex-row">
-            <Link href="/" className="flex items-center gap-3">
+          <div className="flex flex-col items-center justify-between gap-8 lg:flex-row">
+            <Link href="/" className="flex shrink-0 items-center gap-3">
               <Image src="/media/ravo-avatar.webp" alt="" width={52} height={52} className="rounded-full ring-2 ring-neon/50" />
-              <span className="font-display text-4xl leading-none">
+              <span className="whitespace-nowrap font-display text-4xl leading-none">
                 <span className="chrome">RAVO</span><span className="neon-text">NEVERSLEEPS</span>
               </span>
             </Link>
-            <nav className="flex flex-wrap justify-center gap-x-6" aria-label="Footer">
+            <nav className="flex min-w-0 flex-wrap justify-center gap-x-6" aria-label="Footer">
               {NAV_FLAT.map((n) => (
                 <Link key={n.href} href={n.href} className="inline-block py-2 font-head text-sm font-bold uppercase tracking-[0.14em] text-text/80 transition hover:text-neon">{n.label}</Link>
               ))}
