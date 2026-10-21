@@ -1,7 +1,7 @@
 import "server-only";
 import type { RowDataPacket } from "mysql2/promise";
 import { getPool } from "./db";
-import { deleteChannel, postInTicket } from "./discordBot";
+import { deleteChannel, postInTicket, renameTicket } from "./discordBot";
 
 // Ticket housekeeping: a Discord category holds at most 50 channels, so
 // every ticket is tracked here; once its case is decided it is scheduled to
@@ -26,11 +26,15 @@ export async function registerTicket(channelId: string, kind: "verify" | "challe
   await getPool().query("INSERT IGNORE INTO discord_tickets (channel_id, kind) VALUES (?, ?)", [channelId, kind]);
 }
 
-/** Case decided: say so in the ticket and schedule it to close. Best effort. */
-export async function scheduleClose(channelId: string | null, message: string): Promise<void> {
+/**
+ * Case decided: say so in the ticket, flip its name to ✅ / ❌ / 🔒 and schedule
+ * it to close. Best effort.
+ */
+export async function scheduleClose(channelId: string | null, message: string, outcome?: "approved" | "rejected" | "closed"): Promise<void> {
   if (!channelId) return;
   await ensureTable();
   await postInTicket(channelId, `${message}\n\n_This ticket closes automatically in ${CLOSE_AFTER_DAYS} days._`).catch(() => {});
+  if (outcome) await renameTicket(channelId, outcome);
   await getPool().query(
     `INSERT INTO discord_tickets (channel_id, kind, close_after) VALUES (?, 'other', UTC_TIMESTAMP() + INTERVAL ${CLOSE_AFTER_DAYS} DAY)
      ON DUPLICATE KEY UPDATE close_after = COALESCE(close_after, VALUES(close_after))`, [channelId]);
@@ -50,7 +54,22 @@ export async function cleanupTickets(): Promise<{ closed: number; failed: number
       // already deleted by hand → forget it too
       if (!(e instanceof Error && e.message === "discord_404")) { failed++; continue; }
     }
-    await pool.query("DELETE FROM discord_tickets WHERE channel_id = ?", [r.channel_id]);
+    await forgetTicket(String(r.channel_id));
   }
   return { closed, failed };
+}
+
+/**
+ * A ticket channel is gone: drop every link to it, so a case that is still
+ * open can get a fresh ticket ("Open my ticket", claim / apply again).
+ */
+export async function forgetTicket(channelId: string): Promise<void> {
+  await ensureTable();
+  const pool = getPool();
+  await pool.query("DELETE FROM discord_tickets WHERE channel_id = ?", [channelId]);
+  for (const sql of [
+    "UPDATE user_accounts SET qzino_ticket = NULL WHERE qzino_ticket = ?",
+    "UPDATE vip_applications SET ticket = NULL WHERE ticket = ?",
+    "UPDATE challenge_claims SET ticket = NULL WHERE ticket = ?",
+  ]) await pool.query(sql, [channelId]).catch(() => {}); // a table may not exist yet
 }

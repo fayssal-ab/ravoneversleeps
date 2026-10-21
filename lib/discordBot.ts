@@ -32,7 +32,7 @@ async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
   const res = await fetch(`${API}${path}`, {
     ...init,
     headers: { Authorization: `Bot ${token}`, "Content-Type": "application/json", ...init.headers },
-    cache: "no-store", signal: AbortSignal.timeout(8000),
+    cache: "no-store", signal: init.signal ?? AbortSignal.timeout(8000),
   });
   if (!res.ok) {
     const body = await res.json().catch(() => null) as { message?: string; code?: number } | null;
@@ -113,20 +113,43 @@ export async function joinGuild(discordUserId: string, accessToken: string): Pro
 
 export interface Ticket { channelId: string; url: string }
 
-/** Channel names: lowercase, a-z0-9 and dashes, 90 chars max. */
-const slug = (s: string) => s.toLowerCase().normalize("NFKD").replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 90) || "ticket";
+/** Channel names: lowercase, a-z0-9 and dashes, 80 chars max. */
+const slug = (s: string) => s.toLowerCase().normalize("NFKD").replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 80) || "ticket";
 
 /**
- * Private channel only the viewer, staff and the bot can see, with a first
- * message pinging both. Returns null when the bot isn't configured.
+ * The status rides at the front of the channel name and changes with every
+ * step: "🟡-verify-yuuukine" → "🔵-…" (claimed) → "✅-…" / "❌-…" / "🔒-…".
  */
-export async function openTicket(opts: { name: string; discordUserId: string; message: string }): Promise<Ticket | null> {
+export const TICKET_STATUS = { open: "🟡", claimed: "🔵", approved: "✅", rejected: "❌", closed: "🔒" } as const;
+export type TicketStatus = keyof typeof TICKET_STATUS;
+const STATUS_PREFIX = new RegExp(`^(${Object.values(TICKET_STATUS).join("|")})-`, "u");
+export type TicketKind = "verify" | "challenge" | "vip";
+
+/** Buttons under a ticket's first message (handled by /api/discord/interactions). */
+export function ticketButtons(claimedBy?: string) {
+  return [{
+    type: 1,
+    components: [
+      claimedBy
+        ? { type: 2, style: 2, label: `Claimed by ${claimedBy}`.slice(0, 80), custom_id: "ticket:claimed", disabled: true, emoji: { name: "🔵" } }
+        : { type: 2, style: 1, label: "Claim", custom_id: "ticket:claim", emoji: { name: "🙋" } },
+      { type: 2, style: 4, label: "Delete ticket", custom_id: "ticket:delete", emoji: { name: "🗑️" } },
+    ],
+  }];
+}
+
+/**
+ * Private channel only the viewer, staff and the bot can see, named
+ * "🟡-<kind>-<player>", with a first message pinging both and the
+ * Claim / Delete buttons. Returns null when the bot isn't configured.
+ */
+export async function openTicket(opts: { kind: TicketKind; label: string; discordUserId: string; message: string }): Promise<Ticket | null> {
   if (!discordBotEnabled()) return null;
   const s = await discordSetup();
   const channel = await api<{ id: string }>(`/guilds/${s.guildId}/channels`, {
     method: "POST",
     body: JSON.stringify({
-      name: slug(opts.name), type: 0, parent_id: s.categoryId,
+      name: `${TICKET_STATUS.open}-${opts.kind}-${slug(opts.label)}`, type: 0, parent_id: s.categoryId,
       permission_overwrites: [
         { id: s.guildId, type: 0, deny: VIEW.toString() }, // @everyone
         { id: opts.discordUserId, type: 1, allow: MEMBER.toString() },
@@ -140,9 +163,43 @@ export async function openTicket(opts: { name: string; discordUserId: string; me
     body: JSON.stringify({
       content: `<@${opts.discordUserId}> <@&${s.staffRoleId}>\n${opts.message}`,
       allowed_mentions: { users: [opts.discordUserId], roles: [s.staffRoleId] },
+      components: ticketButtons(),
     }),
   });
   return { channelId: channel.id, url: ticketUrl(channel.id)! };
+}
+
+/**
+ * Swap the status emoji at the front of the ticket's name. Best effort:
+ * Discord allows 2 renames per channel per 10 minutes, so a rename can be
+ * skipped (the message in the ticket still says what happened).
+ */
+export async function renameTicket(channelId: string, status: TicketStatus): Promise<void> {
+  if (!discordBotEnabled()) return;
+  try {
+    const ch = await api<{ name: string }>(`/channels/${channelId}`);
+    const base = ch.name.replace(STATUS_PREFIX, "");
+    const name = `${TICKET_STATUS[status]}-${base}`.slice(0, 100);
+    if (name !== ch.name) await api(`/channels/${channelId}`, { method: "PATCH", body: JSON.stringify({ name }), signal: AbortSignal.timeout(2500) });
+  } catch (e) {
+    console.error("ticket rename skipped", discordErrorText(e));
+  }
+}
+
+/** The app's public key, to check that interaction requests come from Discord. */
+let publicKey: Promise<string> | null = null;
+export function appPublicKey(): Promise<string> {
+  publicKey ??= api<{ verify_key: string }>("/applications/@me").then((a) => a.verify_key).catch((e) => { publicKey = null; throw e; });
+  return publicKey;
+}
+
+/** Point the app's Interactions Endpoint URL at the site (Discord pings it first). */
+export async function setInteractionsEndpoint(url: string): Promise<void> {
+  await api("/applications/@me", { method: "PATCH", body: JSON.stringify({ interactions_endpoint_url: url }), signal: AbortSignal.timeout(15000) });
+}
+
+export async function interactionsEndpoint(): Promise<string | null> {
+  return (await api<{ interactions_endpoint_url?: string | null }>("/applications/@me")).interactions_endpoint_url ?? null;
 }
 
 /** Post in an existing ticket (e.g. the admin's decision). Best effort. */

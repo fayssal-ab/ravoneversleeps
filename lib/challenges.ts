@@ -77,7 +77,7 @@ export async function markChallengeWon(id: number, winner: string, multi: string
 /** Post the outcome in every claim ticket of a challenge and schedule them to close. */
 async function notifyClaimants(challengeId: number, message: string): Promise<void> {
   const [rows] = await getPool().query<RowDataPacket[]>("SELECT ticket FROM challenge_claims WHERE challenge_id = ? AND ticket IS NOT NULL", [challengeId]).catch(() => [[]] as unknown as [RowDataPacket[]]);
-  for (const r of rows) await scheduleClose(String(r.ticket), message);
+  for (const r of rows) await scheduleClose(String(r.ticket), message, "closed");
 }
 
 export async function setChallengeStatus(id: number, status: "open" | "closed"): Promise<void> {

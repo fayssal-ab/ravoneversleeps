@@ -1,7 +1,8 @@
 import { CheckCircle2, XCircle } from "lucide-react";
 import { AdminTitle, Card } from "@/components/admin/ui";
 import { Flash } from "@/components/ui/bits";
-import { discordBotEnabled, discordSetup, type DiscordSetup } from "@/lib/discordBot";
+import { discordBotEnabled, discordSetup, interactionsEndpoint, type DiscordSetup } from "@/lib/discordBot";
+import { SITE_URL } from "@/lib/constants";
 import { providerConfig } from "@/lib/userAuth";
 import { discordSetupAction } from "../actions";
 
@@ -31,12 +32,16 @@ export default async function AdminDiscord({ searchParams }: { searchParams: Pro
   if (discordBotEnabled()) {
     try { s = await discordSetup(); } catch (e) { error = e instanceof Error ? e.message : "unknown"; }
   }
+  const wanted = `${SITE_URL.replace(/\/$/, "")}/api/discord/interactions`;
+  const endpoint = s ? await interactionsEndpoint().catch(() => null) : null;
 
   return (
     <>
       <AdminTitle title="Discord">
         Sign-in with Discord and the ticket bot. The bot uses its server and the private <b>Tickets</b> category and
         <b> Staff</b> role (found by ID or name, created if missing). Give the Staff role to the people who verify.
+        Every ticket is named after the player with its status in front (🟡 open · 🔵 claimed · ✅ approved · ❌ rejected · 🔒 closed)
+        and has <b>Claim</b> / <b>Delete ticket</b> buttons for staff.
       </AdminTitle>
       <Flash ok={sp.ok} error={sp.error} detail={sp.detail} okText="Setup checked." />
       <Card title="Status">
@@ -49,6 +54,7 @@ export default async function AdminDiscord({ searchParams }: { searchParams: Pro
               <Row ok label="Server" value={s.guildName} />
               <Row ok label="Tickets category" value={s.categoryCreated ? "Created just now (private)" : "Ready"} />
               <Row ok label="Staff role" value={s.staffCreated ? "Created just now: give it to your mods" : "Ready"} />
+              <Row ok={endpoint === wanted} label="Ticket buttons" value={endpoint === wanted ? "Claim / Delete buttons are live" : "Press \"Run setup again\" to turn on the Claim / Delete buttons"} />
             </>
           )}
         </ul>

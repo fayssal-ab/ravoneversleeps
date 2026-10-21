@@ -115,7 +115,7 @@ async function openQzinoTicket(accountId: number): Promise<void> {
   let ticket;
   try {
     ticket = await openTicket({
-      name: `verify-${username}`,
+      kind: "verify", label: String(acc[0]?.display_name ?? username),
       discordUserId: discordId,
       message:
         `**Qzino username verification**\n` +
@@ -200,14 +200,14 @@ export async function decideVerification(accountId: number, verified: boolean, r
   if (!res.affectedRows) throw new AppError("invalid_input", "not pending");
   await scheduleClose(me[0].qzino_ticket ? String(me[0].qzino_ticket) : null, verified
     ? "✅ Your Qzino username is **verified**. Challenges are unlocked."
-    : `❌ We couldn't verify this Qzino username: ${note} Update it on your account page to try again.`);
+    : `❌ We couldn't verify this Qzino username: ${note} Update it on your account page to try again.`, verified ? "approved" : "rejected");
   if (verified) {
     // the username is taken now: every other claim on it is turned down
     const [rivals] = await pool.query<RowDataPacket[]>(
       "SELECT id, qzino_ticket FROM user_accounts WHERE LOWER(qzino_username) = LOWER(?) AND id <> ? AND qzino_status = 'pending'", [username, accountId]);
     for (const r of rivals) {
       await pool.query("UPDATE user_accounts SET qzino_status = 'rejected', qzino_note = ? WHERE id = ?", ["This Qzino username was verified for another account.", r.id]);
-      await scheduleClose(r.qzino_ticket ? String(r.qzino_ticket) : null, "❌ This Qzino username was verified for another account. If it's really yours, tell the team here before the ticket closes.").catch(() => {});
+      await scheduleClose(r.qzino_ticket ? String(r.qzino_ticket) : null, "❌ This Qzino username was verified for another account. If it's really yours, tell the team here before the ticket closes.", "rejected").catch(() => {});
     }
   }
 }
@@ -245,7 +245,7 @@ export async function claimChallenge(accountId: number, challengeId: number): Pr
   const [acc] = await pool.query<RowDataPacket[]>("SELECT display_name, qzino_username FROM user_accounts WHERE id = ?", [accountId]);
   const c = ch[0];
   const ticket = await openTicket({
-    name: `challenge-${c.slot_name}-${acc[0]?.qzino_username ?? accountId}`,
+    kind: "challenge", label: String(acc[0]?.display_name ?? accountId),
     discordUserId: discordId,
     message:
       `**Challenge claim** · ${c.slot_name}: first to hit **${Number(c.target_multi)}x** wins **$${Number(c.reward)}**` +

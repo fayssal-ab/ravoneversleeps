@@ -7,7 +7,8 @@ import { syncCatalog, upgradeTypedSlots } from "@/lib/slots";
 import { addSlot, deleteSlot } from "@/lib/stream";
 import { createChallenge, deleteChallenge, markChallengeWon, setChallengeStatus } from "@/lib/challenges";
 import { decideVerification, REJECT_REASONS, retryQzinoTicket, type RejectReason } from "@/lib/verification";
-import { discordSetup } from "@/lib/discordBot";
+import { discordErrorText, discordSetup, setInteractionsEndpoint } from "@/lib/discordBot";
+import { SITE_URL } from "@/lib/constants";
 import { saveTopPrizes } from "@/lib/leaderboardPrizes";
 import { decideVipApplication } from "@/lib/vip";
 import { AppError, DECIMAL_20_8, parseForm, zId, zRequiredText, zText } from "@/lib/tx";
@@ -173,12 +174,21 @@ export async function decideVipAction(form: FormData) {
 // ── Discord ────────────────────────────────────────────────────────────
 export async function discordSetupAction() {
   await adminAction({ path: "/admin/discord", audit: "discord.setup" }, async () => {
+    let s;
     try {
-      const s = await discordSetup(true);
-      return { guild: s.guildName, categoryCreated: s.categoryCreated, staffCreated: s.staffCreated };
+      s = await discordSetup(true);
     } catch (e) {
-      throw new AppError("unexpected", e instanceof Error ? e.message : "discord error");
+      throw new AppError("unexpected", discordErrorText(e));
     }
+    // ticket Claim / Delete buttons: Discord pings this URL before accepting it
+    const endpoint = `${SITE_URL.replace(/\/$/, "")}/api/discord/interactions`;
+    if (!endpoint.startsWith("https://")) throw new AppError("unexpected", `ticket buttons need the live https site (NEXT_PUBLIC_SITE_URL is ${SITE_URL})`);
+    try {
+      await setInteractionsEndpoint(endpoint);
+    } catch (e) {
+      throw new AppError("unexpected", `ticket buttons: Discord refused ${endpoint} (${discordErrorText(e)}). Deploy the latest version first, then run setup again.`);
+    }
+    return { guild: s.guildName, categoryCreated: s.categoryCreated, staffCreated: s.staffCreated, endpoint };
   });
 }
 

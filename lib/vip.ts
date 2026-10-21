@@ -85,7 +85,7 @@ async function openVipTicket(id: number): Promise<void> {
   let ticket;
   try {
     ticket = await openTicket({
-      name: `vip-${r.qzino_username}`,
+      kind: "vip", label: String(r.display_name),
       discordUserId: String(r.discord),
       message:
         `**VIP Transfer application #${id}**\n` +
@@ -121,5 +121,5 @@ export async function decideVipApplication(id: number, approved: boolean, note: 
   const [row] = await pool.query<RowDataPacket[]>("SELECT ticket FROM vip_applications WHERE id = ?", [id]);
   await scheduleClose(row[0]?.ticket ? String(row[0].ticket) : null, (approved
     ? "✅ Your VIP Transfer is **approved**. Qzino's VIP team will set up your trial period."
-    : "❌ Your VIP Transfer application wasn't approved this time.") + (note ? `\nNote: ${note}` : ""));
+    : "❌ Your VIP Transfer application wasn't approved this time.") + (note ? `\nNote: ${note}` : ""), approved ? "approved" : "rejected");
 }
