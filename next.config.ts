@@ -31,6 +31,9 @@ const securityHeaders = [
 const nextConfig: NextConfig = {
   reactStrictMode: true,
   images: { qualities: [75, 90] },
+  // Qzino verification proof (screenshots / a short recording, 4 MB max) is
+  // uploaded through a Server Action; Netlify caps a request near 6 MB.
+  experimental: { serverActions: { bodySizeLimit: "5mb" } },
   async headers() {
     return [{ source: "/:path*", headers: securityHeaders }];
   },

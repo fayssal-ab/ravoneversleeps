@@ -2,21 +2,20 @@ import "server-only";
 import type { ResultSetHeader, RowDataPacket } from "mysql2/promise";
 import { randomInt } from "node:crypto";
 import { getPool } from "./db";
-import { discordErrorText, openTicket, ticketUrl } from "./discordBot";
+import { discordErrorText, openTicket, ticketUrl, type TicketFile } from "./discordBot";
 import { liveStanding } from "./qboards";
 import { registerTicket, scheduleClose } from "./tickets";
 import { AppError } from "./tx";
 
 // Qzino username verification and challenge claims, both handled by staff
-// in private Discord tickets (lib/discordBot.ts). A viewer saves their Qzino
-// username → status "pending", a one-off ownership code and a ticket. The
-// proof is a short screen recording that starts on their Qzino profile
-// (username visible) and ends typing the code in the ticket, so it can't be
-// someone else's screenshot. An admin verifies or rejects it in Admin →
-// Users, seeing the linked Discord + Kick, the username's leaderboard
-// standing and any other account claiming the same username. A username is
-// only ever verified on one account. Challenge claims need a verified
-// username.
+// in private Discord tickets (lib/discordBot.ts). A viewer opens "Verify my
+// Qzino account" on /account, enters the username and uploads a screenshot
+// or short recording of their Qzino account (logged in, under code RAVO50).
+// That opens a ticket carrying a data card (Discord, Kick, account age,
+// leaderboard standing) with the proof attached. An admin verifies or
+// rejects it in Admin → Users, seeing any other account claiming the same
+// username. A username is only ever verified on one account. Challenge
+// claims need a verified username.
 
 export type QzinoStatus = "none" | "pending" | "verified" | "rejected";
 
@@ -82,7 +81,7 @@ export async function requireVerifiedQzino(accountId: number): Promise<void> {
  * the ticket. The username stays saved even when the ticket fails; that
  * failure is thrown (ticket_failed) so the player sees it and can retry.
  */
-export async function requestQzinoVerification(accountId: number, username: string): Promise<void> {
+export async function requestQzinoVerification(accountId: number, username: string, proof: TicketFile[] = []): Promise<void> {
   await ensureVerificationSchema();
   const pool = getPool();
   if (!username) {
@@ -90,7 +89,7 @@ export async function requestQzinoVerification(accountId: number, username: stri
     return;
   }
   await pool.query("UPDATE user_accounts SET qzino_status = 'pending', qzino_ticket = NULL, qzino_code = ?, qzino_note = NULL WHERE id = ?", [newCode(), accountId]);
-  await openQzinoTicket(accountId);
+  await openQzinoTicket(accountId, proof);
 }
 
 /**
@@ -103,27 +102,46 @@ export async function retryQzinoTicket(accountId: number): Promise<void> {
   if (rows[0]?.qzino_status !== "pending") throw new AppError("invalid_input", "no verification waiting");
   if (rows[0].qzino_ticket) return;
   if (!rows[0].qzino_code) await getPool().query("UPDATE user_accounts SET qzino_code = ? WHERE id = ?", [newCode(), accountId]);
-  await openQzinoTicket(accountId);
+  await openQzinoTicket(accountId, []);
 }
 
-async function openQzinoTicket(accountId: number): Promise<void> {
+/** The verification ticket: a data card for staff, plus the proof uploaded on the site. */
+async function openQzinoTicket(accountId: number, proof: TicketFile[]): Promise<void> {
   const pool = getPool();
   const discordId = await discordIdOf(accountId);
   if (!discordId) throw new AppError("discord_required");
-  const [acc] = await pool.query<RowDataPacket[]>("SELECT display_name, qzino_username, qzino_code FROM user_accounts WHERE id = ?", [accountId]);
-  const username = String(acc[0]?.qzino_username ?? ""), code = String(acc[0]?.qzino_code ?? "");
+  const [acc] = await pool.query<RowDataPacket[]>(
+    `SELECT a.display_name, a.qzino_username, a.qzino_code, DATEDIFF(CURRENT_TIMESTAMP, a.created_at) AS age_days,
+            (SELECT username FROM user_identities WHERE account_id = a.id AND provider = 'kick' LIMIT 1) AS kick
+       FROM user_accounts a WHERE a.id = ?`, [accountId]);
+  const r = acc[0] ?? {};
+  const username = String(r.qzino_username ?? ""), code = String(r.qzino_code ?? "");
+  const standing = await liveStanding(username).catch(() => null);
+  const ageDays = Number(r.age_days ?? 0);
   let ticket;
   try {
     ticket = await openTicket({
-      kind: "verify", label: String(acc[0]?.display_name ?? username),
+      kind: "verify", label: String(r.display_name ?? username),
       discordUserId: discordId,
-      message:
-        `**Qzino username verification**\n` +
-        `Account: **${String(acc[0]?.display_name ?? "")}** · Qzino username: **${username}** · Your code: **${code}**\n\n` +
-        `To prove this Qzino account is yours, send a short **screen recording** (10–30 s) here:\n` +
-        `1. Start on Qzino, logged in, on your profile page with the username **${username}** visible.\n` +
-        `2. Without cutting, switch to this Discord ticket and type the code **${code}**.\n\n` +
-        `Screenshots alone aren't accepted. A staff member will check it and verify you on the site.`,
+      message: proof.length
+        ? `**Qzino username verification**: proof sent from the site is attached below. A staff member will check it and verify you on the site.`
+        : `**Qzino username verification**: please post here a screenshot or a short screen recording of your Qzino account, logged in, showing the username **${username}** under code **RAVO50**.`,
+      embed: {
+        title: `Verify ${username}`,
+        color: standing && standing.rank <= 10 ? 0xffd76a : 0x8dff4a,
+        fields: [
+          { name: "Player", value: String(r.display_name ?? "—"), inline: true },
+          { name: "Discord", value: `<@${discordId}>`, inline: true },
+          { name: "Kick", value: r.kick ? String(r.kick) : "not linked", inline: true },
+          { name: "Qzino username", value: `\`${username}\``, inline: true },
+          { name: "Code", value: `\`${code}\``, inline: true },
+          { name: "Account age", value: ageDays === 0 ? "created today" : `${ageDays} days`, inline: true },
+          { name: "Live leaderboard", value: standing ? `#${standing.rank} · ${Number(standing.score).toLocaleString("en-US")} pts${standing.rank <= 10 ? " · prize money at stake" : ""}` : "not on the board", inline: false },
+          { name: "Proof", value: proof.length ? proof.map((f) => f.name).join(", ") : "not sent yet", inline: false },
+        ],
+        footer: "Staff: check the proof, then Verify or Reject in Admin → Users → Verification",
+      },
+      files: proof,
     });
   } catch (e) {
     console.error("verification ticket failed", discordErrorText(e));
@@ -171,10 +189,10 @@ export async function pendingVerifications(): Promise<PendingVerification[]> {
 }
 
 export const REJECT_REASONS = {
-  no_code: "The recording didn't show your code typed in the ticket.",
-  no_recording: "We need a screen recording, not a screenshot.",
-  not_owner: "The recording didn't show this Qzino account logged in.",
+  unclear: "The proof doesn't clearly show this Qzino account logged in.",
   not_ravo: "This Qzino account isn't registered under code RAVO50.",
+  edited: "The proof looks edited or belongs to someone else.",
+  no_proof: "No proof was sent.",
   other: "We couldn't confirm this username belongs to you.",
 } as const;
 export type RejectReason = keyof typeof REJECT_REASONS;

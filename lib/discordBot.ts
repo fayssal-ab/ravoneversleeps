@@ -143,7 +143,16 @@ export function ticketButtons(claimedBy?: string) {
  * "🟡-<kind>-<player>", with a first message pinging both and the
  * Claim / Delete buttons. Returns null when the bot isn't configured.
  */
-export async function openTicket(opts: { kind: TicketKind; label: string; discordUserId: string; message: string }): Promise<Ticket | null> {
+export interface TicketFile { name: string; type: string; data: ArrayBuffer }
+export interface TicketEmbed { title: string; color?: number; fields: { name: string; value: string; inline?: boolean }[]; footer?: string }
+
+export async function openTicket(opts: {
+  kind: TicketKind; label: string; discordUserId: string; message: string;
+  /** a data card shown under the message */
+  embed?: TicketEmbed;
+  /** proof uploaded on the site, attached to the first message */
+  files?: TicketFile[];
+}): Promise<Ticket | null> {
   if (!discordBotEnabled()) return null;
   const s = await discordSetup();
   const channel = await api<{ id: string }>(`/guilds/${s.guildId}/channels`, {
@@ -158,15 +167,40 @@ export async function openTicket(opts: { kind: TicketKind; label: string; discor
       ],
     }),
   });
-  await api(`/channels/${channel.id}/messages`, {
-    method: "POST",
-    body: JSON.stringify({
-      content: `<@${opts.discordUserId}> <@&${s.staffRoleId}>\n${opts.message}`,
-      allowed_mentions: { users: [opts.discordUserId], roles: [s.staffRoleId] },
-      components: ticketButtons(),
-    }),
-  });
+  const payload = {
+    content: `<@${opts.discordUserId}> <@&${s.staffRoleId}>\n${opts.message}`,
+    allowed_mentions: { users: [opts.discordUserId], roles: [s.staffRoleId] },
+    components: ticketButtons(),
+    embeds: opts.embed ? [{
+      title: opts.embed.title, color: opts.embed.color ?? 0x8dff4a,
+      fields: opts.embed.fields.map((f) => ({ ...f, value: f.value.slice(0, 1024) || "—" })),
+      footer: opts.embed.footer ? { text: opts.embed.footer } : undefined,
+    }] : undefined,
+  };
+  try {
+    if (opts.files?.length) await postWithFiles(channel.id, payload, opts.files);
+    else await api(`/channels/${channel.id}/messages`, { method: "POST", body: JSON.stringify(payload) });
+  } catch (e) {
+    // no half-made ticket: an empty channel would block a retry
+    await deleteChannel(channel.id).catch(() => {});
+    throw e;
+  }
   return { channelId: channel.id, url: ticketUrl(channel.id)! };
+}
+
+/** Message with attachments (multipart: payload_json + files[n]). */
+async function postWithFiles(channelId: string, payload: object, files: TicketFile[]): Promise<void> {
+  const form = new FormData();
+  form.append("payload_json", JSON.stringify({ ...payload, attachments: files.map((f, id) => ({ id, filename: f.name })) }));
+  files.forEach((f, id) => form.append(`files[${id}]`, new Blob([f.data], { type: f.type }), f.name));
+  const res = await fetch(`${API}/channels/${channelId}/messages`, {
+    method: "POST", body: form, headers: { Authorization: `Bot ${process.env.DISCORD_BOT_TOKEN}` },
+    cache: "no-store", signal: AbortSignal.timeout(20000),
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => null) as { message?: string; code?: number } | null;
+    throw new DiscordError(res.status, body?.message ? `${body.message}${body.code ? ` (${body.code})` : ""}` : "");
+  }
 }
 
 /**

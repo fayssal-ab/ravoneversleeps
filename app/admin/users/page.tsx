@@ -63,8 +63,8 @@ export default async function AdminUsers({ searchParams }: { searchParams: Promi
           <div className="admin-card p-5 text-sm text-muted">
             <p className="font-semibold text-text">How to verify</p>
             <ol className="mt-2 list-decimal space-y-1 pl-5">
-              <li>Open the player&apos;s Discord ticket.</li>
-              <li>Watch their screen recording: it must start on Qzino, logged in, on the profile with this exact username, then switch to the ticket and type <span className="font-mono text-neon">their code</span>, with no cut.</li>
+              <li>Open the player&apos;s Discord ticket: their data card and the proof they uploaded on the site are in the first message.</li>
+              <li>Check the screenshot / recording: Qzino logged in with this exact username, under code <span className="font-mono text-neon">RAVO50</span>, not edited.</li>
               <li>Tick the three checks and press <span className="font-semibold text-neon">Verify</span>, or pick a reason and <span className="font-semibold text-danger">Reject</span>. The player sees the reason.</li>
             </ol>
             <p className="mt-2">Big leaderboard names and usernames claimed by several accounts are flagged: be extra careful there (ask for a voice call if unsure).</p>
@@ -116,9 +116,9 @@ export default async function AdminUsers({ searchParams }: { searchParams: Promi
                     <input type="hidden" name="account" value={p.account_id} />
                     <input type="hidden" name="decision" value="verify" />
                     <div className="flex flex-wrap gap-x-5 gap-y-1.5 text-sm">
-                      <label className="flex items-center gap-2"><input type="checkbox" name="c_profile" required /> Profile shows <span className="font-mono text-neon">{p.qzino_username}</span>, logged in</label>
-                      <label className="flex items-center gap-2"><input type="checkbox" name="c_code" required /> Code <span className="font-mono">{p.code}</span> typed in the ticket</label>
-                      <label className="flex items-center gap-2"><input type="checkbox" name="c_cut" required /> One recording, no cut</label>
+                      <label className="flex items-center gap-2"><input type="checkbox" name="c_profile" required /> Logged in as <span className="font-mono text-neon">{p.qzino_username}</span></label>
+                      <label className="flex items-center gap-2"><input type="checkbox" name="c_code" required /> Under code RAVO50</label>
+                      <label className="flex items-center gap-2"><input type="checkbox" name="c_cut" required /> Proof looks genuine (not edited)</label>
                     </div>
                     <div className="flex flex-wrap gap-2">
                       {p.ticket_url
@@ -130,11 +130,11 @@ export default async function AdminUsers({ searchParams }: { searchParams: Promi
                   <form action={verifyQzinoAction} className="flex flex-wrap items-end gap-2 lg:justify-end">
                     <input type="hidden" name="account" value={p.account_id} />
                     <input type="hidden" name="decision" value="reject" />
-                    <select name="reason" className="field !w-auto text-sm" aria-label="Reject reason" defaultValue="no_code">
-                      <option value="no_code">Code not shown</option>
-                      <option value="no_recording">Screenshot, not a recording</option>
-                      <option value="not_owner">Not logged in as this username</option>
+                    <select name="reason" className="field !w-auto text-sm" aria-label="Reject reason" defaultValue="unclear">
+                      <option value="unclear">Proof unclear / not logged in</option>
                       <option value="not_ravo">Not under code RAVO50</option>
+                      <option value="edited">Edited or someone else&apos;s</option>
+                      <option value="no_proof">No proof sent</option>
                       <option value="other">Other</option>
                     </select>
                     <button className="btn btn-ghost btn-sm !text-danger"><UserX className="size-4" /> Reject</button>

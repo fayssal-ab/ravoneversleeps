@@ -7,7 +7,8 @@ import { Flash } from "@/components/ui/bits";
 import { getViewer } from "@/lib/account";
 import { AUTH_MESSAGES, enabledProviders } from "@/lib/userAuth";
 import { qzinoStatusOf, type QzinoState } from "@/lib/verification";
-import { openQzinoTicketAction, saveQzinoAction } from "../actions";
+import { openQzinoTicketAction } from "../actions";
+import { VerifyForm } from "@/components/account/VerifyForm";
 
 export const metadata: Metadata = { title: "Account" };
 export const dynamic = "force-dynamic";
@@ -71,11 +72,11 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
   const qz: QzinoState = await qzinoStatusOf(viewer.id).catch(() => ({ status: "none" as const, ticketUrl: null, code: null, note: null }));
   const discord = viewer.identities.find((i) => i.provider === "discord");
   const kick = viewer.identities.find((i) => i.provider === "kick");
-  const step = !viewer.qzino_username ? 1 : qz.status === "verified" ? 4 : qz.status === "pending" ? 2 : 1;
+  const step = qz.status === "verified" ? 4 : qz.status === "pending" ? 2 : 1;
 
   return (
     <div className="mx-auto max-w-5xl px-4 pt-8 sm:px-6">
-      {authError ? <Flash error="unexpected" detail={authError} /> : <Flash ok={sp.ok ?? (sp.signed_in || sp.linked ? "1" : undefined)} error={sp.error} detail={sp.detail} okText={sp.linked ? "Account linked." : sp.signed_in ? "Welcome in." : sp.ok === "ticket" ? "Your ticket is open on Discord." : "Saved."} />}
+      {authError ? <Flash error="unexpected" detail={authError} /> : <Flash ok={sp.ok ?? (sp.signed_in || sp.linked ? "1" : undefined)} error={sp.error} detail={sp.detail} okText={sp.linked ? "Account linked." : sp.signed_in ? "Welcome in." : sp.ok === "ticket" ? "Your ticket is open on Discord." : sp.ok === "verify_sent" ? "Proof sent: your ticket is open on Discord." : "Saved."} />}
 
       {/* profile */}
       <div className="relative overflow-hidden rounded-3xl border border-white/[0.08] bg-[#060a07] p-6 sm:p-8">
@@ -114,7 +115,7 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
           </div>
 
           <ol className="mt-5 grid grid-cols-3 gap-2 text-center text-[11px] font-semibold uppercase tracking-wider">
-            {["Save username", "Prove it's yours", "Team confirms"].map((label, i) => {
+            {["Send proof", "Team checks", "Verified"].map((label, i) => {
               const n = i + 1, done = step > n, now = step === n;
               return (
                 <li key={label} className={`rounded-xl border px-2 py-2.5 ${done ? "border-neon/50 bg-neon/10 text-neon" : now ? "border-gold/60 bg-gold/10 text-gold" : "border-line text-dim"}`}>
@@ -125,33 +126,36 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
             })}
           </ol>
 
-          <form action={saveQzinoAction} className="mt-5 flex gap-2">
-            <input name="qzino" defaultValue={viewer.qzino_username} maxLength={64} placeholder="your Qzino username" className="field font-mono" aria-label="Qzino username" />
-            <button className="btn btn-neon btn-sm shrink-0">Save</button>
-          </form>
+          {viewer.qzino_username && (
+            <p className="mt-5 text-sm text-muted">Username: <span className="font-mono font-bold text-text">{viewer.qzino_username}</span></p>
+          )}
 
-          {viewer.qzino_username && qz.status === "pending" && (
+          {qz.status === "pending" ? (
             <div className="mt-4 rounded-2xl border border-gold/50 bg-gold/[0.07] p-4 text-sm">
-              <p className="flex items-center gap-1.5 font-bold text-gold"><Clock className="size-4" /> Prove this Qzino account is yours</p>
-              {qz.code && (
-                <p className="mt-3 flex flex-wrap items-center gap-2">Your code: <span className="rounded-lg border border-gold/50 bg-black/40 px-3 py-1 font-mono text-lg font-bold tracking-widest text-text">{qz.code}</span></p>
-              )}
-              <ol className="mt-3 list-decimal space-y-1 pl-5 text-muted">
-                <li>Start a screen recording on Qzino, logged in, on your profile with <span className="font-mono text-text">{viewer.qzino_username}</span> visible.</li>
-                <li>Without cutting, switch to your Discord ticket and type the code.</li>
-                <li>Send the recording in the ticket. Screenshots alone aren&apos;t accepted.</li>
-              </ol>
+              <p className="flex items-center gap-1.5 font-bold text-gold"><Clock className="size-4" /> The team is checking your proof</p>
+              <p className="mt-1 text-muted">You&apos;ll get an answer in your private Discord ticket and here. You can add more proof (like a longer recording) in the ticket.</p>
               {qz.ticketUrl
                 ? <a href={qz.ticketUrl} target="_blank" rel="noopener noreferrer" className="btn btn-discord btn-sm mt-4"><DiscordIcon className="size-4" /> Open my ticket <ExternalLink className="size-3.5" /></a>
                 : discord
                   ? <form action={openQzinoTicketAction} className="mt-4"><button className="btn btn-discord btn-sm"><DiscordIcon className="size-4" /> Open my ticket</button><span className="ml-3 text-xs text-dim">No ticket yet: this opens your private channel.</span></form>
                   : <p className="mt-3 text-xs text-dim">Link your Discord above so the team can open your private ticket.</p>}
             </div>
-          )}
-          {viewer.qzino_username && qz.status === "rejected" && (
-            <div className="mt-4 rounded-2xl border border-danger/50 bg-danger/10 p-4 text-sm">
-              <p className="flex items-center gap-1.5 font-bold text-danger"><XCircle className="size-4" /> Not verified</p>
-              <p className="mt-1 text-muted">{qz.note ?? "We couldn't verify this username."} Save it again to get a new code and try once more.</p>
+          ) : (
+            <div className="mt-5">
+              {qz.status === "rejected" && (
+                <div className="mb-4 rounded-2xl border border-danger/50 bg-danger/10 p-4 text-sm">
+                  <p className="flex items-center gap-1.5 font-bold text-danger"><XCircle className="size-4" /> Not verified</p>
+                  <p className="mt-1 text-muted">{qz.note ?? "We couldn't verify this username."} Send a new proof to try again.</p>
+                </div>
+              )}
+              {discord ? (
+                <>
+                  {qz.status !== "verified" && <p className="mb-4 text-sm text-muted">Send your Qzino username with a screenshot or short recording of your account under code <b className="text-text">RAVO50</b>. It opens your private ticket with the proof attached.</p>}
+                  <VerifyForm username={viewer.qzino_username} label={qz.status === "verified" ? "Change username" : qz.status === "rejected" ? "Send new proof" : "Verify my Qzino account"} />
+                </>
+              ) : (
+                <p className="text-sm text-muted">Link your Discord above first: verification happens in a private Discord ticket.</p>
+              )}
             </div>
           )}
           <p className="mt-4 text-xs text-dim">Needed for challenges. Each Qzino username can only be verified on one account, so nobody can use someone else&apos;s.</p>
