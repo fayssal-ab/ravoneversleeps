@@ -242,6 +242,17 @@ export async function postInTicket(channelId: string, message: string): Promise<
   await api(`/channels/${channelId}/messages`, { method: "POST", body: JSON.stringify({ content: message, allowed_mentions: { parse: [] } }) });
 }
 
+/** True only when Discord says the channel doesn't exist (404); errors count as "still there". */
+export async function channelGone(channelId: string): Promise<boolean> {
+  if (!discordBotEnabled()) return false;
+  try {
+    await api(`/channels/${channelId}`);
+    return false;
+  } catch (e) {
+    return e instanceof DiscordError && e.status === 404;
+  }
+}
+
 /** Delete a ticket channel (closing it). */
 export async function deleteChannel(channelId: string): Promise<void> {
   if (!discordBotEnabled()) return;

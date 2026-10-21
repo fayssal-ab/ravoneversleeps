@@ -1,7 +1,7 @@
 import "server-only";
 import type { RowDataPacket } from "mysql2/promise";
 import { getPool } from "./db";
-import { deleteChannel, postInTicket, renameTicket } from "./discordBot";
+import { channelGone, deleteChannel, postInTicket, renameTicket } from "./discordBot";
 
 // Ticket housekeeping: a Discord category holds at most 50 channels, so
 // every ticket is tracked here; once its case is decided it is scheduled to
@@ -41,7 +41,7 @@ export async function scheduleClose(channelId: string | null, message: string, o
 }
 
 /** Delete tickets past their closing date. */
-export async function cleanupTickets(): Promise<{ closed: number; failed: number }> {
+export async function cleanupTickets(): Promise<{ closed: number; failed: number; gone: number }> {
   await ensureTable();
   const pool = getPool();
   const [rows] = await pool.query<RowDataPacket[]>("SELECT channel_id FROM discord_tickets WHERE close_after IS NOT NULL AND close_after < UTC_TIMESTAMP() LIMIT 40");
@@ -56,20 +56,54 @@ export async function cleanupTickets(): Promise<{ closed: number; failed: number
     }
     await forgetTicket(String(r.channel_id));
   }
-  return { closed, failed };
+  const gone = await forgetDeletedTickets().catch(() => 0);
+  return { closed, failed, gone };
 }
 
 /**
- * A ticket channel is gone: drop every link to it, so a case that is still
- * open can get a fresh ticket ("Open my ticket", claim / apply again).
+ * A ticket was deleted: remove its case from the database. Open or rejected
+ * cases go (Qzino claim reset, VIP application and challenge claim rows
+ * deleted); decided-in-favour ones stay on record (a verified player stays
+ * verified, an approved VIP application stays) and only lose the link.
  */
 export async function forgetTicket(channelId: string): Promise<void> {
   await ensureTable();
   const pool = getPool();
   await pool.query("DELETE FROM discord_tickets WHERE channel_id = ?", [channelId]);
-  for (const sql of [
+  const steps = [
+    // core columns only, so the reset works even before qzino_code / qzino_note exist
+    `UPDATE user_accounts SET qzino_username = '', qzino_status = 'none'
+      WHERE qzino_ticket = ? AND qzino_status IN ('pending', 'rejected')`,
+    "UPDATE user_accounts SET qzino_code = NULL, qzino_note = NULL WHERE qzino_ticket = ? AND qzino_status = 'none'",
     "UPDATE user_accounts SET qzino_ticket = NULL WHERE qzino_ticket = ?",
+    "DELETE FROM vip_applications WHERE ticket = ? AND status IN ('pending', 'rejected')",
     "UPDATE vip_applications SET ticket = NULL WHERE ticket = ?",
-    "UPDATE challenge_claims SET ticket = NULL WHERE ticket = ?",
-  ]) await pool.query(sql, [channelId]).catch(() => {}); // a table may not exist yet
+    "DELETE FROM challenge_claims WHERE ticket = ?",
+  ];
+  for (const sql of steps) await pool.query(sql, [channelId]).catch(() => {}); // a table or column may not exist yet
+}
+
+/**
+ * Tickets deleted by hand in Discord: every channel the site still points
+ * at is checked, and one Discord reports gone (404) is forgotten like a
+ * deleted ticket. Only a 404 counts, never a missing list entry.
+ */
+export async function forgetDeletedTickets(limit = 40): Promise<number> {
+  await ensureTable();
+  const pool = getPool();
+  const ids = new Set<string>();
+  for (const sql of [
+    "SELECT channel_id AS id FROM discord_tickets",
+    "SELECT qzino_ticket AS id FROM user_accounts WHERE qzino_ticket IS NOT NULL",
+    "SELECT ticket AS id FROM vip_applications WHERE ticket IS NOT NULL",
+    "SELECT ticket AS id FROM challenge_claims WHERE ticket IS NOT NULL",
+  ]) {
+    const [rows] = await pool.query<RowDataPacket[]>(sql).catch(() => [[] as RowDataPacket[]]);
+    for (const r of rows) ids.add(String(r.id));
+  }
+  let gone = 0;
+  for (const id of [...ids].slice(0, limit)) {
+    if (await channelGone(id)) { await forgetTicket(id); gone++; }
+  }
+  return gone;
 }

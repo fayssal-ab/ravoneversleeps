@@ -73,7 +73,7 @@ export async function POST(request: Request) {
       return reply({
         type: 4,
         data: {
-          flags: EPHEMERAL, content: "Delete this ticket for good? The channel and its messages are removed.",
+          flags: EPHEMERAL, content: "Delete this ticket for good? The channel goes, and an open or rejected case is removed from the site too (verified players and approved VIPs stay).",
           components: [{ type: 1, components: [{ type: 2, style: 4, label: "Yes, delete it", custom_id: "ticket:delete:yes", emoji: { name: "🗑️" } }] }],
         },
       });

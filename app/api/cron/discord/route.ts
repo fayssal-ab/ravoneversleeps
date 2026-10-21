@@ -2,7 +2,8 @@ import { isCronAuthorized, json, jsonError } from "@/lib/http";
 import { cleanupTickets } from "@/lib/tickets";
 
 // Daily: delete Discord tickets whose case was decided more than 3 days ago
-// (a Discord category holds at most 50 channels).
+// (a Discord category holds at most 50 channels), and forget tickets that
+// were deleted by hand in Discord (their open cases are removed).
 export const dynamic = "force-dynamic";
 export const maxDuration = 30;
 
