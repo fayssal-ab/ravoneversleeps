@@ -52,6 +52,7 @@ export const ERROR_TEXT: Record<string, string> = {
   no_pending_roll: "There is no roll to confirm.",
   battle_live: "A battle is already live. Enter its result first.",
   no_ready_battle: "No battle is ready to start.",
+  stage_unfinished: "Finish every battle of this stage before the next one.",
   battle_not_live: "Start the battle first.",
   battle_tied: "Exact tie: replay the bonus and enter the replay's results.",
   unexpected: "Something went wrong. Please try again.",

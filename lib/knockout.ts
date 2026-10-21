@@ -125,6 +125,9 @@ export function pickTwo(n: number, rand: (max: number) => number = randomInt): [
 /** Bracket play order: rounds in turn; in the last round the 3rd-place match goes before the final. */
 const playKey = (m: { round: number; match_index: number }, last: number) => m.round * 10 + (m.round === last ? 1 - m.match_index : m.match_index);
 const playOrderSql = (last: number) => `round, CASE WHEN round = ${Number(last)} THEN 1 - match_index ELSE match_index END`;
+/** The stage being played: the lowest round with a battle still to draw or play. A round starts only once the one before is over. */
+const currentStage = (matches: { round: unknown; status: unknown }[]): number | null =>
+  matches.reduce<number | null>((min, m) => (["empty", "rolled", "ready", "live"].includes(String(m.status)) && (min == null || Number(m.round) < min) ? Number(m.round) : min), null);
 
 // ── reads ──
 
@@ -192,7 +195,8 @@ export async function getKoState(t: KoTournament): Promise<KoState> {
   for (const m of mRows) if (Number(m.round) === 1) { if (m.p1_id) inMatch.add(Number(m.p1_id)); if (m.p2_id) inMatch.add(Number(m.p2_id)); }
   const live = matches.find((m) => m.status === "live") ?? null;
   const pendingRoll = matches.find((m) => m.status === "rolled") ?? null;
-  const nextReady = [...matches].sort((a, b) => playKey(a, rounds) - playKey(b, rounds)).find((m) => m.status === "ready") ?? null;
+  const stage = currentStage(matches);
+  const nextReady = [...matches].sort((a, b) => playKey(a, rounds) - playKey(b, rounds)).find((m) => m.status === "ready" && m.round === stage) ?? null;
   const focus = (t.focus_match_id && matches.find((m) => m.id === Number(t.focus_match_id))) || live || pendingRoll || null;
   return {
     tournament: t, rounds, participants, matches,
@@ -501,8 +505,10 @@ export async function startBattle(id: number): Promise<number> {
     const [rows] = await conn.query<RowDataPacket[]>(`SELECT * FROM ko_matches WHERE tournament_id = ? ORDER BY ${playOrderSql(roundsFor(t.max_players))} FOR UPDATE`, [id]);
     if (rows.some((m) => m.status === "live")) throw new AppError("battle_live");
     if (rows.some((m) => m.status === "rolled")) throw new AppError("roll_pending");
-    const m = rows.find((x) => Number(x.id) === Number(t.focus_match_id) && x.status === "ready") ?? rows.find((x) => x.status === "ready");
-    if (!m) throw new AppError("no_ready_battle");
+    const stage = currentStage(rows as { round: unknown; status: unknown }[]);
+    const ready = rows.filter((x) => x.status === "ready" && Number(x.round) === stage);
+    const m = ready.find((x) => Number(x.id) === Number(t.focus_match_id)) ?? ready[0];
+    if (!m) throw new AppError(rows.some((x) => x.status === "ready") ? "stage_unfinished" : "no_ready_battle");
     await conn.query("UPDATE ko_matches SET status = 'live', started_at = UTC_TIMESTAMP() WHERE id = ?", [m.id]);
     await conn.query("UPDATE ko_tournaments SET focus_match_id = ? WHERE id = ?", [m.id, id]);
     return Number(m.id);
