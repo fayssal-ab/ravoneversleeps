@@ -1,7 +1,7 @@
 import "server-only";
 import type { ResultSetHeader, RowDataPacket } from "mysql2/promise";
 import { getPool } from "./db";
-import { openTicket, ticketUrl } from "./discordBot";
+import { discordErrorText, openTicket, ticketUrl } from "./discordBot";
 import { registerTicket, scheduleClose } from "./tickets";
 import { AppError } from "./tx";
 
@@ -59,34 +59,49 @@ export async function myVipApplication(accountId: number): Promise<VipApplicatio
 export async function applyVipTransfer(accountId: number, v: { qzino: string; casino: string; vip_level: string; monthly_wager: string; note: string }): Promise<number> {
   await ensureTable();
   const pool = getPool();
-  const [open] = await pool.query<RowDataPacket[]>("SELECT id FROM vip_applications WHERE account_id = ? AND status = 'pending' LIMIT 1", [accountId]);
-  if (open[0]) throw new AppError("vip_pending");
-  const [ids] = await pool.query<RowDataPacket[]>(
-    `SELECT a.display_name, (SELECT provider_user_id FROM user_identities WHERE account_id = a.id AND provider = 'discord' LIMIT 1) AS discord
-       FROM user_accounts a WHERE a.id = ?`, [accountId]);
-  if (!ids[0]) throw new AppError("not_signed_in");
+  const [open] = await pool.query<RowDataPacket[]>("SELECT id, ticket FROM vip_applications WHERE account_id = ? AND status = 'pending' LIMIT 1", [accountId]);
+  if (open[0]) {
+    // applied already: fine if its ticket exists, otherwise open it now
+    if (open[0].ticket) throw new AppError("vip_pending");
+    await openVipTicket(Number(open[0].id));
+    return Number(open[0].id);
+  }
   const [res] = await pool.query<ResultSetHeader>(
     "INSERT INTO vip_applications (account_id, qzino_username, casino, vip_level, monthly_wager, note) VALUES (?, ?, ?, ?, ?, ?)",
     [accountId, v.qzino, v.casino, v.vip_level, v.monthly_wager, v.note]);
-  const discord = ids[0].discord ? String(ids[0].discord) : null;
-  if (discord) {
-    const ticket = await openTicket({
-      name: `vip-${v.qzino}`,
-      discordUserId: discord,
-      message:
-        `**VIP Transfer application #${res.insertId}**\n` +
-        `Player: **${String(ids[0].display_name)}** · Qzino: **${v.qzino}**\n` +
-        `Current casino: **${v.casino}** · VIP level there: **${v.vip_level}** · Monthly wager: **${WAGER_LABEL[v.monthly_wager as keyof typeof WAGER_LABEL] ?? v.monthly_wager}**\n` +
-        (v.note ? `Note: ${v.note}\n` : "") +
-        `\n📸 Please post a screenshot of your VIP level/profile on ${v.casino} here. ` +
-        `**Never share passwords or login codes.** The team reviews it with Qzino and answers in this ticket.`,
-    }).catch((e: Error) => { console.error("vip ticket failed", e.message); return null; });
-    if (ticket) {
-      await pool.query("UPDATE vip_applications SET ticket = ? WHERE id = ?", [ticket.channelId, res.insertId]);
-      await registerTicket(ticket.channelId, "vip").catch(() => {});
-    }
-  }
+  await openVipTicket(res.insertId);
   return res.insertId;
+}
+
+/** The application's private ticket; throws ticket_failed so the player sees it and can retry. */
+async function openVipTicket(id: number): Promise<void> {
+  const pool = getPool();
+  const [rows] = await pool.query<RowDataPacket[]>(
+    `SELECT v.*, a.display_name, (SELECT provider_user_id FROM user_identities WHERE account_id = a.id AND provider = 'discord' LIMIT 1) AS discord
+       FROM vip_applications v JOIN user_accounts a ON a.id = v.account_id WHERE v.id = ?`, [id]);
+  const r = rows[0];
+  if (!r) throw new AppError("not_found");
+  if (!r.discord) throw new AppError("discord_required");
+  let ticket;
+  try {
+    ticket = await openTicket({
+      name: `vip-${r.qzino_username}`,
+      discordUserId: String(r.discord),
+      message:
+        `**VIP Transfer application #${id}**\n` +
+        `Player: **${String(r.display_name)}** · Qzino: **${r.qzino_username}**\n` +
+        `Current casino: **${r.casino}** · VIP level there: **${r.vip_level}** · Monthly wager: **${WAGER_LABEL[r.monthly_wager as keyof typeof WAGER_LABEL] ?? r.monthly_wager}**\n` +
+        (r.note ? `Note: ${r.note}\n` : "") +
+        `\n📸 Please post a screenshot of your VIP level/profile on ${r.casino} here. ` +
+        `**Never share passwords or login codes.** The team reviews it with Qzino and answers in this ticket.`,
+    });
+  } catch (e) {
+    console.error("vip ticket failed", discordErrorText(e));
+    throw new AppError("ticket_failed", discordErrorText(e));
+  }
+  if (!ticket) throw new AppError("ticket_failed", "Discord bot not configured");
+  await pool.query("UPDATE vip_applications SET ticket = ? WHERE id = ?", [ticket.channelId, id]);
+  await registerTicket(ticket.channelId, "vip").catch(() => {});
 }
 
 export async function listVipApplications(status?: VipApplication["status"]): Promise<VipApplication[]> {

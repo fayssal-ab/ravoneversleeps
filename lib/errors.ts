@@ -22,6 +22,7 @@ export const ERROR_TEXT: Record<string, string> = {
   qzino_pending: "Your Qzino username is being verified. Check your Discord ticket.",
   qzino_unverified: "Add your Qzino username on your account page and get it verified first.",
   discord_required: "Link your Discord account first (account page): the claim opens a Discord ticket.",
+  ticket_failed: "Saved, but your private Discord ticket couldn't be opened. Try again in a minute (same button), or tell the team on Discord.",
   challenge_closed: "This challenge is no longer open.",
   already_claimed: "You already claimed this one.",
   qzino_taken: "That Qzino username is already verified on another account. If it is really yours, contact the team on Discord.",

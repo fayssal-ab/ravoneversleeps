@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { saveQzinoUsername } from "@/lib/account";
-import { claimChallenge, qzinoStatusOf, requestQzinoVerification } from "@/lib/verification";
+import { claimChallenge, qzinoStatusOf, requestQzinoVerification, retryQzinoTicket } from "@/lib/verification";
 import { applyVipTransfer, WAGER_RANGES } from "@/lib/vip";
 import { rateLimit } from "@/lib/ratelimit";
 import { AppError, parseForm, zId } from "@/lib/tx";
@@ -38,10 +38,18 @@ export async function saveQzinoAction(form: FormData) {
     const v = parseForm(z.object({ qzino: z.string().trim().max(64).regex(/^[\w.-]*$/, "letters, numbers, . _ - only") }), form);
     return (async () => {
       const changed = await saveQzinoUsername(id, v.qzino);
+      const status = v.qzino ? (await qzinoStatusOf(id)).status : "none";
       // a new username (or another try after a rejection) goes to staff verification
-      if (changed || (v.qzino && (await qzinoStatusOf(id)).status === "rejected")) await requestQzinoVerification(id, v.qzino);
+      if (changed || status === "rejected") await requestQzinoVerification(id, v.qzino);
+      // same username still waiting without a ticket: open it now
+      else if (status === "pending") await retryQzinoTicket(id);
     })();
   });
+}
+
+/** "Open my ticket": the pending verification's ticket failed or never opened. */
+export async function openQzinoTicketAction() {
+  await run("/account", "ticket", (id) => retryQzinoTicket(id));
 }
 
 

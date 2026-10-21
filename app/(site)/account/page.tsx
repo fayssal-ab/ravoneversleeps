@@ -7,7 +7,7 @@ import { Flash } from "@/components/ui/bits";
 import { getViewer } from "@/lib/account";
 import { AUTH_MESSAGES, enabledProviders } from "@/lib/userAuth";
 import { qzinoStatusOf, type QzinoState } from "@/lib/verification";
-import { saveQzinoAction } from "../actions";
+import { openQzinoTicketAction, saveQzinoAction } from "../actions";
 
 export const metadata: Metadata = { title: "Account" };
 export const dynamic = "force-dynamic";
@@ -75,7 +75,7 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
 
   return (
     <div className="mx-auto max-w-5xl px-4 pt-8 sm:px-6">
-      {authError ? <Flash error="unexpected" detail={authError} /> : <Flash ok={sp.ok ?? (sp.signed_in || sp.linked ? "1" : undefined)} error={sp.error} detail={sp.detail} okText={sp.linked ? "Account linked." : sp.signed_in ? "Welcome in." : "Saved."} />}
+      {authError ? <Flash error="unexpected" detail={authError} /> : <Flash ok={sp.ok ?? (sp.signed_in || sp.linked ? "1" : undefined)} error={sp.error} detail={sp.detail} okText={sp.linked ? "Account linked." : sp.signed_in ? "Welcome in." : sp.ok === "ticket" ? "Your ticket is open on Discord." : "Saved."} />}
 
       {/* profile */}
       <div className="relative overflow-hidden rounded-3xl border border-white/[0.08] bg-[#060a07] p-6 sm:p-8">
@@ -143,7 +143,9 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
               </ol>
               {qz.ticketUrl
                 ? <a href={qz.ticketUrl} target="_blank" rel="noopener noreferrer" className="btn btn-discord btn-sm mt-4"><DiscordIcon className="size-4" /> Open my ticket <ExternalLink className="size-3.5" /></a>
-                : <p className="mt-3 text-xs text-dim">{discord ? "Your ticket is being opened. Check Ravo's Discord in a moment." : "Link your Discord above so the team can open your private ticket."}</p>}
+                : discord
+                  ? <form action={openQzinoTicketAction} className="mt-4"><button className="btn btn-discord btn-sm"><DiscordIcon className="size-4" /> Open my ticket</button><span className="ml-3 text-xs text-dim">No ticket yet: this opens your private channel.</span></form>
+                  : <p className="mt-3 text-xs text-dim">Link your Discord above so the team can open your private ticket.</p>}
             </div>
           )}
           {viewer.qzino_username && qz.status === "rejected" && (

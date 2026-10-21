@@ -4,7 +4,7 @@ import { AdminTitle, Card, Empty, Tabs } from "@/components/admin/ui";
 import { Flash } from "@/components/ui/bits";
 import { searchUsers, userCounts, type AdminUser, type UserFilter, type UserSort } from "@/lib/userAdmin";
 import { pendingVerifications } from "@/lib/verification";
-import { userFlagsAction, verifyQzinoAction } from "../actions";
+import { retryQzinoTicketAction, userFlagsAction, verifyQzinoAction } from "../actions";
 
 type Tab = "verify" | "accounts";
 const SORTS: { key: UserSort; label: string }[] = [
@@ -123,7 +123,7 @@ export default async function AdminUsers({ searchParams }: { searchParams: Promi
                     <div className="flex flex-wrap gap-2">
                       {p.ticket_url
                         ? <a href={p.ticket_url} target="_blank" rel="noopener noreferrer" className="btn btn-ghost btn-sm"><ExternalLink className="size-3.5" /> Open ticket</a>
-                        : <span className="self-center text-xs text-dim">no ticket (Discord bot off?)</span>}
+                        : <button formAction={retryQzinoTicketAction} formNoValidate className="btn btn-ghost btn-sm !text-gold">No ticket: open one</button>}
                       <button className="btn btn-neon btn-sm"><BadgeCheck className="size-4" /> Verify</button>
                     </div>
                   </form>

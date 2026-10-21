@@ -2,7 +2,7 @@ import "server-only";
 import type { ResultSetHeader, RowDataPacket } from "mysql2/promise";
 import { randomInt } from "node:crypto";
 import { getPool } from "./db";
-import { openTicket, ticketUrl } from "./discordBot";
+import { discordErrorText, openTicket, ticketUrl } from "./discordBot";
 import { liveStanding } from "./qboards";
 import { registerTicket, scheduleClose } from "./tickets";
 import { AppError } from "./tx";
@@ -77,7 +77,11 @@ export async function requireVerifiedQzino(accountId: number): Promise<void> {
   if (status !== "verified") throw new AppError("qzino_unverified");
 }
 
-/** After a new username is saved: mark it pending and open a ticket (best effort). */
+/**
+ * After a new username is saved: mark it pending with a fresh code and open
+ * the ticket. The username stays saved even when the ticket fails; that
+ * failure is thrown (ticket_failed) so the player sees it and can retry.
+ */
 export async function requestQzinoVerification(accountId: number, username: string): Promise<void> {
   await ensureVerificationSchema();
   const pool = getPool();
@@ -85,26 +89,49 @@ export async function requestQzinoVerification(accountId: number, username: stri
     await pool.query("UPDATE user_accounts SET qzino_status = 'none', qzino_ticket = NULL, qzino_code = NULL, qzino_note = NULL WHERE id = ?", [accountId]);
     return;
   }
-  const code = newCode();
-  await pool.query("UPDATE user_accounts SET qzino_status = 'pending', qzino_ticket = NULL, qzino_code = ?, qzino_note = NULL WHERE id = ?", [code, accountId]);
+  await pool.query("UPDATE user_accounts SET qzino_status = 'pending', qzino_ticket = NULL, qzino_code = ?, qzino_note = NULL WHERE id = ?", [newCode(), accountId]);
+  await openQzinoTicket(accountId);
+}
+
+/**
+ * Opens the ticket of a pending claim that has none yet (it failed before,
+ * or Discord was linked later). Player ("Open my ticket") and admin.
+ */
+export async function retryQzinoTicket(accountId: number): Promise<void> {
+  await ensureVerificationSchema();
+  const [rows] = await getPool().query<RowDataPacket[]>("SELECT qzino_status, qzino_ticket, qzino_code FROM user_accounts WHERE id = ?", [accountId]);
+  if (rows[0]?.qzino_status !== "pending") throw new AppError("invalid_input", "no verification waiting");
+  if (rows[0].qzino_ticket) return;
+  if (!rows[0].qzino_code) await getPool().query("UPDATE user_accounts SET qzino_code = ? WHERE id = ?", [newCode(), accountId]);
+  await openQzinoTicket(accountId);
+}
+
+async function openQzinoTicket(accountId: number): Promise<void> {
+  const pool = getPool();
   const discordId = await discordIdOf(accountId);
-  if (!discordId) return;
-  const [acc] = await pool.query<RowDataPacket[]>("SELECT display_name FROM user_accounts WHERE id = ?", [accountId]);
-  const ticket = await openTicket({
-    name: `verify-${username}`,
-    discordUserId: discordId,
-    message:
-      `**Qzino username verification**\n` +
-      `Account: **${String(acc[0]?.display_name ?? "")}** · Qzino username: **${username}** · Your code: **${code}**\n\n` +
-      `To prove this Qzino account is yours, send a short **screen recording** (10–30 s) here:\n` +
-      `1. Start on Qzino, logged in, on your profile page with the username **${username}** visible.\n` +
-      `2. Without cutting, switch to this Discord ticket and type the code **${code}**.\n\n` +
-      `Screenshots alone aren't accepted. A staff member will check it and verify you on the site.`,
-  }).catch((e: Error) => { console.error("verification ticket failed", e.message); return null; });
-  if (ticket) {
-    await pool.query("UPDATE user_accounts SET qzino_ticket = ? WHERE id = ?", [ticket.channelId, accountId]);
-    await registerTicket(ticket.channelId, "verify").catch(() => {});
+  if (!discordId) throw new AppError("discord_required");
+  const [acc] = await pool.query<RowDataPacket[]>("SELECT display_name, qzino_username, qzino_code FROM user_accounts WHERE id = ?", [accountId]);
+  const username = String(acc[0]?.qzino_username ?? ""), code = String(acc[0]?.qzino_code ?? "");
+  let ticket;
+  try {
+    ticket = await openTicket({
+      name: `verify-${username}`,
+      discordUserId: discordId,
+      message:
+        `**Qzino username verification**\n` +
+        `Account: **${String(acc[0]?.display_name ?? "")}** · Qzino username: **${username}** · Your code: **${code}**\n\n` +
+        `To prove this Qzino account is yours, send a short **screen recording** (10–30 s) here:\n` +
+        `1. Start on Qzino, logged in, on your profile page with the username **${username}** visible.\n` +
+        `2. Without cutting, switch to this Discord ticket and type the code **${code}**.\n\n` +
+        `Screenshots alone aren't accepted. A staff member will check it and verify you on the site.`,
+    });
+  } catch (e) {
+    console.error("verification ticket failed", discordErrorText(e));
+    throw new AppError("ticket_failed", discordErrorText(e));
   }
+  if (!ticket) throw new AppError("ticket_failed", "Discord bot not configured");
+  await pool.query("UPDATE user_accounts SET qzino_ticket = ? WHERE id = ?", [ticket.channelId, accountId]);
+  await registerTicket(ticket.channelId, "verify").catch(() => {});
 }
 
 export interface PendingVerification {
@@ -210,7 +237,11 @@ export async function claimChallenge(accountId: number, challengeId: number): Pr
   const discordId = await discordIdOf(accountId);
   if (!discordId) throw new AppError("discord_required");
   const [ins] = await pool.query<ResultSetHeader>("INSERT IGNORE INTO challenge_claims (challenge_id, account_id) VALUES (?, ?)", [challengeId, accountId]);
-  if (!ins.affectedRows) throw new AppError("already_claimed");
+  if (!ins.affectedRows) {
+    // claimed before: fine if its ticket exists, otherwise open it now
+    const [prev] = await pool.query<RowDataPacket[]>("SELECT ticket FROM challenge_claims WHERE challenge_id = ? AND account_id = ?", [challengeId, accountId]);
+    if (prev[0]?.ticket) throw new AppError("already_claimed");
+  }
   const [acc] = await pool.query<RowDataPacket[]>("SELECT display_name, qzino_username FROM user_accounts WHERE id = ?", [accountId]);
   const c = ch[0];
   const ticket = await openTicket({
@@ -221,12 +252,14 @@ export async function claimChallenge(accountId: number, challengeId: number): Pr
       (Number(c.min_bet) > 0 ? ` (min bet $${Number(c.min_bet)})` : "") + `\n` +
       `Player: **${String(acc[0]?.display_name ?? "")}** · Qzino: **${String(acc[0]?.qzino_username ?? "")}**\n\n` +
       `📸 **Send your proof here**: a screenshot or clip where the bet and the win are visible. A staff member will check it.`,
-  }).catch((e: Error) => { console.error("challenge ticket failed", e.message); return null; });
-  if (ticket) {
-    await pool.query("UPDATE challenge_claims SET ticket = ? WHERE challenge_id = ? AND account_id = ?", [ticket.channelId, challengeId, accountId]);
-    await registerTicket(ticket.channelId, "challenge").catch(() => {});
-  }
-  return ticket?.url ?? null;
+  }).catch((e: unknown) => {
+    console.error("challenge ticket failed", discordErrorText(e));
+    throw new AppError("ticket_failed", discordErrorText(e));
+  });
+  if (!ticket) throw new AppError("ticket_failed", "Discord bot not configured");
+  await pool.query("UPDATE challenge_claims SET ticket = ? WHERE challenge_id = ? AND account_id = ?", [ticket.channelId, challengeId, accountId]);
+  await registerTicket(ticket.channelId, "challenge").catch(() => {});
+  return ticket.url;
 }
 
 export interface AdminClaim { challenge_id: number; display_name: string; qzino_username: string; ticket_url: string | null; created_at: string }

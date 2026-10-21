@@ -18,6 +18,14 @@ const MEMBER = VIEW | SEND | EMBED | ATTACH | HISTORY;
 
 export const discordBotEnabled = () => Boolean(process.env.DISCORD_BOT_TOKEN);
 
+/** message stays "discord_<status>" (callers match on it); detail is Discord's reason. */
+export class DiscordError extends Error {
+  constructor(public status: number, public detail: string) { super(`discord_${status}`); }
+}
+/** "discord_403 Missing Permissions (50013)" for logs and admin messages. */
+export const discordErrorText = (e: unknown) =>
+  e instanceof DiscordError ? `${e.message} ${e.detail}`.trim() : e instanceof Error ? e.message : "unknown";
+
 async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
   const token = process.env.DISCORD_BOT_TOKEN;
   if (!token) throw new Error("discord_bot_not_configured");
@@ -26,7 +34,10 @@ async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
     headers: { Authorization: `Bot ${token}`, "Content-Type": "application/json", ...init.headers },
     cache: "no-store", signal: AbortSignal.timeout(8000),
   });
-  if (!res.ok) throw new Error(`discord_${res.status}`);
+  if (!res.ok) {
+    const body = await res.json().catch(() => null) as { message?: string; code?: number } | null;
+    throw new DiscordError(res.status, body?.message ? `${body.message}${body.code ? ` (${body.code})` : ""}` : "");
+  }
   return (res.status === 204 ? null : await res.json()) as T;
 }
 

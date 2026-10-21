@@ -6,7 +6,7 @@ import { addBonus, createHunt, deleteBonus, deleteHunt, finishHunt, moveBonus, r
 import { syncCatalog, upgradeTypedSlots } from "@/lib/slots";
 import { addSlot, deleteSlot } from "@/lib/stream";
 import { createChallenge, deleteChallenge, markChallengeWon, setChallengeStatus } from "@/lib/challenges";
-import { decideVerification, REJECT_REASONS, type RejectReason } from "@/lib/verification";
+import { decideVerification, REJECT_REASONS, retryQzinoTicket, type RejectReason } from "@/lib/verification";
 import { discordSetup } from "@/lib/discordBot";
 import { saveTopPrizes } from "@/lib/leaderboardPrizes";
 import { decideVipApplication } from "@/lib/vip";
@@ -149,6 +149,14 @@ export async function verifyQzinoAction(form: FormData) {
     }), form);
     if (v.decision === "verify" && !(v.c_profile && v.c_code && v.c_cut)) throw new AppError("invalid_input", "tick every check before verifying");
     await decideVerification(v.account, v.decision === "verify", v.reason);
+    return v;
+  });
+}
+
+export async function retryQzinoTicketAction(form: FormData) {
+  await adminAction({ path: "/admin/users?tab=verify", audit: "qzino.ticket" }, async () => {
+    const v = parseForm(z.object({ account: zId }), form);
+    await retryQzinoTicket(v.account);
     return v;
   });
 }
