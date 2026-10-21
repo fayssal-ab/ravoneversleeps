@@ -9,6 +9,7 @@ import { applyVipTransfer, WAGER_RANGES } from "@/lib/vip";
 import { rateLimit } from "@/lib/ratelimit";
 import { AppError, parseForm, zId } from "@/lib/tx";
 import { currentAccountId } from "@/lib/userAuth";
+import type { TicketFile } from "@/lib/discordBot";
 
 // Viewer Server Actions. Each re-checks the session (actions are public POST
 // endpoints) and reports back through ?ok= / ?error= on the page it came from.
@@ -48,7 +49,19 @@ export async function saveQzinoAction(form: FormData) {
 }
 
 const PROOF_TYPES = ["image/png", "image/jpeg", "image/webp", "image/gif", "video/mp4", "video/webm", "video/quicktime"];
-const PROOF_MAX_BYTES = 4 * 1024 * 1024; // keep in sync with components/account/VerifyForm.tsx
+const PROOF_MAX_BYTES = 4 * 1024 * 1024; // keep in sync with components/ui/ProofForm.tsx
+
+/** Proof files from a ProofForm: 1–3 images / videos, 4 MB in total. */
+async function readProof(form: FormData): Promise<TicketFile[]> {
+  const files = form.getAll("proof").filter((f): f is File => f instanceof File && f.size > 0);
+  if (files.length === 0) throw new AppError("invalid_input", "add a screenshot or a recording");
+  if (files.length > 3) throw new AppError("invalid_input", "3 files max");
+  if (files.some((f) => !PROOF_TYPES.includes(f.type))) throw new AppError("invalid_input", "images (PNG, JPG, WEBP, GIF) or videos (MP4, WEBM, MOV) only");
+  if (files.reduce((n, f) => n + f.size, 0) > PROOF_MAX_BYTES) throw new AppError("invalid_input", "4 MB max in total: send a longer recording in your ticket after");
+  return Promise.all(files.map(async (f, i) => ({
+    name: `proof-${i + 1}.${f.name.split(".").pop()?.toLowerCase().replace(/[^a-z0-9]/g, "") || "bin"}`, type: f.type, data: await f.arrayBuffer(),
+  })));
+}
 
 /**
  * "Verify my Qzino account" form: username + screenshot / short recording.
@@ -57,19 +70,12 @@ const PROOF_MAX_BYTES = 4 * 1024 * 1024; // keep in sync with components/account
 export async function submitVerificationAction(form: FormData) {
   await run("/account", "verify_sent", async (id) => {
     const v = parseForm(z.object({ qzino: z.string().trim().min(1).max(64).regex(/^[\w.-]+$/, "letters, numbers, . _ - only") }), form);
-    const files = form.getAll("proof").filter((f): f is File => f instanceof File && f.size > 0);
-    if (files.length === 0) throw new AppError("invalid_input", "add a screenshot or a recording");
-    if (files.length > 3) throw new AppError("invalid_input", "3 files max");
-    if (files.some((f) => !PROOF_TYPES.includes(f.type))) throw new AppError("invalid_input", "images (PNG, JPG, WEBP, GIF) or videos (MP4, WEBM, MOV) only");
-    if (files.reduce((n, f) => n + f.size, 0) > PROOF_MAX_BYTES) throw new AppError("invalid_input", "4 MB max in total: send a longer recording in your ticket after");
+    const proof = await readProof(form);
     const before = await qzinoStatusOf(id);
     // one open case at a time; a verified player only resubmits to change username
     if (before.status === "pending" && before.ticketUrl) throw new AppError("qzino_pending");
     const changed = await saveQzinoUsername(id, v.qzino);
     if (before.status === "verified" && !changed) throw new AppError("invalid_input", "this username is already verified");
-    const proof = await Promise.all(files.map(async (f, i) => ({
-      name: `proof-${i + 1}.${f.name.split(".").pop()?.toLowerCase().replace(/[^a-z0-9]/g, "") || "bin"}`, type: f.type, data: await f.arrayBuffer(),
-    })));
     await requestQzinoVerification(id, v.qzino, proof);
   });
 }
@@ -80,8 +86,16 @@ export async function openQzinoTicketAction() {
 }
 
 
+/** "I hit it": the multi, the bet and a screenshot / clip of the win open the claim ticket. */
 export async function claimChallengeAction(form: FormData) {
-  await run("/challenges", "claimed", (id) => claimChallenge(id, parseForm(z.object({ challenge: zId }), form).challenge));
+  await run("/challenges", "claimed", async (id) => {
+    const v = parseForm(z.object({
+      challenge: zId,
+      multi: z.coerce.number().positive().max(1_000_000),
+      bet: z.coerce.number().positive().max(1_000_000),
+    }), form);
+    await claimChallenge(id, v.challenge, { multi: v.multi, bet: v.bet }, await readProof(form));
+  });
 }
 
 export async function applyVipAction(form: FormData) {

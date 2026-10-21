@@ -242,16 +242,20 @@ export async function myChallengeClaims(accountId: number): Promise<Map<number, 
 }
 
 /**
- * "I hit it": opens a proof ticket for an open challenge. One claim per
+ * "I hit it": the claim form (multi, bet, screenshot / clip of the win)
+ * opens a ticket with a data card and the proof attached. One claim per
  * viewer per challenge; needs a verified Qzino username and Discord.
  */
-export async function claimChallenge(accountId: number, challengeId: number): Promise<string | null> {
+export async function claimChallenge(accountId: number, challengeId: number, hit: { multi: number; bet: number }, proof: TicketFile[]): Promise<string | null> {
   await ensureVerificationSchema();
   await requireVerifiedQzino(accountId);
   const pool = getPool();
   const [ch] = await pool.query<RowDataPacket[]>("SELECT slot_name, target_multi, reward, min_bet, status FROM challenges WHERE id = ?", [challengeId]);
   if (!ch[0]) throw new AppError("not_found");
-  if (ch[0].status !== "open") throw new AppError("challenge_closed");
+  const c = ch[0];
+  if (c.status !== "open") throw new AppError("challenge_closed");
+  if (hit.multi < Number(c.target_multi)) throw new AppError("invalid_input", `the target is ${Number(c.target_multi)}x`);
+  if (Number(c.min_bet) > 0 && hit.bet < Number(c.min_bet)) throw new AppError("invalid_input", `the minimum bet is $${Number(c.min_bet)}`);
   const discordId = await discordIdOf(accountId);
   if (!discordId) throw new AppError("discord_required");
   const [ins] = await pool.query<ResultSetHeader>("INSERT IGNORE INTO challenge_claims (challenge_id, account_id) VALUES (?, ?)", [challengeId, accountId]);
@@ -260,20 +264,38 @@ export async function claimChallenge(accountId: number, challengeId: number): Pr
     const [prev] = await pool.query<RowDataPacket[]>("SELECT ticket FROM challenge_claims WHERE challenge_id = ? AND account_id = ?", [challengeId, accountId]);
     if (prev[0]?.ticket) throw new AppError("already_claimed");
   }
-  const [acc] = await pool.query<RowDataPacket[]>("SELECT display_name, qzino_username FROM user_accounts WHERE id = ?", [accountId]);
-  const c = ch[0];
-  const ticket = await openTicket({
-    kind: "challenge", label: String(acc[0]?.display_name ?? accountId),
-    discordUserId: discordId,
-    message:
-      `**Challenge claim** · ${c.slot_name}: first to hit **${Number(c.target_multi)}x** wins **$${Number(c.reward)}**` +
-      (Number(c.min_bet) > 0 ? ` (min bet $${Number(c.min_bet)})` : "") + `\n` +
-      `Player: **${String(acc[0]?.display_name ?? "")}** · Qzino: **${String(acc[0]?.qzino_username ?? "")}**\n\n` +
-      `📸 **Send your proof here**: a screenshot or clip where the bet and the win are visible. A staff member will check it.`,
-  }).catch((e: unknown) => {
+  const [acc] = await pool.query<RowDataPacket[]>(
+    `SELECT a.display_name, a.qzino_username, (SELECT username FROM user_identities WHERE account_id = a.id AND provider = 'kick' LIMIT 1) AS kick
+       FROM user_accounts a WHERE a.id = ?`, [accountId]);
+  const r = acc[0] ?? {};
+  const money = (n: number) => `$${n.toLocaleString("en-US", { maximumFractionDigits: 2 })}`;
+  let ticket;
+  try {
+    ticket = await openTicket({
+      kind: "challenge", label: String(r.display_name ?? accountId),
+      discordUserId: discordId,
+      message: `**Challenge claim**: proof sent from the site is attached below. A staff member will check it.`,
+      embed: {
+        title: `${c.slot_name}: ${Number(c.target_multi)}x for ${money(Number(c.reward))}`,
+        color: 0xffd76a,
+        fields: [
+          { name: "Player", value: String(r.display_name ?? "—"), inline: true },
+          { name: "Discord", value: `<@${discordId}>`, inline: true },
+          { name: "Kick", value: r.kick ? String(r.kick) : "not linked", inline: true },
+          { name: "Qzino (verified)", value: `\`${String(r.qzino_username ?? "")}\``, inline: true },
+          { name: "Multi hit", value: `**${hit.multi.toLocaleString("en-US")}x** (target ${Number(c.target_multi)}x)`, inline: true },
+          { name: "Bet", value: `${money(hit.bet)}${Number(c.min_bet) > 0 ? ` (min ${money(Number(c.min_bet))})` : ""}`, inline: true },
+          { name: "Win", value: money(hit.multi * hit.bet), inline: true },
+          { name: "Proof", value: proof.map((f) => f.name).join(", "), inline: false },
+        ],
+        footer: "Staff: check bet + win in the proof, then mark the winner in Admin → Challenges",
+      },
+      files: proof,
+    });
+  } catch (e) {
     console.error("challenge ticket failed", discordErrorText(e));
     throw new AppError("ticket_failed", discordErrorText(e));
-  });
+  }
   if (!ticket) throw new AppError("ticket_failed", "Discord bot not configured");
   await pool.query("UPDATE challenge_claims SET ticket = ? WHERE challenge_id = ? AND account_id = ?", [ticket.channelId, challengeId, accountId]);
   await registerTicket(ticket.channelId, "challenge").catch(() => {});

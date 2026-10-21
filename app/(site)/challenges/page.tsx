@@ -4,7 +4,7 @@ import Link from "next/link";
 import { EmptyState, Flash, PageHeader } from "@/components/ui/bits";
 import { getViewer } from "@/lib/account";
 import { myChallengeClaims, type ClaimInfo } from "@/lib/verification";
-import { claimChallengeAction } from "../actions";
+import { ClaimForm } from "@/components/challenges/ClaimForm";
 import { SocialIcon } from "@/components/ui/SocialIcon";
 import { DISCORD_URL, QZINO_CODE, QZINO_URL } from "@/lib/constants";
 import { listChallenges, type Challenge } from "@/lib/challenges";
@@ -69,10 +69,7 @@ function ChallengeCard({ c, signedIn, claim }: { c: Challenge; signedIn: boolean
                   ? <a href={claim.ticket_url} target="_blank" rel="noopener noreferrer" className="btn btn-discord btn-sm"><SocialIcon name="discord" className="size-4" /> Your ticket</a>
                   : <span className="chip border-gold/60 text-gold">Claim sent</span>
               ) : signedIn ? (
-                <form action={claimChallengeAction}>
-                  <input type="hidden" name="challenge" value={c.id} />
-                  <button className="btn btn-neon btn-sm">I hit it · Claim</button>
-                </form>
+                <ClaimForm id={c.id} slot={c.slot_name} target={Number(c.target_multi)} minBet={Number(c.min_bet)} />
               ) : (
                 <Link href="/account" className="btn btn-neon btn-sm">Sign in to claim</Link>
               )}
@@ -97,7 +94,7 @@ export default async function ChallengesPage({ searchParams }: { searchParams: P
       <PageHeader eyebrow="Slot challenges" title="Hit the" accent="target">
         Pick a challenge, land the multiplier first and the reward is yours. Every win is checked by the team.
       </PageHeader>
-      <Flash ok={sp.ok} error={sp.error} detail={sp.detail} okText="Claim sent! A private Discord ticket is open: post your proof there." />
+      <Flash ok={sp.ok} error={sp.error} detail={sp.detail} okText="Claim sent! Your private Discord ticket is open with your proof." />
 
       {list == null ? (
         <EmptyState title="Challenges offline">Temporarily unavailable. Try again in a minute.</EmptyState>
@@ -120,7 +117,7 @@ export default async function ChallengesPage({ searchParams }: { searchParams: P
               {[
                 { t: "Play the slot", b: `On Qzino with code ${QZINO_CODE}, at the minimum bet or higher.` },
                 { t: "Hit the multiplier", b: "Take a screenshot or a clip the moment it lands, with the bet and the win visible." },
-                { t: "Claim it", b: "Hit “Claim” on the challenge: a private Discord ticket opens for you. Post your proof there; the first verified hit wins." },
+                { t: "Claim it", b: "Hit “Claim”, enter your multi and bet and add a screenshot or clip of the win. Your private Discord ticket opens with it; the first verified hit wins." },
               ].map((s, i) => (
                 <li key={s.t} className="panel relative p-6 pt-8">
                   <span className="absolute -top-4 left-6 grid size-9 place-items-center rounded-full bg-neon font-mono font-bold text-neon-ink">{i + 1}</span>
@@ -130,7 +127,7 @@ export default async function ChallengesPage({ searchParams }: { searchParams: P
               ))}
             </ol>
             <div className="mt-6 flex justify-center">
-              <a href={DISCORD_URL} target="_blank" rel="noopener noreferrer" className="btn btn-ghost"><SocialIcon name="discord" className="size-4" /> Send proof on Discord</a>
+              <a href={DISCORD_URL} target="_blank" rel="noopener noreferrer" className="btn btn-ghost"><SocialIcon name="discord" className="size-4" /> Join Ravo&apos;s Discord</a>
             </div>
             <p className="mt-4 text-center text-xs text-dim">18+ only. One win per person per challenge; abuse or edited proof disqualifies. Play responsibly.</p>
           </section>

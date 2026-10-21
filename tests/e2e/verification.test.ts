@@ -12,6 +12,10 @@ import { claimChallenge, decideVerification, myChallengeClaims, pendingVerificat
 if (process.env.DB_NAME !== "ravo_test") throw new Error("refusing to run outside ravo_test");
 after(() => getPool().end());
 
+// what the claim form sends: the multi, the bet and one proof file
+const HIT = { multi: 1500, bet: 1 };
+const PROOF = [{ name: "proof-1.png", type: "image/png", data: new ArrayBuffer(8) }];
+
 // fake Discord: record every call, hand out channel ids
 const calls: { method: string; path: string; body: Record<string, unknown> | null }[] = [];
 const realFetch = globalThis.fetch;
@@ -50,16 +54,16 @@ test("username → pending + ticket → verified unlocks claims; one claim per c
   await assert.rejects(requireVerifiedQzino(id), /qzino_pending/);
 
   const challenge = await createChallenge({ slot_id: "", slot: "Test Slot", provider: "Test", target_multi: "1000", reward: "50", min_bet: "0.40" });
-  await assert.rejects(claimChallenge(id, challenge), /qzino_pending/);
+  await assert.rejects(claimChallenge(id, challenge, HIT, PROOF), /qzino_pending/);
 
   await decideVerification(id, true);
   st = await qzinoStatusOf(id);
   assert.equal(st.status, "verified");
   assert.ok(calls.some((c) => c.method === "POST" && /\/channels\/9000\d+\/messages/.test(c.path) && String(c.body?.content).includes("verified")));
 
-  const url = await claimChallenge(id, challenge);
+  const url = await claimChallenge(id, challenge, HIT, PROOF);
   assert.match(url ?? "", /^\/api\/discord\/ticket\/\d+$/);
-  await assert.rejects(claimChallenge(id, challenge), /already_claimed/);
+  await assert.rejects(claimChallenge(id, challenge, HIT, PROOF), /already_claimed/);
   assert.ok((await myChallengeClaims(id)).get(challenge)?.ticket_url);
 
   // the verification ticket is scheduled to close; the cleanup deletes it once due
@@ -78,5 +82,5 @@ test("username → pending + ticket → verified unlocks claims; one claim per c
   // no Discord linked → can't claim (the claim lives in a Discord ticket)
   const other = await createChallenge({ slot_id: "", slot: "Other Slot", provider: "Test", target_multi: "500", reward: "20", min_bet: "" });
   const [acc2] = await pool.query<ResultSetHeader>("INSERT INTO user_accounts (display_name, qzino_username, qzino_status) VALUES (?, ?, 'verified')", [`${tag}b`, `${tag}b`]);
-  await assert.rejects(claimChallenge(acc2.insertId, other), /discord_required/);
+  await assert.rejects(claimChallenge(acc2.insertId, other, HIT, PROOF), /discord_required/);
 });
