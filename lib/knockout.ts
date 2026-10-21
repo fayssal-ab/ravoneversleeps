@@ -509,6 +509,33 @@ export async function startBattle(id: number): Promise<number> {
   });
 }
 
+/**
+ * One button for the whole tournament ("Start next battle"): plays the next
+ * battle that is ready in bracket order; when none is, draws two random
+ * waiting players (teams in duo) and starts their battle straight away.
+ * Duo: the first press closes registration and draws the teams. A last
+ * player with nobody left gets a bye (nothing to start, press again).
+ */
+export async function playNext(id: number): Promise<{ matchId: number | null; bye: boolean }> {
+  const t = await getKoById(id);
+  if (!t) throw new AppError("not_found");
+  // after the final ("Save & start next") there is simply nothing left to start
+  if (t.status !== "open" && t.status !== "closed") return { matchId: null, bye: false };
+  let state = await getKoState(t);
+  if (state.live) throw new AppError("battle_live");
+  if (!state.pendingRoll && !state.nextReady) {
+    if (t.team_size === 2 && !state.teamsMade) {
+      if (t.status === "open") await closeRegistration(id);
+      await makeTeams(id);
+    }
+    const r = await rollPlayers(id);
+    if (r.bye) return { matchId: r.matchId, bye: true };
+    state = await getKoState((await getKoById(id))!);
+  }
+  if (state.pendingRoll) await confirmRoll(id);
+  return { matchId: await startBattle(id), bye: false };
+}
+
 /** Moves the focus to the next live/rolled/ready battle (or clears it). */
 export async function focusNext(id: number): Promise<number | null> {
   return withTx(async (conn) => {

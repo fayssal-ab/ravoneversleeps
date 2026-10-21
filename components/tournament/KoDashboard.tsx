@@ -130,7 +130,7 @@ export function KoDashboard({ initial, overlayUrl }: { initial: KoState | null; 
   // duo: teammate name for each player in the list
   const mateOf = new Map<number, string>();
   if (duo) for (const p of state.participants) if (p.partner) { mateOf.set(p.id, p.partner.username); mateOf.set(p.partner.id, p.username); }
-  const showRoll = focus && focus.status === "rolled" && revealed !== focus.roll_seq;
+  const showRoll = focus && (focus.status === "rolled" || focus.status === "live") && focus.roll_seq != null && revealed !== focus.roll_seq;
   const tabs: { key: Tab; label: string }[] = [
     { key: "bracket", label: "Full bracket" }, { key: "round", label: "Current round" }, { key: "qualified", label: "Qualified" },
     { key: "eliminated", label: "Eliminated" }, { key: "final", label: "Finals" },
@@ -180,26 +180,51 @@ export function KoDashboard({ initial, overlayUrl }: { initial: KoState | null; 
             )
           ) : (
             <div className="py-16 text-center">
-              <p className="font-display text-4xl"><span className="chrome">{state.eligible >= 2 || firstRoundOpen ? "Ready to roll" : "Waiting for players"}</span></p>
+              <p className="font-display text-4xl"><span className="chrome">{state.eligible >= 2 || firstRoundOpen ? "Ready to battle" : "Waiting for players"}</span></p>
               <p className="mt-2 text-sm text-dim">
                 {duo && !state.teamsMade
-                  ? <>{state.registered} player(s) registered · close registration, then <b className="text-text">Make teams</b>{state.registered % 2 ? <span className="text-gold"> (odd number: add or disqualify one player first)</span> : null}</>
-                  : <>{state.eligible} {duo ? "team(s)" : "player(s)"} waiting · chat types <code className="text-neon">!join &lt;slot&gt;</code> to enter</>}
+                  ? <>{state.registered} player(s) registered · <b className="text-text">Start next battle</b> closes registration and draws random teams{state.registered % 2 ? <span className="text-gold"> (odd number: add or disqualify one player first)</span> : null}</>
+                  : <>{state.eligible} {duo ? "team(s)" : "player(s)"} waiting · chat types <code className="text-neon">!join &lt;slot&gt;</code> · <b className="text-text">Start next battle</b> draws two at random</>}
               </p>
             </div>
           )}
 
-          <div className="mt-8 flex flex-wrap justify-center gap-2">
-            <button disabled={busy !== null || !canRoll} onClick={() => act("roll")} className="btn btn-neon btn-sm"><Dices className="size-4" /> Roll 2 {duo ? "teams" : "players"}</button>
-            <button disabled={busy !== null || !state.pendingRoll} onClick={() => act("confirm")} className="btn btn-chrome btn-sm">Confirm battle</button>
-            <button disabled={busy !== null || !state.pendingRoll} onClick={() => act("cancel_roll", {}, "Cancel this roll? Both players go back to the pool.")} className="btn btn-ghost btn-sm">Cancel roll</button>
-            <button disabled={busy !== null || !!state.live || !!state.pendingRoll || !state.nextReady} onClick={() => act("start")} className="btn btn-neon btn-sm"><Play className="size-4" /> Start battle</button>
-            <button disabled={busy !== null || !!state.live} onClick={() => act("next")} className="btn btn-ghost btn-sm"><SkipForward className="size-4" /> Next battle</button>
-          </div>
-          {state.live && (
-            <BattleResultForm key={state.live.id} match={state.live} duo={duo} busy={busy !== null}
-              onSubmit={(r) => act("result", { matchId: state.live!.id, ...r })} />
+          {!state.live && !state.champion && (
+            <div className="mt-8 flex flex-col items-center gap-2">
+              <button disabled={busy !== null} onClick={() => act("play")} className="btn btn-neon !px-8 !py-4 !text-base">
+                <Play className="size-5" /> {busy === "play" ? "Drawing…" : "Start next battle"}
+              </button>
+              <p className="text-xs text-dim">Plays the next battle in the bracket, or draws two random {duo ? "teams" : "players"} and starts them.</p>
+            </div>
           )}
+          {state.live && (
+            <>
+              <BattleResultForm key={state.live.id} match={state.live} duo={duo} busy={busy !== null}
+                onSubmit={async (r, andNext) => {
+                  if (await act("result", { matchId: state.live!.id, ...r }) && andNext) await act("play");
+                }} />
+              {/* disqualify straight from the battle: the opponent goes through */}
+              <div className="mt-4 flex flex-wrap justify-center gap-2">
+                {[state.live.p1, state.live.p2].map((p) => p && (
+                  <button key={p.id} disabled={busy !== null} onClick={() => disqualify(p)}
+                    className="rounded-lg border border-danger/40 px-3 py-1.5 font-head text-[11px] font-bold uppercase tracking-wider text-danger transition hover:bg-danger/10">
+                    Disqualify {teamName(p)}
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
+          {/* rarely needed: the old step-by-step controls */}
+          <details className="mt-6 text-center">
+            <summary className="cursor-pointer text-xs text-dim hover:text-muted">Manual controls</summary>
+            <div className="mt-3 flex flex-wrap justify-center gap-2">
+              <button disabled={busy !== null || !canRoll} onClick={() => act("roll")} className="btn btn-ghost btn-sm"><Dices className="size-4" /> Roll 2 {duo ? "teams" : "players"}</button>
+              <button disabled={busy !== null || !state.pendingRoll} onClick={() => act("confirm")} className="btn btn-ghost btn-sm">Confirm battle</button>
+              <button disabled={busy !== null || !state.pendingRoll} onClick={() => act("cancel_roll", {}, "Cancel this roll? Both players go back to the pool.")} className="btn btn-ghost btn-sm">Cancel roll</button>
+              <button disabled={busy !== null || !!state.live || !!state.pendingRoll || !state.nextReady} onClick={() => act("start")} className="btn btn-ghost btn-sm"><Play className="size-4" /> Start battle</button>
+              <button disabled={busy !== null || !!state.live} onClick={() => act("next")} className="btn btn-ghost btn-sm"><SkipForward className="size-4" /> Focus next</button>
+            </div>
+          </details>
           {state.eligible === 1 && t.status === "open" && firstRoundOpen && (
             <p className="mt-3 text-center text-xs text-dim">One player is waiting. Close registration to give them a bye, or wait for another !join.</p>
           )}
@@ -289,7 +314,7 @@ function multi(b: Bonus): string | null {
  */
 function BattleResultForm({ match, duo, busy, onSubmit }: {
   match: KoMatch; duo: boolean; busy: boolean;
-  onSubmit: (r: { p1: Bonus; p2: Bonus; p1b?: Bonus; p2b?: Bonus }) => void;
+  onSubmit: (r: { p1: Bonus; p2: Bonus; p1b?: Bonus; p2b?: Bonus }, andNext: boolean) => void;
 }) {
   // default bonus cost is $100 (the usual stake); payouts start empty
   const empty = { cost: "100", payout: "" };
@@ -331,14 +356,21 @@ function BattleResultForm({ match, duo, busy, onSubmit }: {
   };
   const winner = lead === 1 ? match.p1 : lead === 2 ? match.p2 : null;
   return (
-    <form className="mt-6 space-y-3" onSubmit={(e) => { e.preventDefault(); if (m1 && m2) onSubmit(duo ? b : { p1: b.p1, p2: b.p2 }); }}>
+    <form className="mt-6 space-y-3" onSubmit={(e) => {
+      e.preventDefault();
+      // which button sent it: "Save & start next" (default, Enter) or "Save only"
+      const andNext = (e.nativeEvent as SubmitEvent).submitter?.getAttribute("value") !== "only";
+      if (m1 && m2) onSubmit(duo ? b : { p1: b.p1, p2: b.p2 }, andNext);
+    }}>
       <p className="text-center font-head text-xs font-bold uppercase tracking-[0.18em] text-muted">
         Bonus results · {duo ? "the higher combined multiplier wins" : "the higher multiplier wins"}
       </p>
       <div className="grid gap-3 sm:grid-cols-2">{side(1)}{side(2)}</div>
       {lead === 0 && <p className="text-center text-sm text-gold">Exact tie: replay the bonus and enter the replay&apos;s results.</p>}
-      <div className="flex justify-center">
-        <button disabled={busy || !m1 || !m2 || lead === 0} className="btn btn-neon">Save result{winner ? `: ${teamName(winner)} win${duo ? "" : "s"}` : ""}</button>
+      {winner && <p className="text-center text-sm text-muted"><b className="text-gold">{teamName(winner)}</b> win{duo ? "" : "s"}</p>}
+      <div className="flex flex-wrap justify-center gap-2">
+        <button value="next" disabled={busy || !m1 || !m2 || lead === 0} className="btn btn-neon"><Play className="size-4" /> Save &amp; start next</button>
+        <button value="only" disabled={busy || !m1 || !m2 || lead === 0} className="btn btn-ghost">Save only</button>
       </div>
     </form>
   );

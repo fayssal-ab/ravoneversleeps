@@ -18,7 +18,8 @@ export function KoOverlay({ wide = false }: { wide?: boolean }) {
   const t = state.tournament;
   const focus = state.focus;
   const pool = state.participants.filter((p) => p.state === "registered");
-  const rolling = focus?.status === "rolled" && revealed !== focus.roll_seq;
+  // random draws animate, including battles started straight away ("Start next battle")
+  const rolling = (focus?.status === "rolled" || focus?.status === "live") && focus.roll_seq != null && revealed !== focus.roll_seq;
   const header = t.status === "open" ? `!join · ${state.registered}/${state.capacity}` : focus ? roundName(t.max_players, focus.round) : "";
 
   if (wide) {
