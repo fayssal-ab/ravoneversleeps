@@ -6,7 +6,7 @@ import { ERROR_TEXT } from "@/lib/errors";
 import { isSameOrigin, json, jsonError } from "@/lib/http";
 import {
   addPlayerManually, cancelRoll, closeRegistration, confirmRoll, createKo, disqualifyPlayer, ensureKoSchema, focusNext, makeTeams, openRegistration,
-  playNext, recordBattleResult, resetKo, rollPlayers, startBattle, undoTeams,
+  playNext, recordBattleResult, resetKo, saveBonus, rollPlayers, startBattle, undoTeams,
 } from "@/lib/knockout";
 import { ensureChatSubscription } from "@/lib/kickApi";
 import { findSlotByName } from "@/lib/slots";
@@ -27,6 +27,7 @@ const Body = z.discriminatedUnion("action", [
   }),
   z.object({ action: z.enum(["open", "close", "reset", "roll", "confirm", "cancel_roll", "start", "next", "make_teams", "undo_teams", "play"]), id: Id }),
   z.object({ action: z.literal("result"), id: Id, matchId: z.number().int().positive(), p1: Bonus, p2: Bonus, p1b: Bonus.optional(), p2b: Bonus.optional() }),
+  z.object({ action: z.literal("bonus"), id: Id, matchId: z.number().int().positive(), key: z.enum(["p1", "p1b", "p2", "p2b"]), bonus: Bonus }),
   z.object({ action: z.literal("disqualify"), id: Id, participantId: z.number().int().positive() }),
   z.object({ action: z.literal("add_player"), id: Id, username: z.string().trim().min(1).max(40), slot: z.string().trim().max(80).default("") }),
 ]);
@@ -59,6 +60,7 @@ export async function POST(request: Request) {
       case "play": result = await playNext(body.id); break;
       case "next": result = { matchId: await focusNext(body.id) }; break;
       case "result": result = await recordBattleResult(body.id, body.matchId, body.p1, body.p2, body.p1b && body.p2b ? { p1b: body.p1b, p2b: body.p2b } : undefined); break;
+      case "bonus": await saveBonus(body.id, body.matchId, body.key, body.bonus); break;
       case "make_teams": result = await makeTeams(body.id); break;
       case "undo_teams": await undoTeams(body.id); break;
       case "disqualify": result = await disqualifyPlayer(body.id, body.participantId); break;

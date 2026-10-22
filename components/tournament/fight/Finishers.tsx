@@ -81,11 +81,17 @@ const demoPlayer = (id: number, username: string, slot: string): KoParticipant =
   bracket_pos: null, rerolls: 0, joined_at: "", team_id: null,
 });
 
-/** A made-up battle for previews (`?demo` on the overlay, the admin preview button). */
+const MATES = [["blep90", "Xmas Drop"], ["cake_b", "Le Viking"]] as const;
+
+/** A made-up battle for previews (`?demo` on the overlay, the admin preview button). Every other one is 2v2. */
 export function demoShow(i: number): Show {
   const [a, b] = DEMO[i % DEMO.length];
   if (i % 4 === 3) return { key: `demo-c${i}`, kind: "champion", p: demoPlayer(1, a[0], a[1]), prize: "500", title: "Demo knockout" };
   const p1 = demoPlayer(1, a[0], a[1]), p2 = demoPlayer(2, b[0], b[1]);
+  if (i % 2 === 1) {
+    p1.partner = demoPlayer(3, MATES[0][0], MATES[0][1]);
+    p2.partner = demoPlayer(4, MATES[1][0], MATES[1][1]);
+  }
   const match: KoMatch = {
     id: i, round: 1, match_index: 0, status: "done", p1, p2, winner_id: Number(a[2]) > Number(b[2]) ? 1 : 2, roll_seq: null,
     p1_result: null, p2_result: null, p1b_result: null, p2b_result: null, p1_multi: a[2], p2_multi: b[2],

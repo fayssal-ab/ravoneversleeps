@@ -104,8 +104,9 @@ export function decideTeamBattle(
   return { side: cmp === 0 ? "tie" : cmp > 0 ? 1 : 2, m1: m1.toFixed(2), m2: m2.toFixed(2) };
 }
 
+/** Side score; a duo side counts a bonus not entered yet as 0, so one result already shows. */
 const sumMulti = (a: BattleResult | null, b: BattleResult | null, duo: boolean): string | null =>
-  !a ? null : !duo ? a.multi : b ? new Decimal(a.multi).plus(b.multi).toFixed(2) : null;
+  !duo ? a?.multi ?? null : !a && !b ? null : new Decimal(a?.multi ?? 0).plus(b?.multi ?? 0).toFixed(2);
 
 function resultOf(cost: unknown, payout: unknown): BattleResult | null {
   if (cost == null || payout == null) return null;
@@ -585,6 +586,19 @@ async function lockLiveMatch(conn: PoolConnection, id: number, matchId: number):
   if (!m) throw new AppError("not_found");
   if (m.status !== "live") throw new AppError("battle_not_live");
   return { t, m };
+}
+
+export type BonusKey = "p1" | "p1b" | "p2" | "p2b";
+
+/** One bonus of the live battle, saved as soon as it is known so stream shows it; no winner yet. */
+export async function saveBonus(id: number, matchId: number, key: BonusKey, bonus: { cost: string; payout: string }): Promise<void> {
+  await withTx(async (conn) => {
+    const { t } = await lockLiveMatch(conn, id, matchId);
+    if (t.team_size !== 2 && (key === "p1b" || key === "p2b")) throw new AppError("invalid_input", "solo battles have one bonus per side");
+    if (new Decimal(bonus.cost).lte(0)) throw new AppError("invalid_input", "bonus cost must be above 0");
+    // key is one of four literals (validated above and by the API schema)
+    await conn.query(`UPDATE ko_matches SET ${key}_cost = ?, ${key}_payout = ? WHERE id = ?`, [bonus.cost, bonus.payout, matchId]);
+  });
 }
 
 /** Both bonus results of the live battle; the higher multiplier wins. */

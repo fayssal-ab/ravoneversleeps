@@ -98,6 +98,9 @@ const SIDE = {
   r: { color: "var(--color-silver)", glow: "rgb(217 225 220 / 0.4)", text: "text-silver", anim: "ko-slide-r" },
 };
 
+/** Duo: each teammate's slot art, two per side. */
+const duoArt = (big: boolean) => (big ? "200px" : "clamp(64px, min(15vw, 7vw + 30px), 130px)");
+
 function Fighter({ p, side, outcome, big, result, resultB, total, pending }: {
   p: KoParticipant | null; side: "l" | "r"; outcome: "win" | "lose" | null; big: boolean;
   result: KoMatch["p1_result"]; resultB: KoMatch["p1b_result"]; total: string | null; pending: boolean;
@@ -112,28 +115,46 @@ function Fighter({ p, side, outcome, big, result, resultB, total, pending }: {
       </div>
     );
   }
+  const tile = (m: KoParticipant, size: string) => (
+    <div
+      className={`relative mb-1 overflow-hidden rounded-2xl border-2 ${outcome === "win" ? "ko-glow border-gold" : ""}`}
+      style={outcome === "win" ? undefined : { borderColor: s.color, boxShadow: `0 0 40px -8px ${s.glow}` }}
+    >
+      <SlotArt name={m.slot_name} src={m.slot_image} fluid={size} rounded="rounded-[0.9rem]" className="!border-0" />
+      <span className="ko-sheen pointer-events-none absolute inset-y-0 left-0 w-1/3 bg-gradient-to-r from-transparent via-white/20 to-transparent" />
+      {outcome === "win" && <span className="absolute inset-x-0 bottom-0 bg-gold py-1 text-center font-head text-[11px] font-black uppercase tracking-[0.3em] text-bg">Winner</span>}
+    </div>
+  );
   return (
     <div className={`flex min-w-0 flex-col items-center gap-1.5 text-center transition-[opacity,filter] duration-500 ${s.anim} ${outcome === "lose" ? "opacity-40 grayscale" : ""}`}>
-      <div
-        className={`relative mb-1 overflow-hidden rounded-2xl border-2 ${outcome === "win" ? "ko-glow border-gold" : ""}`}
-        style={outcome === "win" ? undefined : { borderColor: s.color, boxShadow: `0 0 40px -8px ${s.glow}` }}
-      >
-        <SlotArt name={p.slot_name} src={p.slot_image} fluid={art} rounded="rounded-[0.9rem]" className="!border-0" />
-        <span className="ko-sheen pointer-events-none absolute inset-y-0 left-0 w-1/3 bg-gradient-to-r from-transparent via-white/20 to-transparent" />
-        {outcome === "win" && <span className="absolute inset-x-0 bottom-0 bg-gold py-1 text-center font-head text-[11px] font-black uppercase tracking-[0.3em] text-bg">Winner</span>}
-      </div>
-      <p className={`w-full truncate font-head font-bold leading-tight ${big ? "text-4xl" : "text-[clamp(1rem,3.2vw,1.4rem)]"} ${outcome === "win" ? "text-gold" : ""}`}>{teamName(p)}</p>
-      <p className={`w-full truncate font-semibold leading-tight ${big ? "text-xl" : "text-sm"} ${s.text}`}>{p.partner ? `${p.slot_name} + ${p.partner.slot_name}` : p.slot_name}</p>
-      <p className={`w-full truncate uppercase tracking-wider text-dim ${big ? "text-sm" : "text-[10px]"}`}>{p.slot_provider || " "}</p>
-      {result && total ? (
-        <div className="mt-2">
-          <p className={`font-mono font-bold tabular-nums leading-none ${big ? "text-6xl" : "text-[clamp(1.6rem,4.5vw,2.2rem)]"} ${outcome === "win" ? "text-gold" : "text-muted"}`}>x{total}</p>
-          <p className={`mt-1 font-mono text-dim ${big ? "text-base" : "text-[11px]"}`}>
-            {resultB ? `x${result.multi} + x${resultB.multi}` : `$${Number(result.payout).toLocaleString("en-US")} / $${Number(result.cost).toLocaleString("en-US")}`}
-          </p>
+      {p.partner ? (
+        // duo: both teammates' slots side by side, each with its player
+        <div className={`grid w-full grid-cols-2 ${big ? "gap-5" : "gap-2"}`}>
+          {([[p, result], [p.partner, resultB]] as const).map(([m, r]) => (
+            <div key={m.id} className="flex min-w-0 flex-col items-center">
+              {tile(m, duoArt(big))}
+              <p className={`w-full truncate font-head font-bold leading-tight ${big ? "text-3xl" : "text-[clamp(0.85rem,2.4vw,1.1rem)]"} ${outcome === "win" ? "text-gold" : ""}`}>{m.username}</p>
+              <p className={`w-full truncate font-semibold leading-tight ${big ? "text-lg" : "text-[11px]"} ${s.text}`}>{m.slot_name}</p>
+              {(r || pending) && <p className={`font-mono font-bold ${big ? "text-2xl" : "text-sm"} ${r ? "" : "text-dim"}`}>x{r?.multi ?? "0.00"}</p>}
+            </div>
+          ))}
         </div>
-      ) : pending ? (
-        <p className={`mt-2 animate-pulse font-pixel uppercase tracking-[0.2em] text-dim ${big ? "text-sm" : "text-[10px]"}`}>Bonus pending</p>
+      ) : (
+        <>
+          {tile(p, art)}
+          <p className={`w-full truncate font-head font-bold leading-tight ${big ? "text-4xl" : "text-[clamp(1rem,3.2vw,1.4rem)]"} ${outcome === "win" ? "text-gold" : ""}`}>{p.username}</p>
+          <p className={`w-full truncate font-semibold leading-tight ${big ? "text-xl" : "text-sm"} ${s.text}`}>{p.slot_name}</p>
+          <p className={`w-full truncate uppercase tracking-wider text-dim ${big ? "text-sm" : "text-[10px]"}`}>{p.slot_provider || " "}</p>
+        </>
+      )}
+      {total || pending ? (
+        // live: x0.00 until the first bonus is in, then each saved bonus counts straight away
+        <div className="mt-2">
+          <p className={`font-mono font-bold tabular-nums leading-none ${big ? "text-6xl" : "text-[clamp(1.6rem,4.5vw,2.2rem)]"} ${outcome === "win" ? "text-gold" : total ? "text-muted" : "text-dim"}`}>x{total ?? "0.00"}</p>
+          {result && !p.partner && (
+            <p className={`mt-1 font-mono text-dim ${big ? "text-base" : "text-[11px]"}`}>${Number(result.payout).toLocaleString("en-US")} / ${Number(result.cost).toLocaleString("en-US")}</p>
+          )}
+        </div>
       ) : null}
     </div>
   );
@@ -142,7 +163,8 @@ function Fighter({ p, side, outcome, big, result, resultB, total, pending }: {
 /** The 1v1 card. Key it by match id + status so the entrance replays. */
 export function VsScreen({ match, size, big = false }: { match: KoMatch; size: number; big?: boolean }) {
   const outcome = (p: KoParticipant | null) => (match.winner_id == null || !p ? null : match.winner_id === p.id ? "win" : "lose");
-  const art = big ? "240px" : "clamp(96px, min(26vw, 12vw + 40px), 200px)";
+  const duo = Boolean(match.p1?.partner || match.p2?.partner);
+  const art = duo ? duoArt(big) : big ? "240px" : "clamp(96px, min(26vw, 12vw + 40px), 200px)";
   return (
     <div className="relative">
       {/* split arena glow */}
@@ -159,7 +181,7 @@ export function VsScreen({ match, size, big = false }: { match: KoMatch; size: n
           <svg viewBox="0 0 40 120" className={`ko-bolt absolute ${big ? "h-56" : "h-28 sm:h-36"} text-neon`} aria-hidden>
             <path d="M24 0 8 58h12L12 120l20-70H20L30 0Z" fill="currentColor" opacity=".35" />
           </svg>
-          <span className={`ko-vs relative font-display leading-none ${big ? "text-9xl" : "text-[clamp(30px,6vw,56px)]"}`}>
+          <span className={`ko-vs relative font-display leading-none ${big ? "text-[10rem]" : duo ? "text-[clamp(44px,9vw,84px)]" : "text-[clamp(30px,6vw,56px)]"}`}>
             <span className="chrome">V</span><span className="neon-text">S</span>
           </span>
         </span>
@@ -169,7 +191,7 @@ export function VsScreen({ match, size, big = false }: { match: KoMatch; size: n
   );
 }
 
-type Spinner = Pick<KoParticipant, "username" | "slot_name" | "slot_image" | "slot_provider">;
+type Spinner = Pick<KoParticipant, "username" | "slot_name" | "slot_image" | "slot_provider" | "partner">;
 const BYE: Spinner = { username: "BYE", slot_name: "Free pass", slot_image: "", slot_provider: "" };
 
 /**

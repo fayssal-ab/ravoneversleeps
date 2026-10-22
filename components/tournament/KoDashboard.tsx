@@ -1,9 +1,9 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Dices, Play, SkipForward, UserPlus } from "lucide-react";
 import { confirmDialog } from "@/components/ui/confirm";
-import type { KoMatch, KoParticipant, KoState } from "@/lib/knockout";
+import type { BonusKey, KoMatch, KoParticipant, KoState } from "@/lib/knockout";
 import { Bracket, Counter, ParticipantRow, Podium, RollReveal, VsScreen, roundName, teamName } from "./parts";
 import { useJoinReader, type ReaderStatus } from "./useJoinReader";
 import { useKoState } from "./useKoState";
@@ -204,6 +204,7 @@ export function KoDashboard({ initial, overlayUrl }: { initial: KoState | null; 
           {state.live && (
             <>
               <BattleResultForm key={state.live.id} match={state.live} duo={duo} busy={busy !== null}
+                onBonus={(key, bonus) => void act("bonus", { matchId: state.live!.id, key, bonus })}
                 onSubmit={async (r, andNext) => {
                   if (await act("result", { matchId: state.live!.id, ...r }) && andNext) await act("play");
                 }} />
@@ -305,6 +306,7 @@ export function KoDashboard({ initial, overlayUrl }: { initial: KoState | null; 
 }
 
 type Bonus = { cost: string; payout: string };
+const KEYS = ["p1", "p1b", "p2", "p2b"] as const;
 const MONEY = /^\d{1,9}(\.\d{1,2})?$/;
 function multi(b: Bonus): string | null {
   if (!MONEY.test(b.cost) || !MONEY.test(b.payout) || Number(b.cost) <= 0) return null;
@@ -314,46 +316,71 @@ function multi(b: Bonus): string | null {
 /**
  * Live battle result: each bonus cost + payout. Solo: higher multiplier wins.
  * Duo: both teammates' bonuses, the higher combined multiplier wins. Exact
- * tie → replay.
+ * tie → replay. Each bonus is saved on its own a moment after it's typed, so
+ * the stream shows it right away; the winner is decided on Save.
  */
-function BattleResultForm({ match, duo, busy, onSubmit }: {
+function BattleResultForm({ match, duo, busy, onBonus, onSubmit }: {
   match: KoMatch; duo: boolean; busy: boolean;
+  onBonus: (key: BonusKey, b: Bonus) => void;
   onSubmit: (r: { p1: Bonus; p2: Bonus; p1b?: Bonus; p2b?: Bonus }, andNext: boolean) => void;
 }) {
-  // default bonus cost is $100 (the usual stake); payouts start empty
-  const empty = { cost: "100", payout: "" };
-  const [b, setB] = useState<Record<"p1" | "p1b" | "p2" | "p2b", Bonus>>({ p1: empty, p1b: empty, p2: empty, p2b: empty });
+  // default bonus cost is $100 (the usual stake); payouts start empty, or with what was already saved
+  const init = (r: KoMatch["p1_result"]): Bonus => (r ? { cost: String(Number(r.cost)), payout: String(Number(r.payout)) } : { cost: "100", payout: "" });
+  const [b, setB] = useState<Record<BonusKey, Bonus>>(() => ({ p1: init(match.p1_result), p1b: init(match.p1b_result), p2: init(match.p2_result), p2b: init(match.p2b_result) }));
   const set = (k: keyof typeof b) => (v: Bonus) => setB((x) => ({ ...x, [k]: v }));
+  const sig = (v: Bonus) => `${v.cost}/${v.payout}`;
+  const [saved, setSaved] = useState<Partial<Record<BonusKey, string>>>(() => {
+    const out: Partial<Record<BonusKey, string>> = {};
+    for (const k of KEYS) if (b[k].payout) out[k] = sig(b[k]);
+    return out;
+  });
+  const save = useRef(onBonus);
+  useEffect(() => { save.current = onBonus; }, [onBonus]);
+  useEffect(() => {
+    const id = setTimeout(() => {
+      for (const k of duo ? KEYS : (["p1", "p2"] as const)) {
+        if (multi(b[k]) && saved[k] !== sig(b[k])) { save.current(k, b[k]); setSaved((x) => ({ ...x, [k]: sig(b[k]) })); }
+      }
+    }, 700);
+    return () => clearTimeout(id);
+  }, [b, saved, duo]);
   const total = (a: Bonus, c: Bonus) => {
     const x = multi(a);
     if (!duo) return x;
     const y = multi(c);
-    return x && y ? (Number(x) + Number(y)).toFixed(2) : null;
+    return x || y ? (Number(x ?? 0) + Number(y ?? 0)).toFixed(2) : null; // a missing bonus counts 0 until entered
   };
   const m1 = total(b.p1, b.p1b), m2 = total(b.p2, b.p2b);
-  const lead = m1 && m2 ? (Number(m1) > Number(m2) ? 1 : Number(m2) > Number(m1) ? 2 : 0) : null;
-  const bonus = (label: string, v: Bonus, onChange: (v: Bonus) => void) => (
-    <div>
-      <p className="mb-1 truncate text-xs font-semibold text-muted">{label}</p>
-      <div className="grid grid-cols-2 gap-2">
-        <label className="block"><span className="label">Cost ($)</span>
-          <input inputMode="decimal" value={v.cost} onChange={(e) => onChange({ ...v, cost: e.target.value.trim() })} placeholder="100" className="field text-right font-mono" />
-        </label>
-        <label className="block"><span className="label">Payout ($)</span>
-          <input inputMode="decimal" value={v.payout} onChange={(e) => onChange({ ...v, payout: e.target.value.trim() })} placeholder="125" className="field text-right font-mono" />
-        </label>
+  const complete = (duo ? KEYS : (["p1", "p2"] as const)).every((k) => multi(b[k]));
+  const lead = complete ? (Number(m1) > Number(m2) ? 1 : Number(m2) > Number(m1) ? 2 : 0) : null;
+  const bonus = (label: string, key: BonusKey) => {
+    const v = b[key], onChange = set(key);
+    return (
+      <div>
+        <p className="mb-1 truncate text-xs font-semibold text-muted">{label}</p>
+        <div className="grid grid-cols-2 gap-2">
+          <label className="block"><span className="label">Cost ($)</span>
+            <input inputMode="decimal" value={v.cost} onChange={(e) => onChange({ ...v, cost: e.target.value.trim() })} placeholder="100" className="field text-right font-mono" />
+          </label>
+          <label className="block"><span className="label">Payout ($)</span>
+            <input inputMode="decimal" value={v.payout} onChange={(e) => onChange({ ...v, payout: e.target.value.trim() })} placeholder="125" className="field text-right font-mono" />
+          </label>
+        </div>
+        <p className="mt-1 text-right font-mono text-xs text-dim">
+          {multi(v) && saved[key] === sig(v) && <span className="mr-2 text-neon">✓ on stream</span>}
+          {multi(v) ? `x${multi(v)}` : "x—"}
+        </p>
       </div>
-      <p className="mt-1 text-right font-mono text-xs text-dim">{multi(v) ? `x${multi(v)}` : "x—"}</p>
-    </div>
-  );
+    );
+  };
   const side = (n: 1 | 2) => {
     const cap = n === 1 ? match.p1 : match.p2;
     const m = n === 1 ? m1 : m2;
     return (
       <div className={`space-y-3 rounded-2xl border-2 p-3 ${lead === n ? "border-gold/70 bg-gold/10" : n === 1 ? "border-neon/30 bg-bg-2" : "border-silver/30 bg-bg-2"}`}>
         <p className={`truncate font-head font-bold ${n === 1 ? "text-neon" : "text-silver"}`}>{cap ? teamName(cap) : `Side ${n}`}</p>
-        {bonus(duo ? cap?.username ?? "Player 1" : "Bonus", b[n === 1 ? "p1" : "p2"], set(n === 1 ? "p1" : "p2"))}
-        {duo && bonus(cap?.partner?.username ?? "Player 2", b[n === 1 ? "p1b" : "p2b"], set(n === 1 ? "p1b" : "p2b"))}
+        {bonus(duo ? cap?.username ?? "Player 1" : "Bonus", n === 1 ? "p1" : "p2")}
+        {duo && bonus(cap?.partner?.username ?? "Player 2", n === 1 ? "p1b" : "p2b")}
         <p className={`text-center font-mono text-3xl font-bold ${lead === n ? "text-gold" : "text-muted"}`}>{m ? `x${m}` : "x—"}</p>
       </div>
     );
@@ -364,7 +391,7 @@ function BattleResultForm({ match, duo, busy, onSubmit }: {
       e.preventDefault();
       // which button sent it: "Save & start next" (default, Enter) or "Save only"
       const andNext = (e.nativeEvent as SubmitEvent).submitter?.getAttribute("value") !== "only";
-      if (m1 && m2) onSubmit(duo ? b : { p1: b.p1, p2: b.p2 }, andNext);
+      if (complete) onSubmit(duo ? b : { p1: b.p1, p2: b.p2 }, andNext);
     }}>
       <p className="text-center font-head text-xs font-bold uppercase tracking-[0.18em] text-muted">
         Bonus results · {duo ? "the higher combined multiplier wins" : "the higher multiplier wins"}
@@ -373,8 +400,8 @@ function BattleResultForm({ match, duo, busy, onSubmit }: {
       {lead === 0 && <p className="text-center text-sm text-gold">Exact tie: replay the bonus and enter the replay&apos;s results.</p>}
       {winner && <p className="text-center text-sm text-muted"><b className="text-gold">{teamName(winner)}</b> win{duo ? "" : "s"}</p>}
       <div className="flex flex-wrap justify-center gap-2">
-        <button value="next" disabled={busy || !m1 || !m2 || lead === 0} className="btn btn-neon"><Play className="size-4" /> Save &amp; start next</button>
-        <button value="only" disabled={busy || !m1 || !m2 || lead === 0} className="btn btn-ghost">Save only</button>
+        <button value="next" disabled={busy || !complete || lead === 0} className="btn btn-neon"><Play className="size-4" /> Save &amp; start next</button>
+        <button value="only" disabled={busy || !complete || lead === 0} className="btn btn-ghost">Save only</button>
       </div>
     </form>
   );

@@ -5,13 +5,16 @@ import { Crown } from "lucide-react";
 import { SlotArt } from "@/components/ui/SlotArt";
 import type { KoMatch, KoParticipant } from "@/lib/knockout";
 import { POSES as P, ease, rng, solve, track, type Body, type Key, type V } from "./rig";
-import { play, type Sfx } from "./sfx";
+import { fightTheme, play, type Sfx } from "./sfx";
 
 // Street-fighter style K.O. finisher, played when a battle gets its winner:
 // two shadow ninjas (player 1 neon, player 2 chrome) clash, the winner lands
 // one of three finishers (iai blade dash, energy blast, rising slash), slow
 // motion + screen shake, the loser's health drains, K.O., then the winner
-// card. Drawn in SVG from a pose rig (./rig); nothing is loaded from outside.
+// card. Duo battles put both teammates in the arena (the second one a step
+// behind, a beat late). Drawn in SVG from a pose rig (./rig); nothing is
+// loaded from outside. With sound, a synthesized battle theme plays until the
+// K.O.
 
 const W = 1600, H = 900, GROUND = 745;
 const BASE = { l: 540, r: 1060 } as const;
@@ -19,6 +22,8 @@ const COLOR = { l: "#8dff4a", r: "#d9e1dc" } as const;
 const GOLD = "#ffd76a";
 const CLASH = 1220;
 const SLOW = 700, RATE = 0.3;
+/** Duo: the teammate stands this far behind, and moves this many ms later. */
+const MATE_GAP = 175, MATE_LAG = 110;
 
 type Side = "l" | "r";
 type Variant = "blade" | "blast" | "rise";
@@ -169,6 +174,15 @@ function Fighter({ b, color }: { b: Body; color: string }) {
   );
 }
 
+function Mate({ b, color }: { b: Body; color: string }) {
+  const x = b.hip[0];
+  return (
+    <g transform={`translate(${x} ${GROUND}) scale(0.88) translate(${-x} ${-GROUND})`} opacity={0.9}>
+      <Fighter b={b} color={color} />
+    </g>
+  );
+}
+
 /** Sword motion blur: the blade's sweep over the last frames. */
 function Trail({ at, color }: { at: (t: number) => Body; color: string }) {
   const frames = [0, 1, 2, 3, 4].map((k) => at(-k * 12));
@@ -250,20 +264,26 @@ function Bar({ hp, side }: { hp: { now: number; trail: number }; side: Side }) {
   );
 }
 
+/** Both teammates of a duo, the player alone in solo. */
+const membersOf = (p: KoParticipant) => (p.partner ? [p, p.partner] : [p]);
+
 function Portrait({ p, color }: { p: KoParticipant; color: string }) {
+  const size = p.partner ? "7vmin" : "9vmin";
   return (
-    <span className="shrink-0 rounded-[1vmin] border-[0.4vmin] p-[0.3vmin]" style={{ borderColor: color, boxShadow: `0 0 2.4vmin -0.4vmin ${color}` }}>
-      <SlotArt name={p.slot_name} src={p.slot_image} fluid="9vmin" rounded="rounded-[0.7vmin]" className="!border-0" />
+    <span className="flex shrink-0 gap-[0.5vmin] rounded-[1vmin] border-[0.4vmin] p-[0.3vmin]" style={{ borderColor: color, boxShadow: `0 0 2.4vmin -0.4vmin ${color}` }}>
+      {membersOf(p).map((m) => <SlotArt key={m.id} name={m.slot_name} src={m.slot_image} fluid={size} rounded="rounded-[0.7vmin]" className="!border-0" />)}
     </span>
   );
 }
 
 const nameOf = (p: KoParticipant) => (p.partner ? `${p.username} & ${p.partner.username}` : p.username);
+const slotsOf = (p: KoParticipant) => (p.partner ? `${p.slot_name} + ${p.partner.slot_name}` : p.slot_name);
 
 /** The fight, full screen. Calls `onDone` when it has played out. */
 export function KoFinisher({ card, sound = false, onDone }: { card: FightCard; sound?: boolean; onDone: () => void }) {
   const m = card.match;
   const info = useMemo(() => cardOf(m), [m]);
+  const duo = Boolean(m.p1?.partner && m.p2?.partner);
   const variant = VARIANTS[m.id % VARIANTS.length];
   const script = SCRIPTS[variant];
   const hit = script.hit;
@@ -277,27 +297,32 @@ export function KoFinisher({ card, sound = false, onDone }: { card: FightCard; s
     const offset = matchMedia("(prefers-reduced-motion: reduce)").matches ? hit + 1500 : 0;
     const fired = new Set<number>();
     const start = performance.now();
+    const music = sound && !offset ? fightTheme(hit / 1000 + 1) : null;
     let raf = 0;
     const tick = (now: number) => {
       const real = now - start + offset;
       const s = sceneTime(real, hit);
       if (sound && !offset) {
         script.sfx.forEach(([t, name], i) => { if (s >= t && !fired.has(i)) { fired.add(i); play(name); } });
-        if (real >= hit + 220 && !fired.has(-1)) { fired.add(-1); play("ko"); }
+        if (real >= hit + 220 && !fired.has(-1)) { fired.add(-1); music?.(); play("ko"); }
+        if (real >= hit + 1500 && !fired.has(-2)) { fired.add(-2); play("fanfare"); }
       }
       setR(real);
       if (real >= end) done.current();
       else raf = requestAnimationFrame(tick);
     };
     raf = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(raf);
+    return () => { cancelAnimationFrame(raf); music?.(); };
   }, [hit, end, script, sound]);
 
   const bodyAt = useMemo(() => {
     const tracks = { w: track(script.w), l: track(script.l) };
-    return (who: "w" | "l", t: number) => {
+    return (who: "w" | "l", t: number, mate = false) => {
       const side = who === "w" ? info.win : info.lose;
-      return solve(tracks[who](t), BASE[side], side === "l" ? 1 : -1, GROUND, t);
+      const face = side === "l" ? 1 : -1;
+      return mate
+        ? solve(tracks[who](t - MATE_LAG), BASE[side] - face * MATE_GAP, face, GROUND, t)
+        : solve(tracks[who](t), BASE[side], face, GROUND, t);
     };
   }, [script, info]);
   const points = useMemo(() => {
@@ -352,6 +377,13 @@ export function KoFinisher({ card, sound = false, onDone }: { card: FightCard; s
                 return <line key={i} x1={cx + Math.cos(a) * 260} y1={cy + Math.sin(a) * 260} x2={cx + Math.cos(a) * 1400} y2={cy + Math.sin(a) * 1400} strokeWidth={i % 3 ? 3 : 7} />;
               })}
             </g>
+          )}
+          {duo && (
+            // teammates a step behind: a touch smaller, standing on the same ground
+            <>
+              <Mate b={bodyAt("l", s, true)} color={lc} />
+              <Mate b={bodyAt("w", s, true)} color={wc} />
+            </>
           )}
           <Fighter b={lb} color={lc} />
           <Fighter b={wb} color={wc} />
@@ -415,14 +447,14 @@ export function KoFinisher({ card, sound = false, onDone }: { card: FightCard; s
           <div className="min-w-0 flex-1">
             <Bar hp={hp("l")} side="l" />
             <p className="mt-[0.8vmin] truncate text-[2.6vmin] font-bold uppercase tracking-wider" style={{ color: COLOR.l }}>{nameOf(left.p)}</p>
-            <p className="truncate text-[1.7vmin] text-muted">{left.p.slot_name}</p>
+            <p className="truncate text-[1.7vmin] text-muted">{slotsOf(left.p)}</p>
           </div>
           <span className={`mt-[-0.4vmin] grid shrink-0 place-items-center rounded-[0.8vmin] border-[0.35vmin] px-[1.2vmin] text-[3.4vmin] font-black italic ${r >= hit ? "border-[#ff3b4a] bg-[#ff3b4a] text-white" : "border-[#ff3b4a] bg-black/70 text-[#ff3b4a]"}`}
             style={{ opacity: r >= hit ? 0.65 + 0.35 * Math.abs(Math.sin(r / 120)) : 1 }}>KO</span>
           <div className="min-w-0 flex-1 text-right">
             <Bar hp={hp("r")} side="r" />
             <p className="mt-[0.8vmin] truncate text-[2.6vmin] font-bold uppercase tracking-wider" style={{ color: COLOR.r }}>{nameOf(right.p)}</p>
-            <p className="truncate text-[1.7vmin] text-muted">{right.p.slot_name}</p>
+            <p className="truncate text-[1.7vmin] text-muted">{slotsOf(right.p)}</p>
           </div>
           <Portrait p={right.p} color={COLOR.r} />
         </div>
@@ -432,8 +464,11 @@ export function KoFinisher({ card, sound = false, onDone }: { card: FightCard; s
       {/* FIGHT! */}
       {r > 380 && r < 1250 && (
         <div className="absolute inset-0 grid place-items-center">
-          <p className="bg-[linear-gradient(180deg,#ffffff,#c3ff8f_45%,#2e7d12)] bg-clip-text text-[20vmin] text-transparent"
-            style={{ ...TITLE, ...slam(r, 400, 0.4), opacity: r > 1000 ? 1 - prog(r, 1000, 250) : r < 400 ? 0 : 1 }}>FIGHT!</p>
+          <div className="text-center" style={{ opacity: r > 1000 ? 1 - prog(r, 1000, 250) : 1 }}>
+            {duo && <p className="text-[8vmin] text-gold" style={{ ...TITLE, ...slam(r, 380, 2) }}>2 VS 2</p>}
+            <p className="bg-[linear-gradient(180deg,#ffffff,#c3ff8f_45%,#2e7d12)] bg-clip-text text-[20vmin] text-transparent"
+              style={{ ...TITLE, ...slam(r, 400, 0.4), opacity: r < 400 ? 0 : 1 }}>FIGHT!</p>
+          </div>
         </div>
       )}
 
@@ -453,11 +488,11 @@ export function KoFinisher({ card, sound = false, onDone }: { card: FightCard; s
       {banner > 0 && (
         <div className="absolute inset-x-0 bottom-[6vmin] flex justify-center px-[3vmin]" style={{ opacity: banner, transform: `translateY(${(1 - ease.out(banner)) * 40}vmin)` }}>
           <div className="flex max-w-full items-center gap-[2.4vmin] rounded-[2vmin] border-[0.4vmin] border-gold/70 bg-black/80 px-[3vmin] py-[2vmin] shadow-[0_0_8vmin_-1vmin_rgb(255_215_106/0.55)]">
-            <SlotArt name={info.w.p.slot_name} src={info.w.p.slot_image} fluid="14vmin" rounded="rounded-[1.2vmin]" />
+            {membersOf(info.w.p).map((x) => <SlotArt key={x.id} name={x.slot_name} src={x.slot_image} fluid={duo ? "12vmin" : "14vmin"} rounded="rounded-[1.2vmin]" />)}
             <div className="min-w-0">
               <p className="text-[1.9vmin] font-bold uppercase tracking-[0.35em] text-neon">Winner</p>
               <p className="truncate font-display text-[8vmin] leading-none text-gold">{nameOf(info.w.p)}</p>
-              <p className="mt-[0.6vmin] truncate text-[2.2vmin] text-muted">{info.w.p.slot_name}</p>
+              <p className="mt-[0.6vmin] truncate text-[2.2vmin] text-muted">{slotsOf(info.w.p)}</p>
               <p className="mt-[0.6vmin] font-mono text-[3.6vmin] font-bold">
                 {info.dq ? <span className="text-danger">by disqualification</span> : <><span className="text-gold">x{info.w.multi}</span><span className="text-dim"> vs x{info.l.multi}</span></>}
               </p>
@@ -534,12 +569,14 @@ export function ChampionFinale({ p, prize, title, sound = false, onDone }: { p: 
           style={{ opacity: prog(r, 300, 200), transform: `translateY(${(1 - ease.out(prog(r, 300, 600))) * -60}vmin) rotate(${(1 - ease.out(prog(r, 300, 700))) * -40}deg)` }} />
         <div className="mt-[1vmin] rounded-[2vmin] border-[0.5vmin] border-gold p-[0.6vmin] shadow-[0_0_10vmin_-1vmin_rgb(255_215_106/0.7)]"
           style={{ opacity: prog(r, 500, 300), transform: `scale(${0.3 + 0.7 * ease.out(prog(r, 500, 500))})` }}>
-          <SlotArt name={p.slot_name} src={p.slot_image} fluid="24vmin" rounded="rounded-[1.4vmin]" className="!border-0" />
+          <div className="flex gap-[0.6vmin]">
+            {membersOf(p).map((m) => <SlotArt key={m.id} name={m.slot_name} src={m.slot_image} fluid="24vmin" rounded="rounded-[1.4vmin]" className="!border-0" />)}
+          </div>
         </div>
         <p className="mt-[2vmin] bg-[linear-gradient(180deg,#fff6c4,#ffd76a_45%,#b8860b)] bg-clip-text text-[15vmin] text-transparent"
           style={{ ...TITLE, filter: "drop-shadow(0 0.8vmin 0 #000) drop-shadow(0 0 4vmin rgb(255 215 106 / 0.6))", ...slam(r, 900, 3.4) }}>CHAMPION</p>
         <p className="mt-[1vmin] max-w-[90vw] truncate font-display text-[8vmin] leading-none text-text" style={{ opacity: prog(r, 1300, 400), transform: `translateY(${(1 - ease.out(prog(r, 1300, 500))) * 6}vmin)` }}>{nameOf(p)}</p>
-        <p className="mt-[0.6vmin] text-[2.4vmin] text-neon" style={{ opacity: prog(r, 1500, 400) }}>{p.partner ? `${p.slot_name} + ${p.partner.slot_name}` : p.slot_name}</p>
+        <p className="mt-[0.6vmin] text-[2.4vmin] text-neon" style={{ opacity: prog(r, 1500, 400) }}>{slotsOf(p)}</p>
         {amount != null && (
           <p className="mt-[1.5vmin] font-mono text-[7vmin] font-bold text-gold" style={{ opacity: prog(r, 1900, 300) }}>${Math.round(amount).toLocaleString("en-US")}</p>
         )}

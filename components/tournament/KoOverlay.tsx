@@ -148,17 +148,17 @@ function RollRow({ match, pool, onDone }: { match: KoMatch; pool: KoParticipant[
     const s = shown[slot];
     return (
       <div className="flex min-w-0 flex-1 flex-col items-center text-center">
-        <div className="overflow-hidden rounded-[1.6vh] border-[0.5vh]" style={{ borderColor: st === "waiting" ? "var(--color-line-hot)" : color, boxShadow: st === "locked" ? `0 0 4vh -1vh ${color}` : undefined }}>
-          {st === "waiting" ? (
+        {st === "waiting" ? (
+          <div className="overflow-hidden rounded-[1.6vh] border-[0.5vh] border-line-hot">
             <span className="grid size-[min(42vh,28vw)] place-items-center font-display text-[10vh] text-dim">?</span>
-          ) : (
-            <SlotArt name={s.slot_name} src={s.slot_image} fluid="min(42vh, 28vw)" rounded="rounded-[1.2vh]" className={`!border-0 ${st === "spinning" ? "opacity-80 blur-[1px]" : ""}`} />
-          )}
-        </div>
+          </div>
+        ) : (
+          <Arts members={s.partner ? [s, s.partner] : [s]} color={color} glow={st === "locked"} className={st === "spinning" ? "opacity-80 blur-[1px]" : ""} />
+        )}
         <p className={`mt-[1vh] w-full truncate font-head text-[6.4vh] font-bold leading-tight ${st === "waiting" ? "text-dim" : ""}`} style={st === "locked" ? { color } : undefined}>
           {st === "waiting" ? "Waiting…" : s.username}
         </p>
-        <p className="w-full truncate text-[3.6vh] font-semibold leading-tight text-muted">{st === "waiting" ? " " : s.slot_name}</p>
+        <p className="w-full truncate text-[3.6vh] font-semibold leading-tight text-muted">{st === "waiting" ? " " : s.partner ? `${s.slot_name} + ${s.partner.slot_name}` : s.slot_name}</p>
       </div>
     );
   };
@@ -167,27 +167,63 @@ function RollRow({ match, pool, onDone }: { match: KoMatch; pool: KoParticipant[
       <p className="mb-[1.5vh] animate-pulse text-center font-head text-[4vh] font-bold uppercase tracking-[0.2em] text-gold">Rolling player {phase + 1}…</p>
       <div className="flex items-center justify-center gap-[3vw]">
         {side(0, "var(--color-neon)")}
-        <span className="font-display text-[12vh] leading-none text-dim">VS</span>
+        <span className="font-display text-[16vh] leading-none text-dim">VS</span>
         {side(1, "var(--color-silver)")}
       </div>
     </div>
   );
 }
 
+type Art = Pick<KoParticipant, "slot_name" | "slot_image">;
+
+/** A side's slot art: one tile (solo) or both teammates' tiles (duo). */
+function Arts({ members, color, glow = false, win = false, className = "" }: { members: Art[]; color: string; glow?: boolean; win?: boolean; className?: string }) {
+  const size = members.length > 1 ? "min(30vh, 17vw)" : "min(42vh, 28vw)";
+  return (
+    <div className="flex gap-[1.4vw]">
+      {members.map((m, i) => (
+        <div key={i} className="relative overflow-hidden rounded-[1.6vh] border-[0.5vh]" style={{ borderColor: win ? "var(--color-gold)" : color, boxShadow: glow ? `0 0 4vh -1vh ${color}` : undefined }}>
+          <SlotArt name={m.slot_name} src={m.slot_image} fluid={size} rounded="rounded-[1.2vh]" className={`!border-0 ${className}`} />
+          {win && <span className="absolute inset-x-0 bottom-0 bg-gold py-[0.4vh] text-center font-head text-[3vh] font-black uppercase tracking-[0.3em] text-bg">Winner</span>}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 /** One side of the VS card. */
-function Side({ p, multi, color, outcome, live }: { p: KoParticipant | null; multi: string | null; color: string; outcome: "win" | "lose" | null; live: boolean }) {
+function Side({ p, multi, results, color, outcome, live }: {
+  p: KoParticipant | null; multi: string | null; results: [KoMatch["p1_result"], KoMatch["p1b_result"]]; color: string; outcome: "win" | "lose" | null; live: boolean;
+}) {
   return (
     <div className={`flex min-w-0 flex-1 flex-col items-center text-center transition-opacity duration-500 ${outcome === "lose" ? "opacity-40 grayscale" : ""}`}>
-      <div className="relative overflow-hidden rounded-[1.6vh] border-[0.35vh]" style={{ borderColor: outcome === "win" ? "var(--color-gold)" : color }}>
-        {p ? <SlotArt name={p.slot_name} src={p.slot_image} fluid="min(42vh, 28vw)" rounded="rounded-[1.2vh]" className="!border-0" /> : <span className="grid size-[min(42vh,28vw)] place-items-center font-display text-[6vh] text-dim">?</span>}
-        {outcome === "win" && <span className="absolute inset-x-0 bottom-0 bg-gold py-[0.4vh] font-head text-[3vh] font-black uppercase tracking-[0.3em] text-bg">Winner</span>}
-      </div>
-      <p className={`mt-[1vh] w-full truncate font-head text-[6.4vh] font-bold leading-tight ${outcome === "win" ? "text-gold" : ""}`}>{p ? teamName(p) : "TBD"}</p>
-      <p className="w-full truncate text-[3.6vh] font-semibold leading-tight" style={{ color }}>{p ? (p.partner ? `${p.slot_name} + ${p.partner.slot_name}` : p.slot_name) : ""}</p>
-      {multi ? (
-        <p className={`mt-[0.6vh] font-mono text-[10vh] font-bold leading-none ${outcome === "win" ? "text-gold" : "text-muted"}`}>x{multi}</p>
-      ) : live ? (
-        <p className="mt-[0.6vh] animate-pulse font-head text-[3.6vh] font-bold uppercase tracking-[0.2em] text-dim">Bonus pending</p>
+      {!p ? (
+        <div className="overflow-hidden rounded-[1.6vh] border-[0.35vh]" style={{ borderColor: color }}>
+          <span className="grid size-[min(42vh,28vw)] place-items-center font-display text-[6vh] text-dim">?</span>
+        </div>
+      ) : p.partner ? (
+        <>
+          <Arts members={[p, p.partner]} color={color} win={outcome === "win"} />
+          <div className="mt-[1vh] flex w-full gap-[1.4vw]">
+            {([[p, results[0]], [p.partner, results[1]]] as const).map(([m, r]) => (
+              <div key={m.id} className="min-w-0 flex-1">
+                <p className={`truncate font-head text-[4.6vh] font-bold leading-tight ${outcome === "win" ? "text-gold" : ""}`}>{m.username}</p>
+                <p className="truncate text-[2.8vh] font-semibold leading-tight" style={{ color }}>{m.slot_name}</p>
+                {(r || live) && <p className={`font-mono text-[4vh] font-bold leading-tight ${r ? "" : "text-dim"}`}>x{r?.multi ?? "0.00"}</p>}
+              </div>
+            ))}
+          </div>
+        </>
+      ) : (
+        <>
+          <Arts members={[p]} color={color} win={outcome === "win"} />
+          <p className={`mt-[1vh] w-full truncate font-head text-[6.4vh] font-bold leading-tight ${outcome === "win" ? "text-gold" : ""}`}>{p.username}</p>
+          <p className="w-full truncate text-[3.6vh] font-semibold leading-tight" style={{ color }}>{p.slot_name}</p>
+        </>
+      )}
+      {multi || live ? (
+        // live: x0.00 until the first bonus is in
+        <p className={`mt-[0.6vh] font-mono text-[10vh] font-bold leading-none ${outcome === "win" ? "text-gold" : multi ? "text-muted" : "text-dim"}`}>x{multi ?? "0.00"}</p>
       ) : null}
     </div>
   );
@@ -198,12 +234,12 @@ function VsRow({ match }: { match: KoMatch }) {
   const live = match.status === "live";
   return (
     <div className="flex items-center justify-center gap-[3vw]">
-      <Side p={match.p1} multi={match.p1_multi} color="var(--color-neon)" outcome={outcome(match.p1)} live={live} />
+      <Side p={match.p1} multi={match.p1_multi} results={[match.p1_result, match.p1b_result]} color="var(--color-neon)" outcome={outcome(match.p1)} live={live} />
       <span className="flex shrink-0 flex-col items-center gap-[1.5vh]">
-        <span className="ko-vs font-display text-[12vh] leading-none"><span className="chrome">V</span><span className="neon-text">S</span></span>
+        <span className="ko-vs font-display text-[16vh] leading-none"><span className="chrome">V</span><span className="neon-text">S</span></span>
         {live && <span className="rounded-full bg-danger px-[1.6vh] py-[0.5vh] font-head text-[3.4vh] font-bold text-white">● LIVE</span>}
       </span>
-      <Side p={match.p2} multi={match.p2_multi} color="var(--color-silver)" outcome={outcome(match.p2)} live={live} />
+      <Side p={match.p2} multi={match.p2_multi} results={[match.p2_result, match.p2b_result]} color="var(--color-silver)" outcome={outcome(match.p2)} live={live} />
     </div>
   );
 }
@@ -212,9 +248,11 @@ function Champion({ p, prize }: { p: KoParticipant; prize: string | null }) {
   return (
     <div className="ko-glow flex flex-col items-center rounded-[2vh] border-[0.3vh] border-gold/60 bg-gradient-to-b from-gold/15 to-transparent p-[2vh] text-center">
       <Crown className="ko-crown size-[9vh] text-gold" />
-      <div className="mt-[1.5vh]"><SlotArt name={p.slot_name} src={p.slot_image} fluid="26vh" /></div>
+      <div className="mt-[1.5vh] flex gap-[1.4vw]">
+        {(p.partner ? [p, p.partner] : [p]).map((m) => <SlotArt key={m.id} name={m.slot_name} src={m.slot_image} fluid="26vh" />)}
+      </div>
       <p className="mt-[1.5vh] w-full truncate font-head text-[7vh] font-bold leading-tight text-gold">{teamName(p)}</p>
-      <p className="w-full truncate text-[3.4vh] text-neon">{p.slot_name}</p>
+      <p className="w-full truncate text-[3.4vh] text-neon">{p.partner ? `${p.slot_name} + ${p.partner.slot_name}` : p.slot_name}</p>
       <p className="eyebrow mt-[1vh] !text-[3vh] !text-gold">Tournament champion</p>
       {prize != null && <p className="mt-[0.8vh] font-mono text-[7vh] font-bold leading-none text-gold">${Number(prize).toLocaleString("en-US")}</p>}
     </div>
