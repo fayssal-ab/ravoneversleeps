@@ -32,7 +32,7 @@ test("live month is current, finished months are the archive, ended month stays 
   assert.equal(board.eventId, "c".repeat(24));
   assert.equal(board.period!.state, "live");
   assert.deepEqual(board.previous.map((p) => p.link), [`/leaderboard?e=${"b".repeat(24)}`, `/leaderboard?e=${"a".repeat(24)}`]);
-  assert.ok(board.previous[0].winner && !board.previous[0].winner.includes("lastchamp")); // masked
+  assert.equal(board.previous[0].winner, "lastchamp"); // full username
   // an archived month opens by id
   board = (await getQboardsBoard(100, "a".repeat(24)))!;
   assert.equal(board.eventId, "a".repeat(24));

@@ -2,7 +2,6 @@ import "server-only";
 import type { RowDataPacket } from "mysql2/promise";
 import { getPool } from "./db";
 import { fetchQboardsEvents, fetchQboardsSnapshot, type QboardsSnapshot } from "./qboardsFeed";
-import { maskUsername } from "./mask";
 import type { Board, PastPeriod, Period } from "./leaderboard";
 
 // Q-boards leaderboard. Every event (one per month) is kept as its own
@@ -83,7 +82,7 @@ export async function getQboardsBoard(limit: number, eventId?: string): Promise<
     .slice(0, 24)
     .map((x) => ({
       ...periodOf(x.snapshot, now),
-      winner: x.snapshot.rows[0] ? maskUsername(x.snapshot.rows[0].username) : null,
+      winner: x.snapshot.rows[0] ? x.snapshot.rows[0].username : null,
       link: `/leaderboard?e=${x.snapshot.eventId}`,
     }));
   const s = chosen.snapshot;
@@ -91,7 +90,7 @@ export async function getQboardsBoard(limit: number, eventId?: string): Promise<
     source: "qboards", scoreKind: "points", syncedAt: chosen.syncedAt, eventId: s.eventId,
     syncDelayed: !eventId && now - lastSync > (SYNC_EVERY_HOURS + 1) * 3600_000,
     period: periodOf(s, now),
-    rows: s.rows.slice(0, limit).map((r) => ({ rank: r.rank, name: maskUsername(r.username), wagered: r.score, prize: r.prize })),
+    rows: s.rows.slice(0, limit).map((r) => ({ rank: r.rank, name: r.username, wagered: r.score, prize: r.prize })),
     prizes: s.rows.filter((r) => r.prize != null).map((r) => ({ place: r.rank, amount: r.prize! })),
     previous,
   };

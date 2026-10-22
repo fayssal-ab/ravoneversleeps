@@ -1,13 +1,12 @@
 import "server-only";
 import type { RowDataPacket } from "mysql2/promise";
 import { getPool } from "./db";
-import { maskUsername } from "./mask";
 import { getQboardsBoard } from "./qboards";
 
 // Leaderboard. The public board comes from Q-boards (lib/qboards.ts): the
 // running monthly event plus the archive of finished ones. Periods entered
 // by hand before the Q-boards sync (lb_periods) stay readable at
-// /leaderboard?p=<id>. Usernames are masked before anything leaves the server.
+// /leaderboard?p=<id>.
 
 export interface Period {
   id: number;
@@ -38,7 +37,7 @@ export async function listPeriods(): Promise<Period[]> {
   return rows.map(toPeriod);
 }
 
-/** Attach each ended period's #1 (masked). */
+/** Attach each ended period's #1. */
 async function withWinners(list: Period[]): Promise<PastPeriod[]> {
   if (!list.length) return [];
   const [rows] = await getPool().query<RowDataPacket[]>(
@@ -49,7 +48,7 @@ async function withWinners(list: Period[]): Promise<PastPeriod[]> {
     [list.map((p) => p.id)]
   );
   const winner = new Map<number, string>();
-  for (const r of rows) if (!winner.has(Number(r.period_id))) winner.set(Number(r.period_id), maskUsername(String(r.username)));
+  for (const r of rows) if (!winner.has(Number(r.period_id))) winner.set(Number(r.period_id), String(r.username));
   return list.map((p) => ({ ...p, winner: winner.get(p.id) ?? null }));
 }
 
@@ -98,7 +97,7 @@ export async function getBoard(periodId?: number | string, limit = 100): Promise
     previous,
     rows: rows.map((r) => ({
       rank: Number(r.rnk),
-      name: maskUsername(String(r.username)),
+      name: String(r.username),
       wagered: String(r.wagered),
       prize: prizeByPlace.get(Number(r.rnk)) ?? null,
     })),

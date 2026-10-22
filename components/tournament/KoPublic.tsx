@@ -5,6 +5,7 @@ import { SlotArt } from "@/components/ui/SlotArt";
 import { SocialIcon } from "@/components/ui/SocialIcon";
 import { KICK_URL } from "@/lib/constants";
 import type { KoParticipant, KoState } from "@/lib/knockout";
+import { FinisherStage, useFinishers } from "./fight/Finishers";
 import { Bracket, ParticipantRow, VsScreen, teamName } from "./parts";
 import { useKoState } from "./useKoState";
 
@@ -44,6 +45,7 @@ function ChampionBanner({ p, prize }: { p: KoParticipant; prize: string | null }
 export function KoPublic({ initial, id }: { initial: KoState; id?: number }) {
   const running = initial.tournament.status === "open" || initial.tournament.status === "closed";
   const { state } = useKoState(initial, running ? 4000 : 60_000, id);
+  const fin = useFinishers(state);
   const s = state ?? initial;
   const t = s.tournament;
   const current = s.live ?? s.focus;
@@ -52,6 +54,7 @@ export function KoPublic({ initial, id }: { initial: KoState; id?: number }) {
 
   return (
     <div className="space-y-6">
+      <FinisherStage show={fin.current} skippable onDone={fin.next} />
       {/* header */}
       <section className="panel p-5 sm:p-7">
         <div className="flex flex-wrap items-start justify-between gap-4">

@@ -30,6 +30,9 @@ const securityHeaders = [
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
+  // One id per deploy (Netlify's DEPLOY_ID, else the build time): open pages
+  // reload themselves when /api/version starts answering a new one.
+  env: { RAVO_BUILD_ID: process.env.DEPLOY_ID || process.env.COMMIT_REF || String(Date.now()) },
   images: { qualities: [75, 90] },
   // Qzino verification proof (screenshots / a short recording, 4 MB max) is
   // uploaded through a Server Action; Netlify caps a request near 6 MB.

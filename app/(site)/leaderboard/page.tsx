@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Crown } from "lucide-react";
 import Link from "next/link";
 import { BoardExplorer } from "@/components/leaderboard/Board";
+import { LiveRefresh } from "@/components/shell/AutoUpdate";
 import { PrizeCards } from "@/components/leaderboard/PrizeCards";
 import { EmptyState } from "@/components/ui/bits";
 import { CopyCode } from "@/components/ui/CopyCode";
@@ -22,7 +23,6 @@ const RULES = [
   `Only wagers on Qzino made under code ${QZINO_CODE} count.`,
   "Your rank is your total wager during the period. On a tie, the wager recorded first ranks higher.",
   "Wagers are updated by the team during the period; the final board is checked before payouts.",
-  "Usernames are partly hidden for privacy.",
   "Wager abuse (self-matching, bonus abuse, multi-accounting) means disqualification.",
   "Prizes are paid after the period ends. Contact the team on Discord if something looks wrong.",
 ];
@@ -38,8 +38,7 @@ export default async function LeaderboardPage({ searchParams }: { searchParams: 
     "Rankings and prizes come from the official Q-boards leaderboard.",
     "Your rank follows the points awarded by Q-boards during the event.",
     "Scores and prizes sync every 8 hours (3 times a day). Check the official board for the latest results and payout rules.",
-    "Usernames are partly hidden for privacy.",
-  ] : RULES;
+    ] : RULES;
   // the running month uses Ravo's prizes for the top 3; archived months show what Q-boards recorded
   const top = board && !archived ? await getTopPrizes().catch(() => null) : null;
   const pv = board ? prizeView(board, top) : { byPlace: {}, pool: "" };
@@ -48,6 +47,7 @@ export default async function LeaderboardPage({ searchParams }: { searchParams: 
 
   return (
     <div className="mx-auto max-w-6xl px-4 sm:px-6">
+      <LiveRefresh every={60_000} />
       {board == null ? (
         <EmptyState title="Leaderboard offline">The leaderboard is temporarily unavailable. Try again in a minute.</EmptyState>
       ) : !period ? (

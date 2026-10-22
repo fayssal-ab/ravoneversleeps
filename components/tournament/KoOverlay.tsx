@@ -1,9 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Crown } from "lucide-react";
 import { SlotArt } from "@/components/ui/SlotArt";
 import type { KoMatch, KoParticipant } from "@/lib/knockout";
+import { FinisherStage, demoShow, useFinishers } from "./fight/Finishers";
 import { Podium, RollReveal, VsScreen, matchLabel, roundName, teamName } from "./parts";
 import { useKoState } from "./useKoState";
 
@@ -11,11 +12,21 @@ import { useKoState } from "./useKoState";
 // sides next to each other (browser source about 1280×720, any landscape size
 // works: everything is sized from the viewport so it scales cleanly when
 // resized in OBS). `wide` keeps the old 1920×1080 centred layout. Polls the
-// public state.
-export function KoOverlay({ wide = false }: { wide?: boolean }) {
+// public state. A battle's result plays the K.O. finisher (with sound unless
+// `mute`); `demo` loops made-up fights to set up the scene in OBS.
+export function KoOverlay({ wide = false, mute = false, demo = false }: { wide?: boolean; mute?: boolean; demo?: boolean }) {
   const { state } = useKoState(null, 1500);
   const [revealed, setRevealed] = useState<number | null>(null);
-  if (!state) return null;
+  const fin = useFinishers(state);
+  const [demoRound, setDemoRound] = useState(0);
+  const { current, push } = fin;
+  useEffect(() => {
+    if (!demo || current) return;
+    const id = setTimeout(() => { push(demoShow(demoRound)); setDemoRound((n) => n + 1); }, 1200);
+    return () => clearTimeout(id);
+  }, [demo, demoRound, current, push]);
+  const finisher = <FinisherStage show={fin.current} sound={!mute} onDone={fin.next} />;
+  if (!state) return finisher;
   const t = state.tournament;
   const focus = state.focus;
   const pool = state.participants.filter((p) => p.state === "registered");
@@ -26,6 +37,7 @@ export function KoOverlay({ wide = false }: { wide?: boolean }) {
   if (wide) {
     return (
       <div className="flex h-[100dvh] w-full items-center justify-center p-10">
+        {finisher}
         <div className="w-full max-w-[1500px] rounded-[2rem] border-2 border-neon/40 bg-bg/85 p-10 shadow-[0_0_120px_-30px_rgb(141_255_74/0.6)] backdrop-blur-md">
           <div className="mb-6 flex items-center justify-between">
             <p className="font-display text-5xl"><span className="chrome">{t.title}</span></p>
@@ -49,6 +61,7 @@ export function KoOverlay({ wide = false }: { wide?: boolean }) {
 
   return (
     <div className="flex h-[100dvh] w-full p-[1.6vh]">
+      {finisher}
       <div className="flex w-full flex-col overflow-hidden rounded-[2.4vh] border-[0.3vh] border-neon/40 bg-bg/90 p-[2.2vh] shadow-[0_0_6vh_-2vh_rgb(141_255_74/0.6)]">
         <div className="text-center">
           <p className="truncate font-display text-[4.6vh] leading-none"><span className="chrome">{t.title}</span></p>

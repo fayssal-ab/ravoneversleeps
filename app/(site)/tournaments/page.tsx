@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Crown } from "lucide-react";
+import { LiveRefresh } from "@/components/shell/AutoUpdate";
 import { KoPublic } from "@/components/tournament/KoPublic";
 import { EmptyState, PageHeader } from "@/components/ui/bits";
 import { Stagger } from "@/components/ui/motion";
@@ -24,6 +25,8 @@ export default async function TournamentsPage({ searchParams }: { searchParams: 
 
   return (
     <div className="mx-auto max-w-6xl px-4 sm:px-6">
+      {/* a new tournament or archived champion shows up without a reload */}
+      <LiveRefresh every={20_000} />
       <PageHeader eyebrow="1v1 & 2v2 slot battles" title="Slot" accent="tournaments">
         Players from chat, one slot each. Higher multiplier wins the battle. Last one standing takes the crown.
       </PageHeader>

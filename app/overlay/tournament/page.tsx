@@ -2,8 +2,11 @@ import { KoOverlay } from "@/components/tournament/KoOverlay";
 
 export const dynamic = "force-dynamic";
 
-/** OBS browser source: tall by default (about 480×860); `?wide` = the 1920×1080 layout. */
-export default async function TournamentOverlay({ searchParams }: { searchParams: Promise<{ wide?: string }> }) {
-  const { wide } = await searchParams;
-  return <KoOverlay wide={wide != null} />;
+/**
+ * OBS browser source: landscape by default; `?wide` = the 1920×1080 layout,
+ * `?mute` = finishers without sound, `?demo` = loop made-up K.O. fights.
+ */
+export default async function TournamentOverlay({ searchParams }: { searchParams: Promise<{ wide?: string; mute?: string; demo?: string }> }) {
+  const { wide, mute, demo } = await searchParams;
+  return <KoOverlay wide={wide != null} mute={mute != null} demo={demo != null} />;
 }

@@ -7,6 +7,7 @@ import type { KoMatch, KoParticipant, KoState } from "@/lib/knockout";
 import { Bracket, Counter, ParticipantRow, Podium, RollReveal, VsScreen, roundName, teamName } from "./parts";
 import { useJoinReader, type ReaderStatus } from "./useJoinReader";
 import { useKoState } from "./useKoState";
+import { FinisherStage, demoShow, type Show } from "./fight/Finishers";
 
 // Live control room (ported from ONO). All state comes from the server
 // (polled); every button is a server call with backend rule checks.
@@ -36,6 +37,7 @@ export function KoDashboard({ initial, overlayUrl }: { initial: KoState | null; 
   const [msg, setMsg] = useState<string | null>(null);
   const [revealed, setRevealed] = useState<number | null>(null);
   const [tab, setTab] = useState<Tab>("bracket");
+  const [preview, setPreview] = useState<{ n: number; show: Show | null }>({ n: 0, show: null });
   const [form, setForm] = useState({ title: "", prize: "", size: 16 as (typeof SIZES)[number], duo: false, p1: "", p2: "", p3: "" });
   const [manual, setManual] = useState({ username: "", slot: "" });
 
@@ -139,6 +141,7 @@ export function KoDashboard({ initial, overlayUrl }: { initial: KoState | null; 
 
   return (
     <div className="space-y-6">
+      <FinisherStage show={preview.show} sound skippable onDone={() => setPreview((v) => ({ ...v, show: null }))} />
       <div className="panel flex flex-wrap items-center justify-between gap-4 p-5">
         <div>
           <p className="eyebrow">Tournament #{t.id} · {duo ? `Duo 2v2 · ${size} teams` : `Solo · ${size} players`}{t.prize ? ` · ${t.prize}` : ""}</p>
@@ -161,6 +164,7 @@ export function KoDashboard({ initial, overlayUrl }: { initial: KoState | null; 
           {duo && state.teamsMade && firstRoundOpen && !state.pendingRoll && state.matches.every((m) => m.round !== 1 || m.status === "empty") && (
             <button disabled={busy !== null} onClick={() => act("undo_teams", {}, "Undo the team draw? Everyone goes back to waiting alone.")} className="btn btn-ghost btn-sm">Undo teams</button>
           )}
+          <button type="button" onClick={() => setPreview((v) => ({ n: v.n + 1, show: demoShow(v.n) }))} className="btn btn-ghost btn-sm" title="Play a made-up finisher (what the overlay shows when a battle ends)">Preview K.O.</button>
           <button disabled={busy !== null} onClick={() => act("reset", {}, "Reset the tournament? It is cancelled and a new one can be created. This can't be undone.")} className="btn btn-ghost btn-sm !text-danger">Reset</button>
         </div>
       </div>

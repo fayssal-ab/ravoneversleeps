@@ -1,3 +1,4 @@
+import { AutoUpdate } from "@/components/shell/AutoUpdate";
 import { Backdrop } from "@/components/shell/Backdrop";
 import { CookieBanner } from "@/components/shell/CookieBanner";
 import { Footer } from "@/components/shell/Footer";
@@ -21,6 +22,7 @@ export default async function SiteLayout({ children }: { children: React.ReactNo
         <Footer />
       </div>
       <CookieBanner />
+      <AutoUpdate />
     </>
   );
 }
