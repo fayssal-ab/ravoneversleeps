@@ -5,7 +5,7 @@ import { Crown } from "lucide-react";
 import { SlotArt } from "@/components/ui/SlotArt";
 import type { KoMatch, KoParticipant } from "@/lib/knockout";
 import { FinisherStage, demoShow, useFinishers } from "./fight/Finishers";
-import { Podium, RollReveal, VsScreen, matchLabel, roundName, teamName, useRollSpin } from "./parts";
+import { KickAvatar, Podium, RollReveal, VsScreen, matchLabel, roundName, teamName, useRollSpin } from "./parts";
 import { useKoState } from "./useKoState";
 
 // OBS overlay, transparent background. Default: a landscape card with the two
@@ -79,7 +79,7 @@ export function KoOverlay({ wide = false, mute = false, demo = false }: { wide?:
               <VsRow key={`${focus.id}-${focus.status}-${focus.winner_id}`} match={focus} />
             )
           ) : (
-            <Join registered={state.registered} capacity={state.capacity} open={t.status === "open"} />
+            <Join players={state.participants.filter((p) => !p.disqualified)} capacity={state.capacity} open={t.status === "open"} />
           )}
         </div>
       </div>
@@ -87,30 +87,54 @@ export function KoOverlay({ wide = false, mute = false, demo = false }: { wide?:
   );
 }
 
-/** Registration: what to type, big enough to read on a small stream source. */
-function Join({ registered, capacity, open }: { registered: number; capacity: number; open: boolean }) {
+/**
+ * Registration: what to type on the left, and every seat on the right (Kick
+ * avatar, name, slot), filling up as people join. Sized from the viewport so
+ * it stays readable on a small stream source.
+ */
+function Join({ players, capacity, open }: { players: KoParticipant[]; capacity: number; open: boolean }) {
+  const registered = players.length;
   const full = registered >= capacity;
   const status = open
     ? { label: "Registration open", tone: "border-neon bg-neon/15 text-neon", dot: "bg-neon animate-pulse" }
     : full
       ? { label: "Starting soon", tone: "border-gold bg-gold/15 text-gold", dot: "bg-gold animate-pulse" }
       : { label: "Registration closed", tone: "border-danger bg-danger/15 text-danger", dot: "bg-danger" };
+  const cols = capacity <= 16 ? 2 : 4;
+  const rows = Math.ceil(capacity / cols);
+  const cell = 74 / rows; // vh per row
+  const big = capacity > 16;
+  const avatar = `${Math.min(cell * 0.62, 9.5)}vh`;
+  const seats = Array.from({ length: capacity }, (_, i) => players[i] ?? null);
   return (
-    <div className="flex flex-col items-center text-center">
-      <p className="font-head text-[5vh] font-bold uppercase leading-none tracking-[0.3em] text-text">Type in chat</p>
-      <p className="font-head text-[24vh] font-bold italic leading-[0.95] text-neon [text-shadow:0_0_5vh_rgb(141_255_74/0.65),0_0.8vh_0_#0b1f04]">!join</p>
-      {capacity <= 32 && (
-        <div className="mt-[1vh] flex max-w-[90%] flex-wrap justify-center gap-[1vh]">
-          {Array.from({ length: capacity }, (_, i) => (
-            <span key={i} className={`rounded-full border-[0.4vh] ${i < registered ? "border-neon bg-neon shadow-[0_0_1.6vh_rgb(141_255_74/0.8)]" : "border-line-hot"}`}
-              style={{ width: capacity > 16 ? "2.4vh" : "3.6vh", height: capacity > 16 ? "2.4vh" : "3.6vh" }} />
-          ))}
-        </div>
-      )}
-      <p className="mt-[1vh] font-mono text-[11vh] font-bold leading-none">{registered}<span className="text-dim">/{capacity}</span></p>
-      <p className={`mt-[1.6vh] inline-flex items-center gap-[1vh] rounded-full border-[0.4vh] px-[2.2vh] py-[0.6vh] font-head text-[3.4vh] font-bold uppercase tracking-[0.12em] ${status.tone}`}>
-        <span className={`size-[1.8vh] rounded-full ${status.dot}`} />{status.label}
-      </p>
+    <div className="flex h-full min-h-0 items-center gap-[3vh]">
+      <div className={`flex shrink-0 flex-col items-center text-center ${big ? "w-[24%]" : "w-[32%]"}`}>
+        <p className={`font-head font-bold uppercase leading-none tracking-[0.2em] text-text ${big ? "text-[2.6vh]" : "text-[3.4vh]"}`}>Type in chat</p>
+        <p className={`font-head font-bold italic leading-[1] text-neon [text-shadow:0_0_5vh_rgb(141_255_74/0.65),0_0.8vh_0_#0b1f04] ${big ? "text-[11vh]" : "text-[15vh]"}`}>!join</p>
+        <p className={`font-mono font-bold leading-none ${big ? "text-[7vh]" : "text-[9vh]"}`}>{registered}<span className="text-dim">/{capacity}</span></p>
+        <p className={`mt-[2vh] inline-flex items-center gap-[1vh] rounded-full border-[0.4vh] px-[1.6vh] py-[0.6vh] font-head font-bold uppercase tracking-[0.06em] ${big ? "text-[2vh]" : "text-[2.6vh]"} ${status.tone}`}>
+          <span className={`size-[1.6vh] rounded-full ${status.dot}`} />{status.label}
+        </p>
+      </div>
+      <ol className="grid h-[76vh] min-w-0 flex-1 gap-[1vh]" style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))`, gridTemplateRows: `repeat(${rows}, minmax(0, 1fr))`, gridAutoFlow: "column" }}>
+        {seats.map((p, i) => p ? (
+          <li key={p.id} className={`entrant-in flex min-w-0 items-center rounded-[1.4vh] border-[0.3vh] border-neon/45 bg-neon/[0.07] ${big ? "gap-[0.8vh] px-[0.8vh]" : "gap-[1.4vh] px-[1.4vh]"}`}>
+            <KickAvatar name={p.username} src={p.avatar} size={avatar} />
+            <span className="min-w-0 flex-1">
+              <span className="block truncate font-head font-bold leading-tight" style={{ fontSize: `${Math.min(cell * (big ? 0.36 : 0.3), 4.2)}vh` }}>{p.username}</span>
+              {rows <= 8 && cols === 2 && (
+                <span className="block truncate leading-tight text-neon" style={{ fontSize: `${Math.min(cell * 0.22, 3)}vh` }}>{p.slot_name}</span>
+              )}
+            </span>
+          </li>
+        ) : (
+          <li key={`free-${i}`} className={`flex min-w-0 items-center rounded-[1.4vh] border-[0.3vh] border-dashed border-line-hot text-dim ${big ? "gap-[0.8vh] px-[0.8vh]" : "gap-[1.4vh] px-[1.4vh]"}`}>
+            <span className="grid shrink-0 place-items-center rounded-full border-[0.3vh] border-dashed border-line-hot font-mono font-bold"
+              style={{ width: avatar, height: avatar, fontSize: `${Math.min(cell * 0.26, 3.2)}vh` }}>{i + 1}</span>
+            {!big && <span className="truncate font-head font-bold uppercase tracking-wider" style={{ fontSize: `${Math.min(cell * 0.24, 3)}vh` }}>Free seat</span>}
+          </li>
+        ))}
+      </ol>
     </div>
   );
 }

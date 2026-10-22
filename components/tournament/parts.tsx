@@ -37,6 +37,22 @@ export function StateBadge({ state, dq = false }: { state: KoParticipant["state"
   return <span className={`rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider ${STATE[state].tone}`}>{STATE[state].label}</span>;
 }
 
+/** Kick profile picture, or the name's initial when there is none (or it fails to load). */
+export function KickAvatar({ name, src, size, className = "" }: { name: string; src: string | null; size: string; className?: string }) {
+  const [broken, setBroken] = useState(false);
+  return (
+    <span className={`grid shrink-0 place-items-center overflow-hidden rounded-full border-2 border-neon/60 bg-neon-ink font-head font-bold uppercase text-neon ${className}`}
+      style={{ width: size, height: size, fontSize: `calc(${size} * 0.45)` }}>
+      {src && !broken ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={src} alt="" draggable={false} referrerPolicy="no-referrer" className="size-full object-cover" onError={() => setBroken(true)} />
+      ) : (
+        name.charAt(0) || "?"
+      )}
+    </span>
+  );
+}
+
 /** `onDisqualify` (admin dashboard only) adds the DQ control. */
 export function ParticipantRow({ p, index, onDisqualify, team }: { p: KoParticipant; index: number; onDisqualify?: (p: KoParticipant) => void; team?: string }) {
   const canDq = onDisqualify && !p.disqualified && (p.state === "registered" || p.state === "in_knockout");
@@ -44,6 +60,7 @@ export function ParticipantRow({ p, index, onDisqualify, team }: { p: KoParticip
     <li className={`entrant-in flex min-w-0 items-center gap-3 rounded-xl border border-line bg-bg-2 p-2 ${p.state === "eliminated" ? "opacity-45" : ""}`}>
       <span className="w-6 text-center font-mono text-xs text-dim">{index + 1}</span>
       <SlotArt name={p.slot_name} src={p.slot_image} size={44} rounded="rounded-lg" />
+      <KickAvatar name={p.username} src={p.avatar} size="32px" />
       <span className="min-w-0 flex-1">
         <span className="block truncate font-head font-bold">{p.username}</span>
         <span className="block truncate text-xs text-dim">{p.slot_name}{p.slot_provider ? ` · ${p.slot_provider}` : ""}</span>

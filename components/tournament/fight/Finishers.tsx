@@ -77,7 +77,7 @@ const DEMO = [
 ] as const;
 
 const demoPlayer = (id: number, username: string, slot: string): KoParticipant => ({
-  id, username, slot_name: slot, slot_provider: "Demo", slot_image: "", state: "in_knockout", disqualified: false,
+  id, username, avatar: null, slot_name: slot, slot_provider: "Demo", slot_image: "", state: "in_knockout", disqualified: false,
   bracket_pos: null, rerolls: 0, joined_at: "", team_id: null,
 });
 

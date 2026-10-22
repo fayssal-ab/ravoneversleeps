@@ -3,6 +3,7 @@ import { randomInt } from "node:crypto";
 import Decimal from "decimal.js";
 import type { PoolConnection, ResultSetHeader, RowDataPacket } from "mysql2/promise";
 import { getPool } from "./db";
+import { kickAvatars } from "./kickApi";
 import { randomPoolSlot } from "./slots";
 import { AppError, lockApp, withTx } from "./tx";
 
@@ -51,6 +52,8 @@ export interface KoTournament {
 }
 export interface KoParticipant {
   id: number; username: string; slot_name: string; slot_provider: string; slot_image: string;
+  /** Kick profile picture; null = none known (shown as an initial). */
+  avatar: string | null;
   state: ParticipantState; disqualified: boolean; bracket_pos: number | null; rerolls: number; joined_at: string;
   /** Duo: captain's id (same for both members); null in solo / before teams. */
   team_id: number | null;
@@ -132,7 +135,7 @@ const currentStage = (matches: { round: unknown; status: unknown }[]): number | 
 // ── reads ──
 
 const T_COLS = "id, title, prize, prize_1, prize_2, prize_3, status, max_players, team_size, champion_id, runner_up_id, third_id, roll_seq, focus_match_id, created_at, finished_at";
-const P_COLS = "id, username, slot_name, slot_provider, slot_image, state, disqualified, team_id, bracket_pos, rerolls, joined_at";
+const P_COLS = "id, username, avatar, slot_name, slot_provider, slot_image, state, disqualified, team_id, bracket_pos, rerolls, joined_at";
 const toT = (r: RowDataPacket): KoTournament => ({ ...(r as KoTournament), id: Number(r.id), max_players: Number(r.max_players), team_size: Number(r.team_size ?? 1), roll_seq: Number(r.roll_seq) });
 /** Bracket units: everyone in solo, team captains in duo. */
 const UNIT_SQL = "(team_id IS NULL OR team_id = id)";
@@ -173,7 +176,7 @@ export async function getKoState(t: KoTournament): Promise<KoState> {
     pool.query<RowDataPacket[]>(`SELECT ${P_COLS} FROM ko_participants WHERE tournament_id = ? ORDER BY id`, [t.id]),
     pool.query<RowDataPacket[]>("SELECT * FROM ko_matches WHERE tournament_id = ? ORDER BY round, match_index", [t.id]),
   ]);
-  const participants: KoParticipant[] = pRows.map((p) => ({ ...(p as KoParticipant), id: Number(p.id), disqualified: Boolean(p.disqualified), team_id: p.team_id != null ? Number(p.team_id) : null }));
+  const participants: KoParticipant[] = pRows.map((p) => ({ ...(p as KoParticipant), id: Number(p.id), avatar: p.avatar || null, disqualified: Boolean(p.disqualified), team_id: p.team_id != null ? Number(p.team_id) : null }));
   const byId = new Map(participants.map((p) => [p.id, p]));
   const duo = t.team_size === 2;
   for (const p of participants) if (p.team_id != null && p.team_id !== p.id) { const cap = byId.get(p.team_id); if (cap) cap.partner = p; }
@@ -278,13 +281,32 @@ export async function resetKo(id: number): Promise<void> {
 // ── disqualification ──
 
 let dqColumn: Promise<void> | null = null;
-/** Columns added after 0005 (migrations 0008, 0009). */
+/** Columns added after 0005 (migrations 0008, 0009, 0018). */
 const SCHEMA_ADDS: [string, string][] = [
   ["ko_participants.disqualified", "ALTER TABLE ko_participants ADD COLUMN disqualified TINYINT(1) NOT NULL DEFAULT 0"],
   ["ko_tournaments.team_size", "ALTER TABLE ko_tournaments ADD COLUMN team_size TINYINT NOT NULL DEFAULT 1"],
   ["ko_participants.team_id", "ALTER TABLE ko_participants ADD COLUMN team_id BIGINT NULL"],
+  ["ko_participants.avatar", "ALTER TABLE ko_participants ADD COLUMN avatar VARCHAR(512) NULL"],
   ["ko_matches.p1b_cost", "ALTER TABLE ko_matches ADD COLUMN p1b_cost DECIMAL(20,2) NULL, ADD COLUMN p1b_payout DECIMAL(20,2) NULL, ADD COLUMN p2b_cost DECIMAL(20,2) NULL, ADD COLUMN p2b_payout DECIMAL(20,2) NULL"],
 ];
+const avatarTried = new Map<number, number>();
+/**
+ * Players who joined without a known picture (before avatars were stored, or
+ * through the dashboard relay) get theirs from the Kick API, at most once a
+ * minute per tournament. "" marks "asked, Kick has none".
+ */
+export async function fillKoAvatars(tournamentId: number): Promise<void> {
+  if (Date.now() - (avatarTried.get(tournamentId) ?? 0) < 60_000) return;
+  avatarTried.set(tournamentId, Date.now());
+  await ensureKoSchema();
+  const pool = getPool();
+  const [rows] = await pool.query<RowDataPacket[]>(
+    "SELECT id, kick_user_id FROM ko_participants WHERE tournament_id = ? AND avatar IS NULL AND kick_user_id REGEXP '^[0-9]+$' LIMIT 50", [tournamentId]);
+  if (!rows.length) return;
+  const pics = await kickAvatars(rows.map((r) => String(r.kick_user_id)));
+  for (const r of rows) await pool.query("UPDATE ko_participants SET avatar = ? WHERE id = ?", [pics.get(String(r.kick_user_id)) ?? "", r.id]);
+}
+
 /**
  * Migrations 0008/0009 add the DQ and duo columns; this adds them on first
  * use if the migrations haven't been run. Must run outside a transaction (DDL
@@ -378,6 +400,8 @@ export async function undoTeams(id: number): Promise<void> {
 
 export interface JoinInput {
   kickUserId: string; username: string; messageId: string;
+  /** Kick profile picture from the chat message, when known */
+  avatar?: string | null;
   slot?: { id: string; name: string; provider: string; imageUrl: string } | null;
 }
 export type JoinOutcome =
@@ -411,8 +435,8 @@ export async function recordJoin(conn: PoolConnection, input: JoinInput): Promis
       try { slot = await randomPoolSlot(conn, [...taken, String(p.slot_id)]); } catch { return { outcome: "no_slots" }; }
     }
     await conn.query(
-      "UPDATE ko_participants SET slot_id = ?, slot_name = ?, slot_provider = ?, slot_image = ?, username = ?, rerolls = rerolls + 1 WHERE id = ?",
-      [slot.id, slot.name, slot.provider, slot.imageUrl, input.username, p.id]);
+      "UPDATE ko_participants SET slot_id = ?, slot_name = ?, slot_provider = ?, slot_image = ?, username = ?, avatar = COALESCE(?, avatar), rerolls = rerolls + 1 WHERE id = ?",
+      [slot.id, slot.name, slot.provider, slot.imageUrl, input.username, input.avatar ?? null, p.id]);
     return { outcome: "rerolled", slot: slot.name };
   }
 
@@ -424,8 +448,8 @@ export async function recordJoin(conn: PoolConnection, input: JoinInput): Promis
     try { slot = await randomPoolSlot(conn, taken); } catch { return { outcome: "no_slots" }; }
   }
   await conn.query(
-    "INSERT INTO ko_participants (tournament_id, kick_user_id, username, slot_id, slot_name, slot_provider, slot_image) VALUES (?, ?, ?, ?, ?, ?, ?)",
-    [t.id, input.kickUserId, input.username, slot.id, slot.name, slot.provider, slot.imageUrl]);
+    "INSERT INTO ko_participants (tournament_id, kick_user_id, username, avatar, slot_id, slot_name, slot_provider, slot_image) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+    [t.id, input.kickUserId, input.username, input.avatar ?? null, slot.id, slot.name, slot.provider, slot.imageUrl]);
   if (count + 1 >= t.max_players * t.team_size) await conn.query("UPDATE ko_tournaments SET status = 'closed', closed_at = UTC_TIMESTAMP() WHERE id = ?", [t.id]);
   return { outcome: "registered", count: count + 1, slot: slot.name };
 }

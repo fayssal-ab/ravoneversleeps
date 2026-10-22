@@ -1,5 +1,5 @@
 import { json, jsonError } from "@/lib/http";
-import { verifyKickWebhook } from "@/lib/kickApi";
+import { kickImageUrl, verifyKickWebhook } from "@/lib/kickApi";
 import { logChat } from "@/lib/kickChatLog";
 import { ensureKoSchema, JOIN_RE, recordJoin } from "@/lib/knockout";
 import { findSlotByName } from "@/lib/slots";
@@ -11,7 +11,7 @@ import { withTx } from "@/lib/tx";
 // delivering and what happened to each !join.
 export const dynamic = "force-dynamic";
 
-interface ChatEvent { message_id?: string; content?: string; sender?: { user_id?: number; username?: string } }
+interface ChatEvent { message_id?: string; content?: string; sender?: { user_id?: number; username?: string; profile_picture?: string } }
 
 export async function POST(request: Request) {
   const body = await request.text();
@@ -29,7 +29,7 @@ export async function POST(request: Request) {
     await ensureKoSchema();
     const slot = await findSlotByName(e.content.replace(/^\s*!join/i, ""));
     const result = await withTx((conn) => recordJoin(conn, {
-      kickUserId: String(e.sender!.user_id), username, messageId: `kick:${e.message_id}`, slot,
+      kickUserId: String(e.sender!.user_id), username, avatar: kickImageUrl(e.sender!.profile_picture), messageId: `kick:${e.message_id}`, slot,
     }));
     await logChat(username, e.content, result.outcome, result.slot ?? null).catch(() => {});
     return json({ ok: true, ...result });

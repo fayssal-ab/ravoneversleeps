@@ -60,6 +60,23 @@ export async function ensureChatSubscription(): Promise<"exists" | "created"> {
   return "created";
 }
 
+/** A Kick-hosted https image URL, else null (Kick sends "" for the default avatar). */
+export function kickImageUrl(url: unknown): string | null {
+  if (typeof url !== "string" || !url) return null;
+  try {
+    const u = new URL(url);
+    return u.protocol === "https:" && (u.hostname === "kick.com" || u.hostname.endsWith(".kick.com")) ? u.href.slice(0, 512) : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Profile pictures by Kick user id (at most 50 ids per call). */
+export async function kickAvatars(ids: string[]): Promise<Map<string, string | null>> {
+  const d = await kick<{ data: { user_id: number; profile_picture?: string }[] }>(`/users?${ids.map((id) => `id=${encodeURIComponent(id)}`).join("&")}`);
+  return new Map(d.data.map((u) => [String(u.user_id), kickImageUrl(u.profile_picture)]));
+}
+
 async function kickPublicKey(): Promise<string> {
   if (publicKey && Date.now() - publicKey.at < 24 * 3600_000) return publicKey.pem;
   const res = await fetch(`${API}/public-key`, { cache: "no-store", signal: AbortSignal.timeout(6000) });
