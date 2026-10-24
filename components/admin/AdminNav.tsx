@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Crosshair, Crown, Gamepad2, Gauge, MessagesSquare, Radio, ScrollText, Swords, Target, Trophy, Users } from "lucide-react";
+import { Crosshair, Crown, Gamepad2, Gauge, MessagesSquare, Radio, ScrollText, Server, Swords, Target, Trophy, Users } from "lucide-react";
 
 const GROUPS = [
   { title: "", links: [{ href: "/admin", label: "Dashboard", icon: Gauge }] },
@@ -37,14 +37,18 @@ function Badge({ n }: { n: number }) {
   return <span className="min-w-5 rounded-full bg-gold px-1.5 text-center font-mono text-[11px] font-bold leading-5 text-bg" aria-label={`${n} waiting`}>{n > 99 ? "99+" : n}</span>;
 }
 
-export function AdminNav({ counts = {} }: { counts?: Record<string, number> }) {
+/** Owner-only pages, added for the owner (see isOwner). */
+const OWNER_LINKS = [{ href: "/admin/server", label: "Server", icon: Server }];
+
+export function AdminNav({ counts = {}, owner = false }: { counts?: Record<string, number>; owner?: boolean }) {
   const pathname = usePathname();
+  const groups = owner ? [...GROUPS, { title: "Owner", links: OWNER_LINKS }] : GROUPS;
   const isActive = (href: string) => (href === "/admin" ? pathname === "/admin" : pathname.startsWith(href));
   return (
     <nav aria-label="Admin">
       {/* phones: one scrollable row */}
       <div className="flex gap-1 overflow-x-auto pb-1 lg:hidden">
-        {GROUPS.flatMap((g) => g.links).map((l) => (
+        {groups.flatMap((g) => g.links).map((l) => (
           <Link key={l.href} href={l.href} className={`flex shrink-0 items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold ${isActive(l.href) ? "bg-neon/10 text-neon" : "text-muted"}`}>
             <l.icon className="size-4" /> {l.label}
             {counts[l.href] ? <Badge n={counts[l.href]} /> : null}
@@ -53,7 +57,7 @@ export function AdminNav({ counts = {} }: { counts?: Record<string, number> }) {
       </div>
       {/* desktop: grouped sidebar */}
       <div className="hidden space-y-5 lg:block">
-        {GROUPS.map((g) => (
+        {groups.map((g) => (
           <div key={g.title || "main"}>
             {g.title && <p className="mb-1.5 px-3 text-[11px] font-semibold uppercase tracking-[0.16em] text-dim">{g.title}</p>}
             <div className="space-y-0.5">

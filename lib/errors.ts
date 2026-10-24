@@ -56,4 +56,5 @@ export const ERROR_TEXT: Record<string, string> = {
   battle_not_live: "Start the battle first.",
   battle_tied: "Exact tie: replay the bonus and enter the replay's results.",
   unexpected: "Something went wrong. Please try again.",
+  discord: "Discord refused it.",
 };

@@ -7,7 +7,10 @@ import { syncCatalog, upgradeTypedSlots } from "@/lib/slots";
 import { addSlot, deleteSlot } from "@/lib/stream";
 import { createChallenge, deleteChallenge, markChallengeWon, setChallengeStatus } from "@/lib/challenges";
 import { decideVerification, REJECT_REASONS, retryQzinoTicket, type RejectReason } from "@/lib/verification";
-import { discordErrorText, discordSetup, setInteractionsEndpoint } from "@/lib/discordBot";
+import {
+  banMember, createInvite, createRole, deleteRole, discordErrorText, discordSetup, giveRole, kickMember, ROLE_PRESETS,
+  setInteractionsEndpoint, takeRole, unbanMember, type RolePreset,
+} from "@/lib/discordBot";
 import { SITE_URL } from "@/lib/constants";
 import { saveTopPrizes } from "@/lib/leaderboardPrizes";
 import { decideVipApplication } from "@/lib/vip";
@@ -201,3 +204,63 @@ export async function saveTopPrizesAction(form: FormData) {
   });
 }
 
+
+// ── Discord server (owner only) ────────────────────────────────────────
+/** Back to the same member search (only /admin/server URLs). */
+function serverBack(form: FormData): string {
+  const back = String(form.get("back") ?? "");
+  return /^\/admin\/server(\?[\w=&%.+-]*)?$/.test(back) ? back : "/admin/server";
+}
+
+/** Discord's refusal as a readable admin message. */
+async function discord<T>(fn: () => Promise<T>): Promise<T> {
+  try {
+    return await fn();
+  } catch (e) {
+    throw new AppError("discord", discordErrorText(e));
+  }
+}
+
+const zSnowflake = z.string().regex(/^\d{5,25}$/, "invalid_id");
+
+export async function memberRoleAction(form: FormData) {
+  await adminAction({ path: serverBack(form), audit: "server.role.member", owner: true }, async () => {
+    const v = parseForm(z.object({ user: zSnowflake, role: zSnowflake, op: z.enum(["give", "take"]), name: zText(100) }), form);
+    await discord(() => (v.op === "give" ? giveRole(v.user, v.role) : takeRole(v.user, v.role)));
+    return v;
+  });
+}
+
+export async function memberModAction(form: FormData) {
+  await adminAction({ path: serverBack(form), audit: "server.member", owner: true }, async () => {
+    const v = parseForm(z.object({ user: zSnowflake, op: z.enum(["kick", "ban", "unban"]), name: zText(100) }), form);
+    await discord(() => (v.op === "kick" ? kickMember(v.user) : v.op === "ban" ? banMember(v.user) : unbanMember(v.user)));
+    return v;
+  });
+}
+
+export async function createRoleAction(form: FormData) {
+  await adminAction({ path: serverBack(form), audit: "server.role.create", owner: true }, async () => {
+    const v = parseForm(z.object({
+      name: zRequiredText(100), color: z.string().regex(/^#[0-9a-fA-F]{6}$/, "invalid_color"),
+      preset: z.enum(Object.keys(ROLE_PRESETS) as [RolePreset, ...RolePreset[]]),
+    }), form);
+    const role = await discord(() => createRole(v.name, parseInt(v.color.slice(1), 16), v.preset));
+    return { ...v, id: role.id };
+  });
+}
+
+export async function deleteRoleAction(form: FormData) {
+  await adminAction({ path: serverBack(form), audit: "server.role.delete", owner: true }, async () => {
+    const v = parseForm(z.object({ role: zSnowflake, name: zText(100) }), form);
+    await discord(() => deleteRole(v.role));
+    return v;
+  });
+}
+
+export async function createInviteAction() {
+  await adminAction({
+    path: "/admin/server", audit: "server.invite", owner: true,
+    more: (r) => `invite=${encodeURIComponent((r as { url: string }).url)}`,
+  }, async () => ({ url: await discord(createInvite) }));
+}
