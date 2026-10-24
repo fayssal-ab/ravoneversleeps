@@ -431,6 +431,71 @@ iframe[src*=".netlify/scripts/hud"],
   .admin-pop { position: static; width: auto; margin-top: 0.5rem; box-shadow: none; }
 }
 
+/* ── admin → Server: looks like Discord's own Server Settings ── */
+.dc {
+  --dc-bg: #313338; --dc-side: #2b2d31; --dc-deep: #1e1f22; --dc-hover: #35373c; --dc-active: #404249;
+  --dc-text: #dbdee1; --dc-muted: #949ba4; --dc-head: #f2f3f5; --dc-line: #3f4147;
+  --dc-blurple: #5865f2; --dc-green: #23a55a; --dc-red: #da373c; --dc-yellow: #f0b232;
+  background: var(--dc-bg); color: var(--dc-text); border-radius: 0.75rem; overflow: hidden;
+  font-family: "gg sans", "Noto Sans", "Helvetica Neue", Helvetica, Arial, sans-serif; font-size: 15px;
+  border: 1px solid #1e1f22;
+}
+.dc-side { background: var(--dc-side); }
+.dc-tab {
+  display: flex; align-items: center; gap: 0.6rem; padding: 0.4rem 0.65rem; border-radius: 4px;
+  color: var(--dc-muted); font-weight: 500; white-space: nowrap; transition: background .1s, color .1s;
+}
+.dc-tab:hover { background: var(--dc-hover); color: var(--dc-text); }
+.dc-tab.is-on { background: var(--dc-active); color: #fff; }
+.dc-h { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.02em; color: var(--dc-muted); }
+.dc-title { font-size: 20px; font-weight: 600; color: var(--dc-head); }
+.dc-sub { font-size: 14px; color: var(--dc-muted); }
+.dc-divider { border-color: var(--dc-line); }
+.dc-card { background: var(--dc-side); border-radius: 8px; }
+.dc-input {
+  width: 100%; background: var(--dc-deep); color: var(--dc-text); border: 0; border-radius: 4px;
+  padding: 0.6rem 0.7rem; font-size: 15px;
+}
+.dc-input::placeholder { color: #6d6f78; }
+.dc-input:focus { outline: 2px solid var(--dc-blurple); outline-offset: 0; }
+.dc-input:disabled { opacity: 0.5; }
+.dc-btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 0.4rem; min-height: 34px;
+  padding: 0.35rem 1rem; border-radius: 4px; font-size: 14px; font-weight: 500; color: #fff;
+  background: var(--dc-blurple); transition: background .15s;
+}
+.dc-btn:hover { background: #4752c4; }
+.dc-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.dc-btn-grey { background: #4e5058; }
+.dc-btn-grey:hover { background: #6d6f78; }
+.dc-btn-red { background: var(--dc-red); }
+.dc-btn-red:hover { background: #a12828; }
+.dc-btn-green { background: #248046; }
+.dc-btn-green:hover { background: #1a6334; }
+.dc-btn-ghost { background: transparent; color: var(--dc-text); }
+.dc-btn-ghost:hover { background: var(--dc-hover); text-decoration: underline; }
+.dc-btn-sm { min-height: 28px; padding: 0.15rem 0.7rem; font-size: 13px; }
+.dc-row { border-radius: 4px; transition: background .1s; }
+.dc-row:hover { background: var(--dc-hover); }
+.dc-row.is-on { background: var(--dc-active); }
+.dc-pill {
+  display: inline-flex; align-items: center; gap: 0.35rem; border-radius: 4px; background: #232428;
+  padding: 0.1rem 0.45rem; font-size: 12px; font-weight: 500; color: var(--dc-text);
+}
+.dc-badge { border-radius: 3px; padding: 0 0.3rem; font-size: 10px; font-weight: 700; text-transform: uppercase; line-height: 1.5; }
+/* Discord's toggle switch */
+.dc-switch {
+  appearance: none; flex-shrink: 0; position: relative; width: 40px; height: 24px; border-radius: 999px;
+  background: #80848e; cursor: pointer; transition: background .15s;
+}
+.dc-switch::after {
+  content: ""; position: absolute; top: 3px; left: 3px; width: 18px; height: 18px; border-radius: 999px;
+  background: #fff; transition: transform .15s;
+}
+.dc-switch:checked { background: var(--dc-green); }
+.dc-switch:checked::after { transform: translateX(16px); }
+.dc-switch:disabled { opacity: 0.4; cursor: not-allowed; }
+
 /* hero art: fades in from the left and from the top so no edge shows */
 .hero-art-mask {
   -webkit-mask-image: linear-gradient(to right, transparent, #000 45%), linear-gradient(to bottom, transparent, #000 30%);
