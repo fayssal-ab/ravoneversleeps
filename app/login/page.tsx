@@ -20,7 +20,6 @@ export default async function LoginPage() {
             <h1 className="mt-4 font-display text-4xl"><span className="chrome">Control</span> <span className="neon-text">room</span></h1>
           </div>
           <LoginForm />
-          <a href="/api/auth/discord/start?next=/admin" className="btn btn-ghost btn-sm mt-4 w-full">Owner: sign in with Discord</a>
         </div>
       </main>
     </>

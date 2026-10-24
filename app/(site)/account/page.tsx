@@ -1,10 +1,12 @@
 import type { Metadata } from "next";
 import Image from "next/image";
-import { BadgeCheck, Check, Clock, ExternalLink, ShieldCheck, Trophy, Target, Crown, XCircle } from "lucide-react";
+import Link from "next/link";
+import { BadgeCheck, Check, Clock, ExternalLink, LayoutDashboard, ShieldCheck, Trophy, Target, Crown, XCircle } from "lucide-react";
 import { LogoutButton } from "@/components/account/LogoutButton";
 import { DiscordIcon, KickIcon, LinkKickButton, SignInButtons } from "@/components/account/SignInPanel";
 import { Flash } from "@/components/ui/bits";
 import { getViewer } from "@/lib/account";
+import { isOwner } from "@/lib/admin";
 import { AUTH_MESSAGES, enabledProviders } from "@/lib/userAuth";
 import { qzinoStatusOf, type QzinoState } from "@/lib/verification";
 import { openQzinoTicketAction } from "../actions";
@@ -73,6 +75,7 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
   const discord = viewer.identities.find((i) => i.provider === "discord");
   const kick = viewer.identities.find((i) => i.provider === "kick");
   const step = qz.status === "verified" ? 4 : qz.status === "pending" ? 2 : 1;
+  const owner = await isOwner();
 
   return (
     <div className="mx-auto max-w-5xl px-4 pt-8 sm:px-6">
@@ -95,7 +98,10 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
               {qz.status === "verified" && <span className="inline-flex items-center gap-1.5 rounded-full bg-neon px-2.5 py-1 font-bold text-neon-ink"><BadgeCheck className="size-3.5" /> Qzino verified</span>}
             </p>
           </div>
-          <LogoutButton />
+          <div className="flex flex-wrap items-center gap-2">
+            {owner && <Link href="/admin" className="btn btn-neon btn-sm"><LayoutDashboard className="size-4" /> Admin</Link>}
+            <LogoutButton />
+          </div>
         </div>
       </div>
 
