@@ -407,7 +407,7 @@ export interface JoinInput {
 }
 export type JoinOutcome =
   | "registered" | "rerolled" | "duplicate_message" | "no_tournament" | "registration_closed"
-  | "full" | "locked_in_bracket" | "eliminated" | "disqualified" | "pending_roll" | "no_slots";
+  | "full" | "locked_in_bracket" | "eliminated" | "disqualified" | "pending_roll" | "no_slots" | "slot_taken";
 
 /** Run inside a transaction. */
 export async function recordJoin(conn: PoolConnection, input: JoinInput): Promise<{ outcome: JoinOutcome; count?: number; slot?: string }> {
@@ -421,8 +421,11 @@ export async function recordJoin(conn: PoolConnection, input: JoinInput): Promis
 
   const [existing] = await conn.query<RowDataPacket[]>(
     "SELECT id, state, disqualified, slot_id FROM ko_participants WHERE tournament_id = ? AND kick_user_id = ? FOR UPDATE", [t.id, input.kickUserId]);
-  const [assigned] = await conn.query<RowDataPacket[]>("SELECT slot_id, disqualified FROM ko_participants WHERE tournament_id = ? FOR SHARE", [t.id]);
+  const [assigned] = await conn.query<RowDataPacket[]>("SELECT kick_user_id, slot_id, disqualified FROM ko_participants WHERE tournament_id = ? FOR SHARE", [t.id]);
   const taken = assigned.map((r) => String(r.slot_id));
+  // A named slot can only be called by one player per tournament.
+  if (input.slot && assigned.some((r) => !r.disqualified && String(r.slot_id) === input.slot!.id && String(r.kick_user_id) !== input.kickUserId))
+    return { outcome: "slot_taken", slot: input.slot.name };
 
   if (existing[0]) {
     const p = existing[0];

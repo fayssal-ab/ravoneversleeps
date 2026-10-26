@@ -22,7 +22,7 @@ const READER: Record<ReaderStatus, { label: string; tone: string }> = {
 const OUTCOME: Record<string, string> = {
   registered: "registered", rerolled: "slot changed", duplicate_message: "duplicate ignored", no_tournament: "no tournament",
   registration_closed: "registration closed", full: "full", locked_in_bracket: "locked in bracket", eliminated: "eliminated, ignored",
-  pending_roll: "being rolled, ignored", disqualified: "disqualified, ignored", no_slots: "slot catalogue empty!", processing_failed: "server error", network_error: "network error",
+  pending_roll: "being rolled, ignored", disqualified: "disqualified, ignored", no_slots: "slot catalogue empty!", slot_taken: "slot already called, ignored", processing_failed: "server error", network_error: "network error",
 };
 
 const SIZES = [4, 8, 16, 32] as const;
