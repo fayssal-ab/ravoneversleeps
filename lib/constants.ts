@@ -43,6 +43,7 @@ export const NAV: NavItem[] = [
       { href: "/clips", label: "Clips", hint: "Best moments from Kick" },
       { href: "/bonus-hunts", label: "Bonus hunts", hint: "Live hunt tracker" },
       { href: "/tournaments", label: "Tournaments", hint: "1v1 and 2v2 slot battles" },
+      { href: "/slot-picker", label: "Slot picker", hint: "Spin for a random slot" },
     ],
   },
 ];
@@ -57,4 +58,5 @@ export const NAV_FLAT = [
   { href: "/clips", label: "Clips" },
   { href: "/bonus-hunts", label: "Bonus hunts" },
   { href: "/tournaments", label: "Tournaments" },
+  { href: "/slot-picker", label: "Slot picker" },
 ];

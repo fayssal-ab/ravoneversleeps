@@ -3,7 +3,7 @@ import { SITE_URL } from "@/lib/constants";
 
 const PAGES: [string, MetadataRoute.Sitemap[number]["changeFrequency"], number][] = [
   ["/", "daily", 1], ["/leaderboard", "daily", 0.9], ["/challenges", "daily", 0.8], ["/vip-transfer", "monthly", 0.8],
-  ["/tournaments", "daily", 0.7], ["/bonus-hunts", "daily", 0.6],
+  ["/tournaments", "daily", 0.7], ["/bonus-hunts", "daily", 0.6], ["/slot-picker", "weekly", 0.5],
   ["/stream", "weekly", 0.6], ["/clips", "daily", 0.6], ["/privacy", "yearly", 0.2],
 ];
 
