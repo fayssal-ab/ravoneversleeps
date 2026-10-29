@@ -52,7 +52,7 @@ export function Footer() {
           <div className="flex flex-col items-center justify-between gap-8 lg:flex-row">
             <Link href="/" className="flex shrink-0 items-center gap-3">
               <Image src="/media/ravo-avatar.webp" alt="" width={52} height={52} className="rounded-full ring-2 ring-neon/50" />
-              <span className="whitespace-nowrap font-display text-4xl leading-none">
+              <span className="whitespace-nowrap font-display text-[clamp(1.6rem,8.5vw,2.25rem)] leading-none">
                 <span className="chrome">RAVO</span><span className="neon-text">NEVERSLEEPS</span>
               </span>
             </Link>

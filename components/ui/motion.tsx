@@ -16,7 +16,9 @@ export function Reveal({ children, className = "" }: { children: ReactNode; dela
 export function Stagger({ children, className }: { children: ReactNode[]; className?: string; step?: number }) {
   return (
     <div className={className}>
-      {children.map((c, i) => <div key={i} className="reveal">{c}</div>)}
+      {/* min-w-0: grid items default to their content width, so long text
+          inside a card pushed it past the screen edge instead of truncating */}
+      {children.map((c, i) => <div key={i} className="reveal min-w-0">{c}</div>)}
     </div>
   );
 }
@@ -78,11 +80,11 @@ export function Countdown({ to, className = "", size = "md" }: { to: string; cla
     { v: Math.floor(left / 60_000) % 60, l: "Min" },
     { v: Math.floor(left / 1000) % 60, l: "Sec" },
   ];
-  const box = size === "lg" ? "min-w-[4.5rem] px-3 py-3 text-3xl sm:min-w-[5.5rem] sm:text-4xl" : size === "sm" ? "min-w-[2.6rem] px-1.5 py-1 text-base" : "min-w-[3.6rem] px-2 py-2 text-2xl";
+  const box = size === "lg" ? "min-w-[3.6rem] px-2 py-2.5 text-2xl min-[400px]:min-w-[4.5rem] min-[400px]:px-3 min-[400px]:py-3 min-[400px]:text-3xl sm:min-w-[5.5rem] sm:text-4xl" : size === "sm" ? "min-w-[2.6rem] px-1.5 py-1 text-base" : "min-w-[3.6rem] px-2 py-2 text-2xl";
   return (
-    <div className={`flex items-center gap-2 ${className}`} aria-label="Time left" suppressHydrationWarning>
+    <div className={`flex items-center gap-1 min-[400px]:gap-2 ${className}`} aria-label="Time left" suppressHydrationWarning>
       {parts.map((p, i) => (
-        <div key={p.l} className="flex items-center gap-2">
+        <div key={p.l} className="flex items-center gap-1 min-[400px]:gap-2">
           <div className={`rounded-xl border border-line-hot bg-bg/70 text-center font-mono font-bold text-neon shadow-[inset_0_0_18px_rgb(141_255_74/0.08)] ${box}`}>
             <span className="tabular-nums" suppressHydrationWarning>{now == null ? "--" : String(p.v).padStart(2, "0")}</span>
             <span className="block font-pixel text-[0.55rem] font-normal tracking-[0.2em] text-dim">{p.l}</span>

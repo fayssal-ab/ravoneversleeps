@@ -8,6 +8,9 @@ import { useEffect, useRef, useState } from "react";
 // losing registrations.
 
 export type ReaderStatus = "off" | "connecting" | "live" | "error";
+/** A signed webhook delivery this recent proves chat reaches the site. */
+const FRESH_MS = 10 * 60_000;
+
 export interface JoinEvent { at: number; username: string; outcome: string; slot?: string }
 
 interface StatusResponse {
@@ -20,6 +23,7 @@ export function useJoinReader(enabled: boolean, onJoin?: () => void) {
   const [status, setStatus] = useState<ReaderStatus>(enabled ? "connecting" : "off");
   const [events, setEvents] = useState<JoinEvent[]>([]);
   const [lastSeen, setLastSeen] = useState<{ at: number; username: string } | null>(null);
+  const [detail, setDetail] = useState<string | null>(null);
   const cb = useRef(onJoin);
   useEffect(() => { cb.current = onJoin; }, [onJoin]);
 
@@ -32,8 +36,15 @@ export function useJoinReader(enabled: boolean, onJoin?: () => void) {
         const res = await fetch("/api/admin/kick/status", { cache: "no-store" });
         const d = (await res.json()) as StatusResponse;
         if (stopped) return;
-        setStatus(d.ok && d.subscribed ? "live" : "error");
-        setLastSeen(d.last ? { at: Date.parse(d.last.at), username: d.last.username } : null);
+        // Messages are only logged after Kick's signature checks out, so a
+        // recent one means the webhook works even when the subscription
+        // list (app token) doesn't show it: a subscription made with a
+        // user token is invisible to the app token.
+        const lastAt = d.last ? Date.parse(d.last.at) : NaN;
+        const delivering = Date.now() - lastAt < FRESH_MS;
+        setStatus(d.ok && (d.subscribed || delivering) ? "live" : "error");
+        setDetail(d.subscribed || delivering ? null : d.error);
+        setLastSeen(d.last ? { at: lastAt, username: d.last.username } : null);
         setEvents(d.joins.map((j) => ({ at: Date.parse(j.at), username: j.username, outcome: j.outcome ?? "", slot: j.slot ?? undefined })));
         const top = d.joins[0] ? `${d.joins[0].at}|${d.joins[0].username}` : "";
         if (newest && top !== newest) cb.current?.();
@@ -47,5 +58,5 @@ export function useJoinReader(enabled: boolean, onJoin?: () => void) {
     return () => { stopped = true; clearInterval(id); setStatus("off"); };
   }, [enabled]);
 
-  return { status, events, lastSeen };
+  return { status, events, lastSeen, detail };
 }

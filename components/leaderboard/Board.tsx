@@ -18,7 +18,7 @@ export function BoardTable({ rows, fromRank = 4, scoreKind = "wagered" }: { rows
   if (!list.length) return null;
   return (
     <div>
-      <div className="grid grid-cols-[3rem_1fr_auto] gap-4 px-4 pb-2 font-head text-[0.7rem] font-semibold uppercase tracking-[0.15em] text-dim sm:grid-cols-[3.5rem_1fr_10rem_7rem] sm:px-5">
+      <div className="grid grid-cols-[2rem_1fr_auto] gap-3 px-3 pb-2 sm:gap-4 font-head text-[0.7rem] font-semibold uppercase tracking-[0.15em] text-dim sm:grid-cols-[3.5rem_1fr_10rem_7rem] sm:px-5">
         <span>Rank</span><span>Player</span><span className="text-right">{scoreKind === "points" ? "Points" : "Wagered"}</span><span className="hidden text-right sm:block">Prize</span>
       </div>
       <ol className="space-y-2">
@@ -29,14 +29,15 @@ export function BoardTable({ rows, fromRank = 4, scoreKind = "wagered" }: { rows
             whileInView={{ opacity: 1, x: 0 }}
             viewport={{ once: true }}
             transition={{ delay: Math.min(i, 12) * 0.03 }}
-            className="panel group grid grid-cols-[3rem_1fr_auto] items-center gap-4 px-4 py-3 transition hover:border-line-hot hover:bg-surface-2 sm:grid-cols-[3.5rem_1fr_10rem_7rem] sm:px-5"
+            className="panel group grid grid-cols-[2rem_1fr_auto] items-center gap-3 px-3 py-3 sm:gap-4 transition hover:border-line-hot hover:bg-surface-2 sm:grid-cols-[3.5rem_1fr_10rem_7rem] sm:px-5"
           >
             <span className={`grid size-8 place-items-center rounded-full font-mono text-sm font-bold ${r.prize != null ? "bg-neon text-neon-ink" : "bg-surface-3 text-muted"}`}>{r.rank}</span>
             <span className="flex min-w-0 items-center gap-3">
-              <span className="grid size-8 shrink-0 place-items-center rounded-full border border-line-hot font-head text-xs font-bold text-muted">{r.name.slice(0, 1).toUpperCase()}</span>
+              {/* initial bubble only where the name still has room next to it */}
+              <span className="hidden size-8 shrink-0 place-items-center rounded-full border border-line-hot min-[400px]:grid font-head text-xs font-bold text-muted">{r.name.slice(0, 1).toUpperCase()}</span>
               <span className="truncate font-head font-semibold">{r.name}</span>
             </span>
-            <span className="text-right font-mono text-sm font-bold text-neon">
+            <span className="whitespace-nowrap text-right font-mono text-[0.8rem] font-bold text-neon sm:text-sm">
               {score(r.score)}
               {r.prize != null && <span className="mt-1 block text-xs text-gold sm:hidden">{r.prize}</span>}
             </span>

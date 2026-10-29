@@ -25,10 +25,12 @@ function ChampionBanner({ p, prize }: { p: KoParticipant; prize: string | null }
           <SlotArt name={p.slot_name} src={p.slot_image} fluid="clamp(96px, 22vw, 136px)" />
           <Crown className="absolute -left-3 -top-4 size-9 -rotate-12 text-gold drop-shadow-[0_2px_8px_rgb(0_0_0/0.8)]" />
         </div>
-        <div className="min-w-0 flex-1">
+        {/* w-full: in the stacked (mobile) layout a centred flex child is only
+            as wide as its text, so long duo names spilled off both sides */}
+        <div className="w-full min-w-0 flex-1 sm:w-auto">
           <p className="font-head text-xs font-bold uppercase tracking-[0.25em] text-gold">Tournament champion</p>
-          <p className="mt-1 truncate font-head text-3xl font-bold text-gold sm:text-4xl">{teamName(p)}</p>
-          <p className="truncate text-base text-neon">{p.partner ? `${p.slot_name} + ${p.partner.slot_name}` : p.slot_name}<span className="text-dim"> · {p.slot_provider}</span></p>
+          <p className="mt-1 break-words font-head text-2xl font-bold leading-tight text-gold sm:truncate sm:text-4xl">{teamName(p)}</p>
+          <p className="break-words text-sm text-neon sm:truncate sm:text-base">{p.partner ? `${p.slot_name} + ${p.partner.slot_name}` : p.slot_name}<span className="text-dim"> · {p.slot_provider}</span></p>
         </div>
         {prize != null && (
           <div className="shrink-0 rounded-2xl border border-gold/40 bg-bg/60 px-6 py-3 text-center">

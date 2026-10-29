@@ -146,7 +146,7 @@ export function KoDashboard({ initial, overlayUrl }: { initial: KoState | null; 
         <div>
           <p className="eyebrow">Tournament #{t.id} · {duo ? `Duo 2v2 · ${size} teams` : `Solo · ${size} players`}{t.prize ? ` · ${t.prize}` : ""}</p>
           <h2 className="font-display text-3xl"><span className="chrome">{t.title}</span></h2>
-          <p className={`mt-1 text-xs ${READER[reader.status].tone}`}>● {READER[reader.status].label}</p>
+          <p className={`mt-1 text-xs ${READER[reader.status].tone}`}>● {READER[reader.status].label}{reader.status === "error" && reader.detail ? <span className="text-dim"> ({reader.detail})</span> : null}</p>
           <p className="text-[11px] text-dim">
             {reader.lastSeen ? <>Last chat message: <span className="text-muted">{reader.lastSeen.username}</span> at {new Date(reader.lastSeen.at).toLocaleTimeString()}</> : "No chat message received yet (set the webhook URL in your Kick app)"}
           </p>

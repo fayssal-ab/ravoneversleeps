@@ -2,7 +2,7 @@
 
 import { AnimatePresence, motion } from "motion/react";
 import { ExternalLink, Eye, Play, X } from "lucide-react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
 import type { Clip } from "@/lib/clips";
 
@@ -15,6 +15,15 @@ const ago = (iso: string) => {
   if (d < 86400 * 30) return `${Math.round(d / 86400)} d ago`;
   return new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
 };
+
+// "3 h ago" depends on the clock, and the page is cached for 10 minutes, so
+// it's only written in the browser (rendering it on the server made the
+// hydrated text differ: React error #418)
+const noop = () => () => {};
+function Ago({ iso }: { iso: string }) {
+  const mounted = useSyncExternalStore(noop, () => true, () => false);
+  return <time dateTime={iso}>{mounted ? ago(iso) : ""}</time>;
+}
 
 /** HLS player: hls.js (loaded on demand) where supported, native HLS otherwise (iPhone). */
 function Player({ clip }: { clip: Clip }) {
@@ -124,7 +133,7 @@ export function ClipGrid({ clips }: { clips: Clip[] }) {
                 <span className="mt-1 flex items-center gap-3 text-xs text-muted">
                   <span className="inline-flex items-center gap-1"><Eye className="size-3.5" />{c.views.toLocaleString("en-US")}</span>
                   {c.creator && <span className="truncate">clipped by <span className="text-text">{c.creator}</span></span>}
-                  <span className="ml-auto shrink-0 text-dim">{ago(c.createdAt)}</span>
+                  <span className="ml-auto shrink-0 text-dim"><Ago iso={c.createdAt} /></span>
                 </span>
               </span>
             </button>

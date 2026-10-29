@@ -45,11 +45,11 @@ export default async function TournamentsPage({ searchParams }: { searchParams: 
           <h2 className="mb-6 font-display text-4xl"><span className="chrome">Past</span> <span className="neon-text">champions</span></h2>
           <Stagger className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {data.archive.map((a) => (
-              <Link key={a.id} href={`/tournaments?id=${a.id}`} className="panel neon-frame flex items-center gap-4 p-5 transition hover:-translate-y-1">
+              <Link key={a.id} href={`/tournaments?id=${a.id}`} className="panel neon-frame flex min-w-0 items-center gap-4 p-4 sm:p-5 transition hover:-translate-y-1">
                 <SlotArt name={a.champion_slot ?? "?"} src={a.champion_image} size={64} />
                 <span className="min-w-0">
                   <span className="block truncate text-sm text-muted">{a.title || "Knockout"} · {a.team_size === 2 ? `duo · ${a.max_players} teams` : `${a.max_players} players`}</span>
-                  <span className="flex items-center gap-1.5 truncate font-head text-lg font-bold text-gold"><Crown className="size-4" /> {a.champion ?? "—"}</span>
+                  <span className="flex min-w-0 items-center gap-1.5 font-head text-lg font-bold text-gold"><Crown className="size-4 shrink-0" /><span className="truncate">{a.champion ?? "—"}</span></span>
                   {a.champion_slot && <span className="block truncate text-xs text-dim">{a.champion_slot}</span>}
                 </span>
               </Link>

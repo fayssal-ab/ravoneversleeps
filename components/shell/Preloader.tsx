@@ -7,16 +7,21 @@ import { announceReady } from "./siteReady";
 // neon ring and a progress bar that follows the real loading. It stays until
 // the page, fonts and on-screen images are loaded and decoded so the site
 // appears complete, never popping in. Shown at least MIN_MS so it's always
-// seen, capped at MAX_MS so a slow image never blocks the site. A CSS
+// seen, capped at MAX_MS after navigation start (not after hydration, which
+// is late on slow phones) so a slow image never blocks the site. A CSS
 // failsafe ([data-preloader] in globals.css) hides it even if JS never runs.
 const MIN_MS = 900;
-const MAX_MS = 4500;
+const MAX_MS = 3500;
 
+// Only images inside the viewport on both axes: the home clip strip scrolls
+// sideways, and its off-screen lazy thumbnails never load, which used to hold
+// the screen on "Waking Ravo up…" until the cap.
 function visibleImages(): HTMLImageElement[] {
   return Array.from(document.images).filter((img) => {
     if (img.closest("[data-preloader]")) return false;
+    if (img.loading === "lazy" && !img.complete && !img.currentSrc) return false;
     const r = img.getBoundingClientRect();
-    return r.width > 0 && r.bottom > 0 && r.top < window.innerHeight * 1.2;
+    return r.width > 0 && r.bottom > 0 && r.top < window.innerHeight && r.right > 0 && r.left < window.innerWidth;
   });
 }
 
@@ -76,7 +81,7 @@ export function Preloader() {
       const tick = () => { done++; setPct(Math.min(96, 6 + Math.round((done / total) * 90))); };
       return Promise.all([fonts.then(tick), ...imgs.map((img) => imageReady(img).then(tick))]);
     }).then(finish);
-    timers.push(setTimeout(finish, MAX_MS));
+    timers.push(setTimeout(finish, Math.max(0, MAX_MS - performance.now())));
     return () => {
       timers.forEach(clearTimeout);
       document.documentElement.style.overflow = "";
