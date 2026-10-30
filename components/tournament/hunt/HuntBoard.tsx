@@ -1,8 +1,9 @@
 "use client";
 
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
-import { Crown, Skull, Swords } from "lucide-react";
+import { Skull, Swords } from "lucide-react";
 import { SlotArt } from "@/components/ui/SlotArt";
+import { ChampionShowcase } from "../champion/ChampionShowcase";
 import { AB, CURSES, findMonster, portrait, tierById } from "@/lib/hunt/bestiary.js";
 import { arenaName, money, type Entrant, type HuntState, type Monster, type SlotCall } from "@/lib/hunt/engine";
 
@@ -159,6 +160,15 @@ const AvatarsCtx = createContext<Map<number, string | null>>(new Map());
 export function HuntAvatars({ participants, children }: { participants: { id: number; avatar: string | null }[]; children: React.ReactNode }) {
   const map = useMemo(() => new Map(participants.map((p) => [p.id, p.avatar])), [participants]);
   return <AvatarsCtx.Provider value={map}>{children}</AvatarsCtx.Provider>;
+}
+
+/** What to frame for a Hunt winner: the slot they called last, else their Kick picture. */
+export function useWinnerArt(s: HuntState, eid: number): { name: string; image: string | null } {
+  const pics = useContext(AvatarsCtx);
+  const e = s.ents[eid];
+  const call = (s.reckon?.champ === eid ? s.reckon?.call : null) ?? [...s.fights].reverse().find((f) => f.eid === eid && f.call)?.call ?? null;
+  if (call) return { name: call.name, image: call.image };
+  return { name: e.name, image: e.pids.map((id) => pics.get(id)).find(Boolean) ?? null };
 }
 
 /** Hex avatar: the Kick picture when known (duo: the captain's), else the initials. */
@@ -409,12 +419,18 @@ export function ResultBanner({ s }: { s: HuntState }) {
     <section className="hud hud-lg relative overflow-hidden" style={css({ "--hc": tone })}>
       <div aria-hidden className="rays pointer-events-none absolute left-1/2 top-1/2 -z-[1] size-[900px] -translate-x-1/2 -translate-y-1/2 opacity-20" style={css({ "--rc": tone })} />
       <div className="p-6 text-center">
-        {cult ? <Skull className="mx-auto size-10" style={{ color: tone }} /> : <Crown className="mx-auto size-10 text-gold" />}
-        <span className="hud-tab mt-2" style={css({ "--hc": tone })}>{head[0]}</span>
-        <h2 className="mt-2 break-words font-display text-5xl leading-none sm:text-7xl"><span className={cult ? "text-[#efe9f5]" : "chrome"}>{head[1]}</span></h2>
-        {head[2] && <p className="mt-2 text-sm text-muted">{head[2]}</p>}
-        {(R.type === "champion" || R.type === "legend") && (
-          <p className="mt-3 text-base">Takes home {money(s.cfg.prize)} × {c!.bounty} = <b className="hud-num text-3xl text-gold drop-shadow-[0_0_14px_rgb(245_201_90/0.6)]">{money(R.payout)}</b></p>
+        {c && (R.type === "champion" || R.type === "legend") ? (
+          <>
+            <WinnerShowcase s={s} eid={c.id} legend={R.type === "legend"} />
+            <p className="-mt-2 text-sm text-muted">{head[2] ? `${head[2]} ` : ""}{money(s.cfg.prize)} base × {c.bounty} bounty</p>
+          </>
+        ) : (
+          <>
+            <Skull className="mx-auto size-10" style={{ color: tone }} />
+            <span className="hud-tab mt-2" style={css({ "--hc": tone })}>{head[0]}</span>
+            <h2 className="mt-2 break-words font-display text-5xl leading-none sm:text-7xl"><span className={cult ? "text-[#efe9f5]" : "chrome"}>{head[1]}</span></h2>
+            {head[2] && <p className="mt-2 text-sm text-muted">{head[2]}</p>}
+          </>
         )}
         {(R.type === "fallen" || R.type === "judged") && <p className="mt-3 text-base">{R.payout > 0 ? <>{c!.name} keeps <b className="hud-num text-gold">{money(R.payout)}</b>.</> : "No prize is paid."}</p>}
         <dl className="mx-auto mt-5 grid max-w-3xl grid-cols-2 gap-2 sm:grid-cols-4">
@@ -433,6 +449,13 @@ export function ResultBanner({ s }: { s: HuntState }) {
     </section>
   );
 }
+
+function WinnerShowcase({ s, eid, legend, size }: { s: HuntState; eid: number; legend: boolean; size?: string }) {
+  const art = useWinnerArt(s, eid);
+  return <ChampionShowcase name={s.ents[eid].name} slots={[art]} prize={s.result?.payout ?? null} variant={legend ? "legend" : "champion"} size={size}
+    label={legend ? "LEGEND" : "CHAMPION"} sub={legend ? `Slew ${s.result?.boss}` : "Spared by fate"} />;
+}
+export { WinnerShowcase };
 
 export function EventLog({ s, max = 40 }: { s: HuntState; max?: number }) {
   return (

@@ -1,12 +1,12 @@
 "use client";
 
 import { Crown, Skull, Swords, Users } from "lucide-react";
-import { SlotArt } from "@/components/ui/SlotArt";
 import { SocialIcon } from "@/components/ui/SocialIcon";
 import { KICK_URL } from "@/lib/constants";
 import type { KoParticipant, KoState } from "@/lib/knockout";
 import { FinisherStage, useFinishers } from "./fight/Finishers";
 import { Bracket, ChampionCard, ParticipantRow, VsScreen, teamName } from "./parts";
+import { ChampionShowcase } from "./champion/ChampionShowcase";
 import { useKoState } from "./useKoState";
 import { BossReveal, useBossReveal } from "./reaping/Boss";
 import { EventLog, HuntAvatars, HuntPhase, HuntStats, PhaseBar, RevealOverlay, useHuntReveal } from "./hunt/HuntBoard";
@@ -21,26 +21,9 @@ const STATUS = {
 /** The winner, as one clean banner: slot, name, slot name, prize. */
 function ChampionBanner({ p, prize }: { p: KoParticipant; prize: string | null }) {
   return (
-    <section className="ko-glow relative overflow-hidden rounded-3xl border border-gold/50 bg-gradient-to-r from-gold/15 via-surface to-surface p-5 sm:p-7">
-      <div className="flex flex-col items-center gap-5 text-center sm:flex-row sm:text-left">
-        <div className="relative shrink-0">
-          <SlotArt name={p.slot_name} src={p.slot_image} fluid="clamp(96px, 22vw, 136px)" />
-          <Crown className="absolute -left-3 -top-4 size-9 -rotate-12 text-gold drop-shadow-[0_2px_8px_rgb(0_0_0/0.8)]" />
-        </div>
-        {/* w-full: in the stacked (mobile) layout a centred flex child is only
-            as wide as its text, so long duo names spilled off both sides */}
-        <div className="w-full min-w-0 flex-1 sm:w-auto">
-          <p className="font-head text-xs font-bold uppercase tracking-[0.25em] text-gold">Tournament champion</p>
-          <p className="mt-1 break-words font-head text-2xl font-bold leading-tight text-gold sm:truncate sm:text-4xl">{teamName(p)}</p>
-          <p className="break-words text-sm text-neon sm:truncate sm:text-base">{p.partner ? `${p.slot_name} + ${p.partner.slot_name}` : p.slot_name}<span className="text-dim"> · {p.slot_provider}</span></p>
-        </div>
-        {prize != null && (
-          <div className="shrink-0 rounded-2xl border border-gold/40 bg-bg/60 px-6 py-3 text-center">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-muted">Prize</p>
-            <p className="font-mono text-3xl font-bold text-gold">${Number(prize).toLocaleString("en-US")}</p>
-          </div>
-        )}
-      </div>
+    <section className="hud hud-lg" style={{ ["--hc" as string]: "#f5c95a" }}>
+      <ChampionShowcase name={teamName(p)} slots={[p, ...(p.partner ? [p.partner] : [])].map((m) => ({ name: m.slot_name, image: m.slot_image || null }))}
+        sub={`${p.partner ? `${p.slot_name} + ${p.partner.slot_name}` : p.slot_name}${p.slot_provider ? ` · ${p.slot_provider}` : ""}`} prize={prize != null ? Number(prize) : null} />
     </section>
   );
 }

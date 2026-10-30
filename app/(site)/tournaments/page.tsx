@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Crown, Skull } from "lucide-react";
+import { Skull } from "lucide-react";
+import { Crown3D } from "@/components/tournament/champion/ChampionShowcase";
 import { LiveRefresh } from "@/components/shell/AutoUpdate";
 import { KoPublic } from "@/components/tournament/KoPublic";
 import { EmptyState, PageHeader } from "@/components/ui/bits";
@@ -52,7 +53,7 @@ export default async function TournamentsPage({ searchParams }: { searchParams: 
                   {a.champion_is_boss || (a.mode === "hunt" && !a.champion) ? (
                     <span className="flex min-w-0 items-center gap-1.5 font-head text-lg font-bold text-[#c9a6ff]"><Skull className="size-4 shrink-0" /><span className="truncate">The Cult{a.champion ? ` · ${a.champion}` : " wins"}</span></span>
                   ) : (
-                    <span className="flex min-w-0 items-center gap-1.5 font-head text-lg font-bold text-gold"><Crown className="size-4 shrink-0" /><span className="truncate">{a.champion ?? "—"}</span></span>
+                    <span className="flex min-w-0 items-center gap-1.5 font-head text-lg font-bold text-gold"><Crown3D className="w-6 shrink-0" shine={false} /><span className="truncate">{a.champion ?? "—"}</span></span>
                   )}
                   {a.champion_slot && <span className="block truncate text-xs text-dim">{a.champion_slot}</span>}
                 </span>

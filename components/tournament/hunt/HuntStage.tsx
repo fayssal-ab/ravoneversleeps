@@ -2,13 +2,13 @@
 
 import { animate, motion } from "motion/react";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Crown, Skull } from "lucide-react";
+import { Skull } from "lucide-react";
 import { SlotArt } from "@/components/ui/SlotArt";
 import { AB, findMonster, tierById } from "@/lib/hunt/bestiary.js";
 import { money, type HuntState, type Monster, type Reveal } from "@/lib/hunt/engine";
 import { play, type Sfx } from "../fight/sfx";
 import { ambience, sting, type Stinger } from "./horror";
-import { Avatar, Emblem, Portrait, RANK, tierColor } from "./HuntBoard";
+import { Avatar, Emblem, Portrait, RANK, WinnerShowcase, tierColor } from "./HuntBoard";
 
 // OBS "game" cinematics for the Hunt. Every event the host triggers plays in
 // front of the stream HUD, and each kind has several variants (picked from
@@ -430,15 +430,27 @@ function Finale({ s, at }: { s: HuntState; at: number }) {
           {win ? <span className="block size-[1.6vh] rotate-45" style={{ background: i % 3 ? color : "#8cff4a" }} /> : <Skull className="size-[4vh]" />}
         </motion.span>
       ))}
+      {win && c ? (
+        // mounted only when the finale shows, so its own reveal plays then
+        <Delayed at={at + 0.2}><div className="w-[90vw]"><WinnerShowcase s={s} eid={c.id} legend={R.type === "legend"} size="1.55vh" /></div></Delayed>
+      ) : (
       <motion.div className="relative text-center" initial={{ scale: 0.4, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ delay: at + 0.3, type: "spring", stiffness: 180, damping: 14 }}>
-        {win ? <Crown className="mx-auto size-[14vh] text-gold drop-shadow-[0_0_3vh_#f5c95a]" /> : <Skull className="mx-auto size-[14vh]" style={{ color }} />}
+        <Skull className="mx-auto size-[14vh]" style={{ color }} />
         <p className="font-head text-[3.4vh] font-bold uppercase tracking-[0.3em]" style={{ color }}>{R.type === "legend" ? "Endboss slain · Legend" : R.type === "champion" ? "Champion" : R.type === "judged" ? "Judged" : "The champion fell"}</p>
         <p className="font-display leading-none text-[#f6efe6] [text-shadow:0_1vh_0_#000]" style={{ fontSize: "16vh" }}>{win ? c?.name : "The Cult wins"}</p>
         {win ? <p className="mt-[2vh] font-head text-[4.4vh] font-bold text-[#f1ece4]">takes home <span className="hud-num text-gold">{money(R.payout)}</span></p>
           : R.payout > 0 && c ? <p className="mt-[2vh] font-head text-[3.6vh] text-[#d8d0c6]">{c.name} keeps <span className="hud-num text-gold">{money(R.payout)}</span></p> : null}
       </motion.div>
+      )}
     </motion.div>
   );
+}
+
+/** Renders its children only after `at` seconds (so their entrance animations start then). */
+function Delayed({ at, children }: { at: number; children: React.ReactNode }) {
+  const [on, setOn] = useState(false);
+  useEffect(() => { const id = setTimeout(() => setOn(true), at * 1000); return () => clearTimeout(id); }, [at]);
+  return on ? <>{children}</> : null;
 }
 
 function ArenaSeq({ s, ev, sound, onDone }: { s: HuntState; ev: Reveal; sound: boolean; onDone: () => void }) {

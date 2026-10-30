@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Crown, Skull } from "lucide-react";
+import { Skull } from "lucide-react";
 import { SlotArt } from "@/components/ui/SlotArt";
 import type { KoMatch, KoParticipant } from "@/lib/knockout";
 import { FinisherStage, demoShow, useFinishers } from "./fight/Finishers";
@@ -10,6 +10,7 @@ import { useKoState } from "./useKoState";
 import { tierOf } from "@/lib/reapingTiers";
 import { BossBanner, BossReveal, useBossReveal } from "./reaping/Boss";
 import { HuntAvatars, HuntPhase, HuntStats } from "./hunt/HuntBoard";
+import { ChampionShowcase } from "./champion/ChampionShowcase";
 import { HuntStage } from "./hunt/HuntStage";
 
 // OBS overlay, transparent background. Default: a landscape card with the two
@@ -293,26 +294,13 @@ function VsRow({ match }: { match: KoMatch }) {
 
 function Champion({ p, prize, rollover }: { p: KoParticipant; prize: string | null; rollover: boolean }) {
   if (p.is_boss) {
-    const tier = tierOf(p.boss_tier);
     return (
-      <div className="flex flex-col items-center rounded-[2vh] border-[0.4vh] bg-[radial-gradient(ellipse_at_50%_0%,rgb(176_107_255/0.2),#07050a_70%)] p-[3vh] text-center" style={{ borderColor: tier.color, boxShadow: `0 0 6vh -1vh ${tier.color}` }}>
-        <Skull className="size-[10vh]" style={{ color: tier.color }} />
-        <p className="mt-[1.5vh] font-display text-[12vh] leading-none text-[#efe9f5]">The Cult wins</p>
-        <p className="mt-[1.5vh] font-head text-[4.4vh] font-bold" style={{ color: tier.color }}>{p.username} · {Number(p.boss_target)}x</p>
-        {rollover && prize != null && <p className="mt-[1vh] text-[3.2vh] text-muted">The ${Number(prize).toLocaleString("en-US")} prize rolls over to the next Reaping</p>}
-      </div>
+      <ChampionShowcase size="1.45vh" variant="cult" name="The Cult wins" label="THE CULT" slots={[{ name: p.slot_name, image: p.slot_image || null }]}
+        sub={`${p.username} · ${Number(p.boss_target)}x${rollover && prize != null ? ` · the $${Number(prize).toLocaleString("en-US")} prize rolls over` : ""}`} />
     );
   }
   return (
-    <div className="ko-glow flex flex-col items-center rounded-[2vh] border-[0.3vh] border-gold/60 bg-gradient-to-b from-gold/15 to-transparent p-[2vh] text-center">
-      <Crown className="ko-crown size-[9vh] text-gold" />
-      <div className="mt-[1.5vh] flex gap-[1.4vw]">
-        {(p.partner ? [p, p.partner] : [p]).map((m) => <SlotArt key={m.id} name={m.slot_name} src={m.slot_image} fluid="26vh" />)}
-      </div>
-      <p className="mt-[1.5vh] w-full truncate font-head text-[7vh] font-bold leading-tight text-gold">{teamName(p)}</p>
-      <p className="w-full truncate text-[3.4vh] text-neon">{p.partner ? `${p.slot_name} + ${p.partner.slot_name}` : p.slot_name}</p>
-      <p className="eyebrow mt-[1vh] !text-[3vh] !text-gold">Tournament champion</p>
-      {prize != null && <p className="mt-[0.8vh] font-mono text-[7vh] font-bold leading-none text-gold">${Number(prize).toLocaleString("en-US")}</p>}
-    </div>
+    <ChampionShowcase size="1.45vh" name={teamName(p)} slots={[p, ...(p.partner ? [p.partner] : [])].map((m) => ({ name: m.slot_name, image: m.slot_image || null }))}
+      sub={p.partner ? `${p.slot_name} + ${p.partner.slot_name}` : p.slot_name} prize={prize != null ? Number(prize) : null} />
   );
 }

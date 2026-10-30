@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { useSyncExternalStore } from "react";
-import { Crown, ExternalLink, Skull, Users } from "lucide-react";
+import { ExternalLink, Skull, Users } from "lucide-react";
+import { Crown3D } from "./champion/ChampionShowcase";
 import { SlotArt } from "@/components/ui/SlotArt";
 import type { KoState } from "@/lib/knockout";
 import { teamName } from "./parts";
@@ -31,9 +32,7 @@ export function LastTournament({ state }: { state: KoState }) {
           {champ && !champ.is_boss
             ? <SlotArt name={champ.slot_name} src={champ.slot_image} size={108} rounded="rounded-xl" />
             : <span className="grid size-[108px] place-items-center rounded-xl bg-[#140c1c]"><Skull className="size-12 text-[#c9a6ff]" /></span>}
-          <span className="emblem absolute -right-3 -top-3" style={{ width: 38, ["--hc" as string]: tone }}>
-            {cult ? <Skull className="size-4" /> : <Crown className="size-4" />}
-          </span>
+          <Crown3D variant={cult ? "cult" : "champion"} className="absolute -left-4 -top-6 w-16 -rotate-12 drop-shadow-[0_4px_10px_rgb(0_0_0/0.8)]" />
         </div>
         <div className="min-w-0 flex-1 text-center sm:text-left">
           <span className="hud-tab" style={{ ["--hc" as string]: tone }}>Last tournament · #{t.id}</span>

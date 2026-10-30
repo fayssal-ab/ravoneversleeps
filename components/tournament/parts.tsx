@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
-import { Crown, Skull } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { Skull } from "lucide-react";
 import { SlotArt } from "@/components/ui/SlotArt";
 import type { KoMatch, KoParticipant, KoState } from "@/lib/knockout";
 import { tierOf } from "@/lib/reapingTiers";
 import { BossBanner } from "./reaping/Boss";
+import { ChampionShowcase, Crown3D } from "./champion/ChampionShowcase";
 
 // Tournament presentation shared by the admin dashboard, public page and OBS
 // overlay (logic ported from ONO). Player 1 is the neon side, player 2 the
@@ -314,7 +315,7 @@ function BracketCell({ m, champion }: { m: KoMatch; champion: number | null }) {
         {/* only in the battle a boss took: the same player may have won earlier rounds */}
         {lost && p.reaped && (m.winner_id === m.boss?.id || m.p1?.is_boss || m.p2?.is_boss) && <span className="shrink-0 font-head text-[9px] font-bold uppercase tracking-wider text-[#c9a6ff]">Reaped</span>}
         {res && <span className={`font-mono text-xs ${won ? "font-bold text-gold" : "text-dim"}`}>{p?.is_boss ? `${Number(res)}x` : `x${res}`}</span>}
-        {won && champion === p?.id && <Crown className="size-3.5 text-gold" />}
+        {won && champion === p?.id && <Crown3D className="w-5 shrink-0" shine={false} />}
       </div>
     );
   };
@@ -384,37 +385,25 @@ export function Bracket({ state }: { state: KoState }) {
   );
 }
 
-export function ChampionCard({ p, compact = false, celebrate = false }: { p: KoParticipant | null; compact?: boolean; celebrate?: boolean }) {
-  const bursts = useMemo(() => Array.from({ length: celebrate ? 28 : 0 }, (_, i) => {
-    const a = (i / 28) * Math.PI * 2;
-    return { bx: `${Math.cos(a) * (160 + (i % 4) * 40)}px`, by: `${Math.sin(a) * (120 + (i % 3) * 40)}px`, c: ["var(--color-gold)", "var(--color-neon)", "var(--color-silver)", "var(--color-neon-bright)"][i % 4], d: `${(i % 7) * 0.08}s` };
-  }), [celebrate]);
+export function ChampionCard({ p, compact = false, prize = null }: { p: KoParticipant | null; compact?: boolean; celebrate?: boolean; prize?: number | null }) {
   if (!p) return <div className="w-full rounded-xl border border-dashed border-line p-4 text-center text-sm text-dim">To be crowned</div>;
-  if (p.is_boss) {
-    const tier = tierOf(p.boss_tier);
+  if (compact) {
+    const tone = p.is_boss ? tierOf(p.boss_tier).color : "#f5c95a";
     return (
-      <div className={`relative w-full overflow-hidden rounded-2xl border-2 bg-[radial-gradient(ellipse_at_50%_0%,rgb(176_107_255/0.18),#07050a_70%)] text-center ${compact ? "p-3" : "p-8"}`}
-        style={{ borderColor: tier.color, boxShadow: `0 0 60px -14px ${tier.color}` }}>
-        <Skull className={`mx-auto ${compact ? "size-6" : "size-12"}`} style={{ color: tier.color }} />
-        <p className={`mt-2 font-display leading-none text-[#efe9f5] ${compact ? "text-xl" : "text-4xl md:text-6xl"}`}>The Cult wins</p>
-        <p className={`mt-2 truncate font-head font-bold ${compact ? "text-xs" : "text-xl"}`} style={{ color: tier.color }}>{p.username} · {Number(p.boss_target)}x</p>
-        {!compact && <p className="mt-1 text-sm text-muted">Nobody beat the boss. Nobody sleeps.</p>}
+      <div className="hud hud-sm w-full" style={{ ["--hc" as string]: tone }}>
+        <div className="flex items-center gap-2 p-2">
+          <Crown3D variant={p.is_boss ? "cult" : "champion"} className="w-7 shrink-0" shine={false} />
+          <span className="min-w-0 flex-1 truncate text-left text-xs font-bold" style={{ color: tone }}>{p.is_boss ? `The Cult · ${p.username}` : teamName(p)}</span>
+        </div>
       </div>
     );
   }
-  return (
-    <div className={`ko-glow relative w-full overflow-hidden rounded-2xl border border-gold/50 bg-gradient-to-b from-gold/15 to-transparent text-center ${compact ? "p-3" : "p-8"}`}>
-      {bursts.map((b, i) => (
-        <span key={i} className="ko-burst pointer-events-none absolute left-1/2 top-1/2 size-2 rounded-full"
-          style={{ background: b.c, animationDelay: b.d, ["--bx" as string]: b.bx, ["--by" as string]: b.by }} />
-      ))}
-      <Crown className={`ko-crown mx-auto text-gold ${compact ? "size-6" : "size-12"}`} />
-      <div className={`mx-auto w-fit ${compact ? "mt-2" : "mt-4"}`}><SlotArt name={p.slot_name} src={p.slot_image} size={56} fluid={compact ? undefined : "clamp(96px, 28vw, 170px)"} /></div>
-      <p className={`mt-2 truncate font-head font-bold text-gold ${compact ? "text-base" : "text-3xl md:text-5xl"}`}>{teamName(p)}</p>
-      <p className={`truncate text-neon ${compact ? "text-[11px]" : "text-base md:text-xl"}`}>{p.slot_name}</p>
-      {!compact && <p className="eyebrow mt-3 !text-gold">Tournament champion</p>}
-    </div>
-  );
+  if (p.is_boss) {
+    return <ChampionShowcase variant="cult" name="The Cult wins" label="THE CULT" slots={[{ name: p.slot_name, image: p.slot_image || null }]}
+      sub={`${p.username} · ${Number(p.boss_target)}x · nobody beat the boss`} />;
+  }
+  return <ChampionShowcase name={teamName(p)} slots={[p, ...(p.partner ? [p.partner] : [])].map((m) => ({ name: m.slot_name, image: m.slot_image || null }))}
+    sub={p.partner ? `${p.slot_name} + ${p.partner.slot_name}` : p.slot_name} prize={prize} />;
 }
 
 /** The champion and their prize (only 1st place is awarded). */
@@ -435,17 +424,12 @@ export function Podium({ state, compact = false }: { state: KoState; compact?: b
   if (compact) {
     return (
       <div className="flex w-full items-center gap-2 rounded-lg border border-gold/50 bg-gold/10 p-2">
-        <Crown className="size-4 shrink-0 text-gold" />
+        <Crown3D className="w-6 shrink-0" shine={false} />
         {p && <SlotArt name={p.slot_name} src={p.slot_image} size={28} rounded="rounded-md" />}
         <span className="min-w-0 flex-1 truncate text-xs font-bold text-gold">{p ? teamName(p) : "To be crowned"}</span>
         {amount != null && <span className="font-mono text-[11px] text-dim">${Number(amount).toLocaleString("en-US")}</span>}
       </div>
     );
   }
-  return (
-    <div className="mx-auto max-w-md">
-      <ChampionCard p={p} celebrate />
-      {amount != null && <p className="mt-2 text-center font-mono text-lg text-gold">${Number(amount).toLocaleString("en-US")}</p>}
-    </div>
-  );
+  return <ChampionCard p={p} prize={amount != null ? Number(amount) : null} />;
 }
