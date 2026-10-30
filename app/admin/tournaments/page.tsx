@@ -1,9 +1,10 @@
 import Link from "next/link";
 import { ExternalLink, MonitorPlay } from "lucide-react";
 import { AdminTitle } from "@/components/admin/ui";
+import { KoArchiveAdmin, type ArchiveRow } from "@/components/tournament/KoArchiveAdmin";
 import { KoDashboard } from "@/components/tournament/KoDashboard";
 import { SITE_URL } from "@/lib/constants";
-import { getFeaturedKo, getKoState, type KoState } from "@/lib/knockout";
+import { getFeaturedKo, getKoState, listKoAdmin, type KoState } from "@/lib/knockout";
 import { ensureCatalog } from "@/lib/slots";
 
 export const dynamic = "force-dynamic";
@@ -11,6 +12,7 @@ export const dynamic = "force-dynamic";
 export default async function AdminTournaments() {
   await ensureCatalog();
   let initial: KoState | null = null;
+  const archive: ArchiveRow[] = await listKoAdmin().catch(() => []);
   try {
     const t = await getFeaturedKo();
     initial = t ? await getKoState(t) : null;
@@ -26,6 +28,7 @@ export default async function AdminTournaments() {
         <Link href="/tournaments" target="_blank" className="btn btn-ghost btn-sm"><ExternalLink className="size-4" /> Public page</Link>
       </div>
       <KoDashboard initial={initial} overlayUrl={`${SITE_URL.replace(/\/$/, "")}/overlay/tournament`} />
+      <KoArchiveAdmin rows={archive} />
     </>
   );
 }

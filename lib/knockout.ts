@@ -178,6 +178,29 @@ export async function getFeaturedKo(): Promise<KoTournament | null> {
   return rows[0] ? toT(rows[0]) : null;
 }
 
+/** Admin archive: every tournament with its player count and champion, newest first. */
+export async function listKoAdmin(): Promise<{ id: number; title: string; status: string; mode: string; max_players: number; team_size: number; created: string; players: number; champion: string | null }[]> {
+  await ensureKoSchema();
+  const [rows] = await getPool().query<RowDataPacket[]>(`
+    SELECT t.id, t.title, t.status, t.mode, t.max_players, t.team_size, DATE_FORMAT(t.created_at, '%Y-%m-%dT%H:%i:%sZ') AS created,
+      (SELECT COUNT(*) FROM ko_participants p WHERE p.tournament_id = t.id AND p.is_boss = 0) AS players,
+      (SELECT username FROM ko_participants p WHERE p.id = t.champion_id) AS champion
+    FROM ko_tournaments t ORDER BY t.id DESC`);
+  return rows.map((r) => ({ id: Number(r.id), title: String(r.title), status: String(r.status), mode: String(r.mode ?? "classic"), max_players: Number(r.max_players), team_size: Number(r.team_size ?? 1), created: String(r.created), players: Number(r.players), champion: r.champion ?? null }));
+}
+
+/** Admin: delete a finished or cancelled tournament for good (players, battles and boss rolls go with it). */
+export async function deleteKo(id: number): Promise<void> {
+  await withTx(async (conn) => {
+    const t = await lockKo(conn, id);
+    if (t.status === "open" || t.status === "closed") throw new AppError("ko_running", "reset it first, a running tournament can't be deleted");
+    await conn.query("DELETE FROM ko_boss_rolls WHERE tournament_id = ?", [id]);
+    await conn.query("DELETE FROM ko_matches WHERE tournament_id = ?", [id]);
+    await conn.query("DELETE FROM ko_participants WHERE tournament_id = ?", [id]);
+    await conn.query("DELETE FROM ko_tournaments WHERE id = ?", [id]);
+  });
+}
+
 export async function getKoById(id: number): Promise<KoTournament | null> {
   await ensureKoSchema();
   const [rows] = await getPool().query<RowDataPacket[]>(`SELECT ${T_COLS} FROM ko_tournaments WHERE id = ?`, [id]);

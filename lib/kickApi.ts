@@ -36,7 +36,13 @@ async function kick<T>(path: string, init: RequestInit = {}): Promise<T> {
     headers: { Authorization: `Bearer ${await appToken()}`, "Content-Type": "application/json", ...init.headers },
     cache: "no-store", signal: AbortSignal.timeout(8000),
   });
-  if (!res.ok) throw new Error(`kick_api_${res.status}`);
+  if (!res.ok) {
+    // keep Kick's own reason: the dashboard shows it next to the webhook status
+    const body = await res.text().catch(() => "");
+    let why = body;
+    try { const j = JSON.parse(body) as { message?: string; error?: string }; why = j.message || j.error || body; } catch { /* plain text */ }
+    throw new Error(`kick_api_${res.status}${why ? `: ${why.replace(/\s+/g, " ").slice(0, 200)}` : ""}`);
+  }
   return (await res.json()) as T;
 }
 

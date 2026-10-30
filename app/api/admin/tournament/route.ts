@@ -6,7 +6,7 @@ import { ERROR_TEXT } from "@/lib/errors";
 import { isSameOrigin, json, jsonError } from "@/lib/http";
 import {
   addPlayerManually, cancelRoll, closeRegistration, confirmRoll, createKo, disqualifyPlayer, ensureKoSchema, focusNext, makeTeams, openRegistration,
-  playNext, recordBattleResult, resetKo, respinBoss, rollBoss, saveBonus, rollPlayers, startBattle, undoTeams,
+  deleteKo, playNext, recordBattleResult, resetKo, respinBoss, rollBoss, saveBonus, rollPlayers, startBattle, undoTeams,
 } from "@/lib/knockout";
 import { ensureChatSubscription } from "@/lib/kickApi";
 import { huntAction, type HuntOp } from "@/lib/hunt/store";
@@ -39,7 +39,7 @@ const Body = z.discriminatedUnion("action", [
     index: z.number().int().min(0).max(63).optional(), p: Money.optional(), b: Money.optional(), on: z.boolean().optional(),
     slot: z.string().trim().min(2).max(80).optional(),
   }),
-  z.object({ action: z.enum(["open", "close", "reset", "roll", "confirm", "cancel_roll", "start", "next", "make_teams", "undo_teams", "play", "boss_roll", "boss_respin"]), id: Id }),
+  z.object({ action: z.enum(["open", "close", "reset", "roll", "confirm", "cancel_roll", "start", "next", "make_teams", "undo_teams", "play", "boss_roll", "boss_respin", "delete"]), id: Id }),
   // a side facing a boss in the bracket has no bonus, so p1 / p2 are each optional (checked server-side)
   z.object({ action: z.literal("result"), id: Id, matchId: z.number().int().positive(), p1: Bonus.optional(), p2: Bonus.optional(), p1b: Bonus.optional(), p2b: Bonus.optional() }),
   z.object({ action: z.literal("bonus"), id: Id, matchId: z.number().int().positive(), key: z.enum(["p1", "p1b", "p2", "p2b"]), bonus: Bonus }),
@@ -98,6 +98,7 @@ export async function POST(request: Request) {
       case "next": result = { matchId: await focusNext(body.id) }; break;
       case "result": result = await recordBattleResult(body.id, body.matchId, body.p1, body.p2, { p1b: body.p1b, p2b: body.p2b }); break;
       case "boss_roll": result = await rollBoss(body.id); break;
+      case "delete": await deleteKo(body.id); break;
       case "boss_respin": result = await respinBoss(body.id); break;
       case "bonus": await saveBonus(body.id, body.matchId, body.key, body.bonus); break;
       case "make_teams": result = await makeTeams(body.id); break;
