@@ -114,7 +114,7 @@ export function KoOverlay({ wide = false, mute = false, demo = false }: { wide?:
               <VsRow key={`${focus.id}-${focus.status}-${focus.winner_id}`} match={focus} />
             )
           ) : (
-            <Join players={state.participants.filter((p) => !p.disqualified)} capacity={state.capacity} open={t.status === "open"} />
+            <Join players={state.participants.filter((p) => !p.disqualified)} capacity={state.capacity} open={t.status === "open"} noSlot={t.mode === "hunt"} />
           )}
         </div>
       </div>
@@ -124,10 +124,10 @@ export function KoOverlay({ wide = false, mute = false, demo = false }: { wide?:
 
 /**
  * Registration: what to type on the left, and every seat on the right (Kick
- * avatar, name, slot), filling up as people join. Sized from the viewport so
+ * avatar, name, slot; no slot in the Hunt: plain !join), filling up as people join. Sized from the viewport so
  * it stays readable on a small stream source.
  */
-function Join({ players, capacity, open }: { players: KoParticipant[]; capacity: number; open: boolean }) {
+function Join({ players, capacity, open, noSlot = false }: { players: KoParticipant[]; capacity: number; open: boolean; noSlot?: boolean }) {
   const registered = players.length;
   const full = registered >= capacity;
   const status = open
@@ -157,7 +157,7 @@ function Join({ players, capacity, open }: { players: KoParticipant[]; capacity:
             <KickAvatar name={p.username} src={p.avatar} size={avatar} />
             <span className="min-w-0 flex-1">
               <span className="block truncate font-head font-bold leading-tight" style={{ fontSize: `${Math.min(cell * (big ? 0.36 : 0.3), 4.2)}vh` }}>{p.username}</span>
-              {rows <= 8 && cols === 2 && (
+              {!noSlot && rows <= 8 && cols === 2 && (
                 <span className="block truncate leading-tight text-neon" style={{ fontSize: `${Math.min(cell * 0.22, 3)}vh` }}>{p.slot_name}</span>
               )}
             </span>

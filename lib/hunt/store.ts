@@ -97,7 +97,7 @@ export async function huntAction(id: number, a: HuntOp): Promise<{ seq: number; 
               by = String(me[0].username);
             }
             if (eid == null || !s.ents[eid]?.alive) throw new AppError("hunt_not_player");
-            callSlot(s, eid, { ...a.call, by });
+            callSlot(s, eid, { ...a.call, by }, a.kickUserId == null);
             break;
           }
         }

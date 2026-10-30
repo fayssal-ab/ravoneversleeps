@@ -9,7 +9,7 @@ import { Bracket, ChampionCard, ParticipantRow, VsScreen, teamName } from "./par
 import { ChampionShowcase } from "./champion/ChampionShowcase";
 import { useKoState } from "./useKoState";
 import { BossReveal, useBossReveal } from "./reaping/Boss";
-import { EventLog, HuntAvatars, HuntPhase, HuntStats, PhaseBar, RevealOverlay, useHuntReveal } from "./hunt/HuntBoard";
+import { Bestiary, EventLog, HuntAvatars, HuntPhase, HuntStats, PhaseBar, RevealOverlay, useHuntReveal } from "./hunt/HuntBoard";
 
 const STATUS = {
   open: { label: "Registration open", tone: "border-neon/60 bg-neon/10 text-neon", dot: "bg-neon animate-pulse" },
@@ -106,6 +106,7 @@ export function KoPublic({ initial, id }: { initial: KoState; id?: number }) {
           <HuntStats s={s.hunt} />
           <section className="panel p-4 sm:p-6"><HuntPhase s={s.hunt} /></section>
           <EventLog s={s.hunt} max={25} />
+          <Bestiary s={s.hunt} />
         </HuntAvatars>
       ) : t.mode === "hunt" ? null : s.champion?.is_boss ? (
         <section className="mx-auto max-w-xl">

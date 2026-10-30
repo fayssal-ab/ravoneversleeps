@@ -20,7 +20,7 @@ export function LastTournament({ state }: { state: KoState }) {
   const champ = state.champion;
   const cult = !champ || champ.is_boss;
   const hunt = state.hunt?.result ?? null;
-  const prize = hunt ? hunt.payout : t.prize_1 != null ? Number(t.prize_1) : null;
+  const prize = hunt ? hunt.total ?? hunt.payout : t.prize_1 != null ? Number(t.prize_1) : null;
   const tone = cult ? "#b36bff" : "#f5c95a";
   // a Date from the server render, an ISO string from the poll, or a bare UTC "YYYY-MM-DD HH:MM:SS"
   const raw = t.finished_at as unknown;

@@ -4,7 +4,7 @@
 // a normal tab stays silent until it has had a click.
 
 let ctx: AudioContext | null = null;
-function ac(): AudioContext | null {
+export function ac(): AudioContext | null {
   if (typeof window === "undefined") return null;
   try {
     ctx ??= new AudioContext();
@@ -15,7 +15,7 @@ function ac(): AudioContext | null {
   }
 }
 
-function noiseBuf(c: AudioContext, seconds: number) {
+export function noiseBuf(c: AudioContext, seconds: number) {
   const b = c.createBuffer(1, Math.ceil(c.sampleRate * seconds), c.sampleRate);
   const d = b.getChannelData(0);
   for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
@@ -51,7 +51,7 @@ function noise(c: AudioContext, out: AudioNode, at: number, dur: number, type: B
 }
 
 let master: GainNode | null = null;
-function bus(c: AudioContext) { master ??= gain(c, 0.9, c.destination); return master; }
+export function bus(c: AudioContext) { master ??= gain(c, 0.9, c.destination); return master; }
 
 export type Stinger = "toll" | "riser" | "growl" | "shriek" | "choir" | "heartbeat" | "shatter" | "burn" | "whisper" | "slam" | "doom";
 

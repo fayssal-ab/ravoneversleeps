@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { randomInt } from "node:crypto";
 import {
-  arenaFight, bossFight, callSlot, createHunt, fight, judge, revealFate, spawnAll, spawnNext, summonEndboss, validWeights,
+  arenaFight, bossFight, callSlot, chatPicks, createHunt, fight, judge, revealFate, spawnAll, spawnNext, summonEndboss, validWeights,
   type HuntConfig, type HuntState, type Monster,
 } from "../lib/hunt/engine";
 
@@ -192,4 +192,40 @@ test("!call: only against a waiting monster, kept on the fight; events queue eve
   const kinds = s.events!.map((e) => e.kind);
   assert.deepEqual(kinds.slice(-6), ["call", "fight", "fight", "fate", "endboss", "call"]);
   assert.ok(s.events!.every((e, i, a) => i === 0 || e.seq > a[i - 1].seq));
+});
+
+test("chat-picks fights: the player's !call is refused, the host enters chat's pick", () => {
+  const s = createHunt(cfg(), players(4), (n) => randomInt(n));
+  s.phase = "hunt";
+  s.fights = [{ eid: 0, monster: { tier: "Minion", name: "Nibbles the Grave Rat", price: 50, abOn: false, curse: "blind", revived: false, prebuy: false, secret: false, bounty: 1 }, done: false, won: null, verdict: null, keep: null }];
+  assert.equal(chatPicks(s.fights[0].monster), true);
+  assert.throws(() => callSlot(s, 0, { name: "Sugar Rush", provider: "", image: null, by: "p0" }), /hunt_chat_picks/);
+  callSlot(s, 0, { name: "Sugar Rush", provider: "", image: null, by: "Host" }, true);
+  assert.equal(s.fights[0].call?.by, "Chat");
+  s.fights[0].monster!.curse = null; s.fights[0].call = null;
+  callSlot(s, 0, { name: "Big Bass", provider: "", image: null, by: "p0" });
+  assert.equal((s.fights[0] as { call?: { by: string } | null }).call?.by, "p0");
+});
+
+test("top 3 paid: champion, Arena final loser, the round before, each base × own bounty", () => {
+  const s = createHunt(cfg({ prize: 300, chance: 0 }), players(4), (n) => randomInt(n));
+  s.phase = "hunt"; s.fights = [];
+  s.ents.forEach((e, i) => { e.bounty = [1, 2, 3, 5][i]; });
+  s.phase = "arena"; s.arena = { rounds: [] };
+  s.arena.rounds.push({ ms: [{ a: 0, b: 1, price: 100, va: null, vb: null, done: false, winner: null, tie: false }, { a: 2, b: 3, price: 100, va: null, vb: null, done: false, winner: null, tie: false }], bye: null });
+  const rand = (n: number) => randomInt(n);
+  arenaFight(s, 0, 500, 100, rand); // 0 beats 1
+  arenaFight(s, 1, 100, 500, rand); // 3 beats 2
+  const fi = s.arena.rounds[1].ms.findIndex((m) => !m.done);
+  const m = s.arena.rounds[1].ms[fi];
+  arenaFight(s, fi, m.a === 3 ? 900 : 100, m.a === 3 ? 100 : 900, rand); // 3 wins the Arena
+  revealFate(s, rand); // chance 0: spared
+  const R = s.result!;
+  assert.equal(R.type, "champion");
+  const by = Object.fromEntries(R.podium!.map((p) => [p.eid, [p.place, p.payout]]));
+  assert.deepEqual(by[3], [1, 1500]);
+  assert.deepEqual(by[0], [2, 300]);
+  assert.deepEqual(by[1], [3, 600]);
+  assert.deepEqual(by[2], [3, 900]);
+  assert.equal(R.total, 3300);
 });

@@ -5,7 +5,7 @@ import { Ghost, Skull, UserPlus } from "lucide-react";
 import type { KoParticipant, KoState } from "@/lib/knockout";
 import { money } from "@/lib/hunt/engine";
 import { Counter, ParticipantRow } from "../parts";
-import { EventLog, HuntAvatars, HuntPhase, HuntStats, PhaseBar, RevealOverlay, useHuntReveal, type HuntAdmin } from "./HuntBoard";
+import { Bestiary, EventLog, HuntAvatars, HuntPhase, HuntStats, PhaseBar, RevealOverlay, useHuntReveal, type HuntAdmin } from "./HuntBoard";
 
 // Admin control room for "The Reaping · Hunt". Every button is a server call
 // (lib/hunt/store.ts); the dashboard only shows the saved game.
@@ -65,7 +65,7 @@ export function HuntDashboard({ state, act, busy, msg, reader, chat, onDisqualif
             {setup && (
               <p className="text-sm text-muted">
                 {setup.waves} monster wave{setup.waves === 1 ? "" : "s"} · Endboss chance {setup.chance}%
-                {setup.weights && <> · ranks: easy {setup.weights.Fodder + setup.weights.Minion}% · medium {setup.weights.Brute}% · hard {setup.weights.Warlord}% · nightmare {setup.weights.Overlord}%</>} · base prize <b className="font-mono text-gold">{money(Number(t.prize_1 ?? 0))}</b> (× the best bounty) · if the Endboss wins: {setup.fall === "half" ? "the champion keeps 50%" : "nothing"}
+                {setup.weights && <> · odds: Fodder {setup.weights.Fodder}% · Minion {setup.weights.Minion}% · Brute {setup.weights.Brute}% · Warlord {setup.weights.Warlord}% · Overlord {setup.weights.Overlord}%</>} · base prize <b className="font-mono text-gold">{money(Number(t.prize_1 ?? 0))}</b> (× the best bounty) · if the Endboss wins: {setup.fall === "half" ? "the champion keeps 50%" : "nothing"}
               </p>
             )}
             <div className="flex flex-col items-center gap-2 pt-2">
@@ -128,6 +128,7 @@ export function HuntDashboard({ state, act, busy, msg, reader, chat, onDisqualif
             <EventLog s={s} />
             {chat && <div className="panel p-4">{chat}</div>}
           </div>
+          <Bestiary s={s} />
         </>
       )}
     </div>

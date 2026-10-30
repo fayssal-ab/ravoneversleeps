@@ -5,10 +5,11 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Skull } from "lucide-react";
 import { SlotArt } from "@/components/ui/SlotArt";
 import { AB, findMonster, tierById } from "@/lib/hunt/bestiary.js";
-import { money, type HuntState, type Monster, type Reveal } from "@/lib/hunt/engine";
+import { chatPicks, money, type HuntState, type Monster, type Reveal } from "@/lib/hunt/engine";
 import { play, type Sfx } from "../fight/sfx";
-import { ambience, sting, type Stinger } from "./horror";
-import { Avatar, Emblem, Portrait, RANK, WinnerShowcase, tierColor } from "./HuntBoard";
+import { sting, type Stinger } from "./horror";
+import { scoreHit, scoreMood, scoreResume, startScore, type Mood } from "./score";
+import { Avatar, Emblem, Podium, Portrait, RANK, WinnerShowcase, tierColor } from "./HuntBoard";
 
 // OBS "game" cinematics for the Hunt. Every event the host triggers plays in
 // front of the stream HUD, and each kind has several variants (picked from
@@ -18,7 +19,7 @@ import { Avatar, Emblem, Portrait, RANK, WinnerShowcase, tierColor } from "./Hun
 //   slain   → slash · shatter · banish (burn)
 //   reaped  → scythe · devour (jaws) · consume (soul drain)
 //   Arena   → K.O. · OVERKILL (big margin) · PHOTO FINISH (coin flip)
-// with horror stingers on top of a low ambience bed. Events queue, so a host
+// with horror stingers on top of an adaptive soundtrack (score.ts). Events queue, so a host
 // faster than the poll never skips one. Sizes are in vh: any OBS source works.
 
 type Look = { n: string; t?: string; l?: string; s?: string; ab?: string };
@@ -53,13 +54,14 @@ function useTimeline(done: () => void, ms: number) {
   useEffect(() => { cb.current = done; }, [done]);
   useEffect(() => { const id = setTimeout(() => cb.current(), ms); return () => clearTimeout(id); }, [ms]);
 }
-type Cue = [number, Sfx | Stinger];
+type Cue = [number, Sfx | Stinger | "m:win" | "m:loss" | "m:end"];
 const STINGERS = new Set<string>(["toll", "riser", "growl", "shriek", "choir", "heartbeat", "shatter", "burn", "whisper", "slam", "doom"]);
 function useSound(sound: boolean, cues: Cue[]) {
   const key = cues.map((c) => c.join(":")).join("|");
   useEffect(() => {
     if (!sound) return;
-    const ids = cues.map(([at, name]) => setTimeout(() => (STINGERS.has(name) ? sting(name as Stinger) : play(name as Sfx)), Math.max(0, at)));
+    const fire = (name: Cue[1]) => (name === "m:win" ? scoreHit("win") : name === "m:loss" ? scoreHit("loss") : name === "m:end" ? scoreHit("end") : STINGERS.has(name) ? sting(name as Stinger) : play(name as Sfx));
+    const ids = cues.map(([at, name]) => setTimeout(() => fire(name), Math.max(0, at)));
     return () => ids.forEach(clearTimeout);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sound, key]);
@@ -325,7 +327,7 @@ function SpawnSeq({ s, ev, sound, onDone, endboss = false }: { s: HuntState; ev:
             hunts <span className="text-neon">{target.name}</span>
           </motion.p>
           <div className="mt-[2vh] grid max-w-[70vh] grid-cols-3 gap-[1vh]">
-            {[["Bonus buy", money(m.price)], ["Slot", m.secret ? "∞" : m.curse === "blind" ? "Chat picks" : def?.s ?? ""], ["Bounty", m.bounty > 1 ? `×${m.bounty}` : "none"]].map(([l, v], i) => (
+            {[["Bonus buy", money(m.price)], ["Slot", m.secret ? "∞" : chatPicks(m) ? "Chat picks" : def?.s ?? ""], ["Bounty", m.bounty > 1 ? `×${m.bounty}` : "none"]].map(([l, v], i) => (
               <motion.div key={l} className="hud hud-sm" style={css({ "--hc": "rgb(255 255 255 / 0.18)" })} initial={{ y: 30, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ delay: T + 1.5 + i * 0.12 }}>
                 <div className="p-[1.2vh]"><p className="font-head text-[1.6vh] uppercase tracking-[0.2em] text-dim">{l}</p><p className={`truncate font-bold ${l === "Slot" ? "text-[2.6vh]" : "hud-num text-[3.6vh] text-gold"}`}>{v}</p></div>
               </motion.div>
@@ -366,11 +368,12 @@ function FightSeq({ s, ev, sound, onDone, duel = false }: { s: HuntState; ev: Re
   const finale = Boolean(duel && s.result && v && v.out !== "rematch" && v.out !== "revive");
   const win = WIN_MOVES[pick(ev.seq, 3, 1)], loss = LOSS_MOVES[pick(ev.seq, 3, 2)];
   const cues: Cue[] = [[300, "whoosh"], [900, "clash"], [HIT * 1000 - 1600, "heartbeat"]];
-  if (v?.out === "p") cues.push([HIT * 1000, win.cue], [HIT * 1000 + 50, "impact"]);
-  else if (v?.out === "b") for (const [d, n] of loss.cues) cues.push([HIT * 1000 + d, n]);
+  if (v?.out === "p") cues.push([HIT * 1000, win.cue], [HIT * 1000 + 50, "impact"], [HIT * 1000 + 100, "m:win"]);
+  else if (v?.out === "b") { for (const [d, n] of loss.cues) cues.push([HIT * 1000 + d, n]); cues.push([HIT * 1000 + 100, "m:loss"]); }
   else cues.push([HIT * 1000, "impact"], [HIT * 1000 + 200, "riser"]);
-  if (finale) cues.push([HIT * 1000 + 3600, s.result!.type === "legend" || s.result!.type === "champion" ? "fanfare" : "doom"]);
-  useTimeline(onDone, finale ? 13800 : 8600);
+  if (finale) cues.push([HIT * 1000 + 3000, "m:end"], [HIT * 1000 + 3600, s.result!.type === "legend" || s.result!.type === "champion" ? "fanfare" : "doom"]);
+  // the finale holds longer when 2nd / 3rd are paid too (their prizes follow the winner)
+  useTimeline(onDone, finale ? ((s.result?.podium?.length ?? 0) > 1 ? 20000 : 13800) : 8600);
   useSound(sound, cues);
   if (!m || !v || !e) { onDone(); return null; }
   const tier = m.secret ? "Secret" : m.tier;
@@ -432,7 +435,19 @@ function Finale({ s, at }: { s: HuntState; at: number }) {
       ))}
       {win && c ? (
         // mounted only when the finale shows, so its own reveal plays then
-        <Delayed at={at + 0.2}><div className="w-[90vw]"><WinnerShowcase s={s} eid={c.id} legend={R.type === "legend"} size="1.55vh" /></div></Delayed>
+        <>
+          <Delayed at={at + 0.2}><div className="w-[90vw]"><WinnerShowcase s={s} eid={c.id} legend={R.type === "legend"} size="1.55vh" /></div></Delayed>
+          {(R.podium?.length ?? 0) > 1 && (
+            <Delayed at={at + 6.5}>
+              <motion.div className="absolute inset-0 z-10 grid place-items-center bg-[radial-gradient(circle,#2a1f0a,#050403_70%)]" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.5 }}>
+                <div className="w-[80vw] text-center">
+                  <p className="mb-[2vh] font-display text-[9vh] leading-none text-[#f6efe6] [text-shadow:0_1vh_0_#000]">The prizes</p>
+                  <Podium s={s} big />
+                </div>
+              </motion.div>
+            </Delayed>
+          )}
+        </>
       ) : (
       <motion.div className="relative text-center" initial={{ scale: 0.4, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ delay: at + 0.3, type: "spring", stiffness: 180, damping: 14 }}>
         <Skull className="mx-auto size-[14vh]" style={{ color }} />
@@ -440,6 +455,7 @@ function Finale({ s, at }: { s: HuntState; at: number }) {
         <p className="font-display leading-none text-[#f6efe6] [text-shadow:0_1vh_0_#000]" style={{ fontSize: "16vh" }}>{win ? c?.name : "The Cult wins"}</p>
         {win ? <p className="mt-[2vh] font-head text-[4.4vh] font-bold text-[#f1ece4]">takes home <span className="hud-num text-gold">{money(R.payout)}</span></p>
           : R.payout > 0 && c ? <p className="mt-[2vh] font-head text-[3.6vh] text-[#d8d0c6]">{c.name} keeps <span className="hud-num text-gold">{money(R.payout)}</span></p> : null}
+        {(R.podium?.length ?? 0) > 1 && <div className="mt-[3vh]"><Podium s={s} big /></div>}
       </motion.div>
       )}
     </motion.div>
@@ -459,7 +475,7 @@ function ArenaSeq({ s, ev, sound, onDone }: { s: HuntState; ev: Reveal; sound: b
   const big = m?.va != null && m.vb != null && Math.max(m.va, m.vb) >= 3 * Math.max(1, Math.min(m.va, m.vb));
   const kind: { text: string; move: Move } = m?.tie ? { text: "Photo finish", move: "slash" } : big ? { text: "Overkill", move: "shatter" } : { text: "K.O.", move: (["slash", "burn"] as Move[])[pick(ev.seq, 2, 4)] };
   useTimeline(onDone, 7400);
-  useSound(sound, [[300, "whoosh"], [800, "clash"], [HIT * 1000 - 1500, "heartbeat"], [HIT * 1000, kind.move === "shatter" ? "shatter" : kind.move === "burn" ? "burn" : "ko"], [HIT * 1000 + 60, "impact"]]);
+  useSound(sound, [[300, "whoosh"], [800, "clash"], [HIT * 1000 - 1500, "heartbeat"], [HIT * 1000, kind.move === "shatter" ? "shatter" : kind.move === "burn" ? "burn" : "ko"], [HIT * 1000 + 60, "impact"], [HIT * 1000 + 100, "m:win"]]);
   if (!m?.done || m.va == null || m.vb == null) { onDone(); return null; }
   const A = s.ents[m.a], B = s.ents[m.b];
   const max = Math.max(m.va, m.vb, 1);
@@ -527,10 +543,18 @@ function CallToast({ s, fight, sound, onDone }: { s: HuntState; fight: number | 
   );
 }
 
-/** Plays queued Hunt events full screen over the stream HUD, on a horror ambience bed. */
+/** Plays queued Hunt events full screen over the stream HUD, on an adaptive soundtrack (score.ts). */
 export function HuntStage({ s, sound = true, bed = true }: { s: HuntState; sound?: boolean; bed?: boolean }) {
   const { current, next } = useStageQueue(s);
-  useEffect(() => (sound && bed ? ambience() : undefined), [sound, bed]);
+  useEffect(() => (sound && bed ? startScore() : undefined), [sound, bed]);
+  // the music follows the game: the phase, harder while a fight plays, silent once it's over
+  const kind = current?.kind ?? null;
+  const mood: Mood = kind === "duel" || kind === "endboss" || kind === "fate" ? "boss"
+    : kind === "fight" || kind === "spawn" ? "fight"
+    : kind === "arena" ? "arena"
+    : s.phase === "done" ? "silent" : s.phase === "arena" ? "arena" : s.phase === "reckon" ? "boss" : "hunt";
+  useEffect(() => { scoreMood(mood); }, [mood]);
+  useEffect(() => { if (s.phase === "done") { if (!kind) scoreHit("end"); } else scoreResume(); }, [s.phase, kind]);
   if (!current) return null;
   if (current.kind === "call") return <CallToast key={current.seq} s={s} fight={current.fight} sound={sound} onDone={next} />;
   let seq: React.ReactNode = null;

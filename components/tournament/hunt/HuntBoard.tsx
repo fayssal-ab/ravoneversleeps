@@ -4,8 +4,8 @@ import { createContext, useContext, useEffect, useMemo, useState } from "react";
 import { Skull, Swords } from "lucide-react";
 import { SlotArt } from "@/components/ui/SlotArt";
 import { ChampionShowcase } from "../champion/ChampionShowcase";
-import { AB, CURSES, findMonster, portrait, tierById } from "@/lib/hunt/bestiary.js";
-import { arenaName, money, type Entrant, type HuntState, type Monster, type SlotCall } from "@/lib/hunt/engine";
+import { AB, ANGEL, ANGEL_ODDS, CURSE_CHANCE, CURSES, END, ENDBOSSES, HUNT, findMonster, portrait, tierById } from "@/lib/hunt/bestiary.js";
+import { arenaName, chatPicks, DEFAULT_WEIGHTS, money, type Entrant, type HuntState, type Monster, type SlotCall } from "@/lib/hunt/engine";
 
 // "The Reaping · Hunt" views shared by the admin dashboard (with inputs),
 // the public page and the OBS overlay (read-only). Game HUD look (.hud
@@ -13,7 +13,7 @@ import { arenaName, money, type Entrant, type HuntState, type Monster, type Slot
 // hex rank emblems, segmented meters, bestiary portraits.
 
 type Look = { n: string; t?: string; l?: string; s?: string; ab?: string };
-type Info = { name: string; desc: string; boon?: boolean };
+type Info = { name: string; desc: string; boon?: boolean; clutch?: number; f?: unknown };
 const ABI = AB as unknown as Record<string, Info>;
 const CUR = CURSES as unknown as Record<string, Info>;
 const look = (name: string) => findMonster(name) as Look | null;
@@ -68,8 +68,8 @@ function AbilityBox({ m }: { m: Monster }) {
 }
 
 /** The called slot (`!call`), or a hint to call one. */
-function CallLine({ call, big = false }: { call?: SlotCall | null; big?: boolean }) {
-  if (!call) return <p className={`font-head uppercase tracking-[0.14em] text-dim ${big ? "text-sm" : "text-[10px]"}`}>Waiting for <span className="text-neon">!call &lt;slot&gt;</span></p>;
+function CallLine({ call, big = false, chat = false }: { call?: SlotCall | null; big?: boolean; chat?: boolean }) {
+  if (!call) return <p className={`font-head uppercase tracking-[0.14em] text-dim ${big ? "text-sm" : "text-[10px]"}`}>{chat ? <><span className="text-[#b36bff]">Chat picks the slot</span> · host enters it</> : <>Waiting for <span className="text-neon">!call &lt;slot&gt;</span></>}</p>;
   return (
     <div className="flex min-w-0 items-center gap-2">
       <SlotArt name={call.name} src={call.image} size={big ? 44 : 26} rounded="rounded-md" />
@@ -100,7 +100,7 @@ export function MonsterCard({ m, line, big = false }: { m: Monster; line?: strin
         {def?.t && <p className="-mt-1 font-head text-[11px] uppercase tracking-[0.18em] text-dim">{def.t}</p>}
         {def?.l && <p className="text-sm italic text-muted">“{def.l}”</p>}
         <dl className="grid w-full grid-cols-3 gap-1.5">
-          {[["Bonus buy", money(m.price), "text-gold"], ["Slot", m.secret ? "∞" : m.curse === "blind" ? "Chat picks" : def?.s ?? "", "text-text"], ["Bounty", m.bounty > 1 ? `×${m.bounty}` : "none", "text-gold"]].map(([l, v, tone]) => (
+          {[["Bonus buy", money(m.price), "text-gold"], ["Slot", m.secret ? "∞" : chatPicks(m) ? "Chat picks" : def?.s ?? "", "text-text"], ["Bounty", m.bounty > 1 ? `×${m.bounty}` : "none", "text-gold"]].map(([l, v, tone]) => (
             <div key={l} className="hud hud-sm p-2" style={css({ "--hc": "rgb(255 255 255 / 0.12)" })}>
               <dt className="font-head text-[9px] uppercase tracking-[0.18em] text-dim">{l}</dt>
               <dd className={`truncate font-semibold ${l === "Slot" ? "text-sm" : "hud-num text-base"} ${tone}`}>{v}</dd>
@@ -267,7 +267,7 @@ export function HuntGrid({ s, admin, compact = false }: { s: HuntState; admin?: 
                     <Portrait name={m.name} tier={m.tier} size={compact ? 54 : 64} />
                     <div className="min-w-0 flex-1 text-sm">
                       <span className="flex items-center gap-1.5"><Emblem tier={m.secret ? "Secret" : m.tier} size={18} /><b className="truncate">{m.name}</b></span>
-                      <span className="block truncate text-[11px] text-dim">{m.secret ? "∞" : m.curse === "blind" ? "Chat picks the slot" : `plays ${def?.s}`}</span>
+                      <span className="block truncate text-[11px] text-dim">{m.secret ? "∞" : chatPicks(m) ? "Chat picks the slot" : `plays ${def?.s}`}</span>
                       <span className="text-xs">Buy <b className="hud-num text-gold">{money(m.price)}</b></span>
                       {(m.abOn || m.curse) && !m.secret && (
                         <span className="mt-1 flex flex-wrap gap-1">
@@ -278,7 +278,7 @@ export function HuntGrid({ s, admin, compact = false }: { s: HuntState; admin?: 
                     </div>
                   </div>
                 ) : <div className="hud-scan grid min-h-[80px] place-items-center border border-dashed border-line text-sm text-dim">No monster yet</div>}
-                {m && !m.secret && (!f.done || f.call) && <CallLine call={f.call} />}
+                {m && !m.secret && (!f.done || f.call) && <CallLine call={f.call} chat={chatPicks(m)} />}
                 {m && !f.done && !compact && (
                   <div className="space-y-1 text-[12.5px] leading-snug text-muted">
                     {m.abOn && a && <p><b className="text-text">{a.name}:</b> {a.desc}</p>}
@@ -378,7 +378,7 @@ export function ReckonView({ s, admin }: { s: HuntState; admin?: HuntAdmin }) {
             <h3 className="break-words font-display text-4xl leading-none">{c.name}</h3>
             <p className="text-xs text-muted">Best win <b className="hud-num text-text">{money(c.best)}</b> · {c.slain} monster{c.slain === 1 ? "" : "s"} slain</p>
             <p className="font-head text-xs uppercase tracking-[0.16em] text-gold">Playing for <b className="hud-num text-lg">{money(s.cfg.prize * c.bounty)}</b> (×{c.bounty})</p>
-            {b && !b.secret && !r.done && <CallLine call={r.call} big />}
+            {b && !b.secret && !r.done && <CallLine call={r.call} big chat={chatPicks(b)} />}
           </div>
         </div>
         <p className="text-center font-display text-6xl"><span className="chrome">V</span><span className="neon-text">S</span></p>
@@ -402,10 +402,57 @@ export function ReckonView({ s, admin }: { s: HuntState; admin?: HuntAdmin }) {
   );
 }
 
-export function ResultBanner({ s }: { s: HuntState }) {
+const PLACE = { 1: ["1st", "#f5c95a"], 2: ["2nd", "#d7dde3"], 3: ["3rd", "#d08a52"] } as const;
+/** Who won what: every paid place with its bounty and amount, and the total paid out. */
+export function Podium({ s, big = false }: { s: HuntState; big?: boolean }) {
+  const R = s.result;
+  const rows = R?.podium ?? [];
+  if (!R || rows.length === 0) return null;
+  const fs = big ? "text-[2.6vh]" : "text-sm";
+  return (
+    <div className={`mx-auto w-full ${big ? "max-w-[80vw]" : "max-w-2xl"}`}>
+      <p className={`mb-1.5 font-head font-bold uppercase tracking-[0.2em] text-dim ${big ? "text-[1.8vh]" : "text-[10px]"}`}>Prizes · {money(s.cfg.prize)} base × bounty</p>
+      <ol className={`grid gap-1.5 ${big ? "gap-[1vh]" : ""}`}>
+        {rows.map((p) => {
+          const e = s.ents[p.eid];
+          const [label, c] = PLACE[p.place];
+          const fell = p.place === 1 && (R.type === "fallen" || R.type === "judged");
+          return (
+            <li key={p.eid} className="hud hud-sm" style={css({ "--hc": `color-mix(in srgb, ${c} 55%, transparent)` })}>
+              <div className={`flex items-center gap-3 ${big ? "px-[2vh] py-[1vh]" : "px-3 py-2"}`}>
+                <span className={`w-[3.2em] shrink-0 font-head font-bold uppercase ${fs}`} style={{ color: c }}>{label}</span>
+                <Avatar e={e} size={big ? "4.4vh" : 28} />
+                <span className={`min-w-0 flex-1 truncate text-left font-semibold ${fs}`}>{e.name}</span>
+                <span className={`shrink-0 text-dim ${big ? "text-[2vh]" : "text-xs"}`}>{fell ? (R.payout > 0 ? "fell · keeps 50%" : "fell") : p.place === 1 && R.type === "legend" ? "Legend ×10" : `×${p.bounty}`}</span>
+                <span className={`hud-num w-[5.5em] shrink-0 text-right font-bold text-gold ${fs}`}>{money(p.payout)}</span>
+              </div>
+            </li>
+          );
+        })}
+      </ol>
+      {rows.length > 1 && <p className={`mt-1.5 text-right text-muted ${big ? "text-[2vh]" : "text-xs"}`}>Total paid <b className="hud-num text-gold">{money(R.total ?? rows.reduce((a, p) => a + p.payout, 0))}</b></p>}
+    </div>
+  );
+}
+
+export function ResultBanner({ s, compact = false }: { s: HuntState; compact?: boolean }) {
   const R = s.result;
   if (!R) return null;
   const c = R.champ != null ? s.ents[R.champ] : null;
+  // OBS: winner and prizes side by side, so the stream window shows who won what
+  if (compact && (R.podium?.length ?? 0) > 0) {
+    const won = c && (R.type === "champion" || R.type === "legend");
+    return (
+      <section className="grid h-full grid-cols-[1fr_1.15fr] items-center gap-[3vh]">
+        <div className="min-w-0">
+          {won ? <WinnerShowcase s={s} eid={c.id} legend={R.type === "legend"} size="1.05vh" />
+            : <div className="text-center"><Skull className="mx-auto size-[10vh] text-[#b36bff]" /><p className="font-display text-[9vh] leading-none text-[#efe9f5]">The Cult wins</p>
+              <p className="mt-[1vh] text-[2.2vh] text-muted">{R.boss ? `${R.boss} took the champion` : "The champion fell"}</p></div>}
+        </div>
+        <Podium s={s} big />
+      </section>
+    );
+  }
   const cult = R.type === "wipe" || R.type === "fallen";
   const tone = cult ? "#b36bff" : R.type === "judged" ? "#fff6d6" : "#f5c95a";
   const top = s.ents.reduce((a, b) => (b.slain > a.slain ? b : a), s.ents[0]);
@@ -432,7 +479,8 @@ export function ResultBanner({ s }: { s: HuntState }) {
             {head[2] && <p className="mt-2 text-sm text-muted">{head[2]}</p>}
           </>
         )}
-        {(R.type === "fallen" || R.type === "judged") && <p className="mt-3 text-base">{R.payout > 0 ? <>{c!.name} keeps <b className="hud-num text-gold">{money(R.payout)}</b>.</> : "No prize is paid."}</p>}
+        {(R.type === "fallen" || R.type === "judged") && <p className="mt-3 text-base">{R.payout > 0 ? <>{c!.name} keeps <b className="hud-num text-gold">{money(R.payout)}</b>.</> : "No prize for the champion."}</p>}
+        <div className="mt-5"><Podium s={s} /></div>
         <dl className="mx-auto mt-5 grid max-w-3xl grid-cols-2 gap-2 sm:grid-cols-4">
           {[
             ["Biggest win", s.bigWin.v ? money(s.bigWin.v) : "—", s.bigWin.name],
@@ -472,9 +520,11 @@ export function EventLog({ s, max = 40 }: { s: HuntState; max?: number }) {
 
 /** Phase view: Hunt grid, Arena bracket or Reckoning duel (the result banner on top once done). */
 export function HuntPhase({ s, admin, compact = false }: { s: HuntState; admin?: HuntAdmin; compact?: boolean }) {
+  // OBS after the end: only the winner and the prizes
+  if (compact && s.phase === "done" && (s.result?.podium?.length ?? 0) > 0) return <ResultBanner s={s} compact />;
   return (
     <div className="space-y-5">
-      <ResultBanner s={s} />
+      <ResultBanner s={s} compact={compact} />
       {s.phase === "hunt" || (s.phase === "done" && !s.arena && !s.reckon) ? <HuntGrid s={s} admin={admin} compact={compact} />
         : s.phase === "arena" || (s.phase === "done" && !s.reckon) ? <ArenaView s={s} admin={admin} />
         : <ReckonView s={s} admin={admin} />}
@@ -508,7 +558,7 @@ export function RevealOverlay({ s, reveal, onClose, big = false }: { s: HuntStat
     const e = s.ents[f.eid];
     eyebrow = `The Hunt · wave ${s.wave} of ${s.cfg.waves}`;
     title = f.monster.secret ? "A light descends" : ((tierById(f.monster.tier) as { head?: string } | null)?.head ?? "Something stirs…");
-    body = <MonsterCard m={f.monster} big={big} line={`Both buy ${money(f.monster.price)}${s.cfg.duo ? " (each teammate once, monster win ×2)" : ""}. ${e.name} must win more than the monster. Type !call <slot> to pick yours.`} />;
+    body = <MonsterCard m={f.monster} big={big} line={`Both buy ${money(f.monster.price)}${s.cfg.duo ? " (each teammate once, monster win ×2)" : ""}. ${e.name} must win more than the monster. ${chatPicks(f.monster) ? "Chat picks the slot this time!" : `${e.name}: type !call <slot> to pick yours.`}`} />;
   } else if (reveal.kind === "fate" && s.reckon) {
     const comes = s.reckon.fate === "comes";
     eyebrow = "The Reckoning";
@@ -537,5 +587,73 @@ export function RevealOverlay({ s, reveal, onClose, big = false }: { s: HuntStat
         <button type="button" onClick={onClose} className="btn btn-ghost btn-sm mt-4">Close</button>
       </div>
     </div>
+  );
+}
+
+type TierRow = { id: string; c: string; prices: number[]; abChance: number; bounty?: number; roster: (Look & { bounty?: number })[] };
+const range = (p: number[]) => (p.length > 1 ? `${money(Math.min(...p))} – ${money(Math.max(...p))}` : money(p[0]));
+/** How often a monster's ability fires (clutch-only ones are always armed, like the engine). */
+const abilityOdds = (ab: string | undefined, tierChance: number) => {
+  const a = ab ? ABI[ab] : null;
+  if (!a) return "";
+  return tierChance >= 1 || (a.clutch && !a.f) ? "always on" : `on in ${Math.round(tierChance * 100)}% of fights`;
+};
+
+function BeastRow({ m, c, tier, chance, bounty }: { m: Look; c: string; tier: string; chance: number; bounty?: number }) {
+    const a = m.ab ? ABI[m.ab] : null;
+    return (
+      <div className="hud hud-sm flex gap-3 p-2.5" style={css({ "--hc": `color-mix(in srgb, ${c} 50%, transparent)` })}>
+        <Portrait name={m.n} tier={tier} size={52} />
+        <div className="min-w-0 text-left">
+          <p className="truncate font-semibold text-text">{m.n}{bounty ? <span className="ml-1.5 font-mono text-[11px] text-gold">bounty ×{bounty}</span> : null}</p>
+          <p className="truncate text-[11px] text-dim">Slot: {m.ab === "veil" ? "chat picks" : m.s}</p>
+          {a && <p className="mt-0.5 text-[11px] leading-snug"><b className="font-head uppercase tracking-[0.12em]" style={{ color: a.boon ? "#8cff4a" : c }}>{a.boon ? "Boon · " : ""}{a.name}</b> <span className="text-text/80">{a.desc}</span></p>}
+          {a && <p className="text-[10px] text-dim">{abilityOdds(m.ab, chance)}</p>}
+        </div>
+      </div>
+    );
+}
+const BeastHead = ({ name, c, buy, pct, extra }: { name: string; c: string; buy: string; pct: string; extra?: string }) => (
+    <div className="mb-2 mt-5 flex flex-wrap items-baseline gap-x-3 gap-y-1 border-b pb-1.5" style={{ borderColor: `color-mix(in srgb, ${c} 45%, transparent)` }}>
+      <span className="font-head text-lg font-bold uppercase tracking-[0.14em]" style={{ color: c }}>{name}</span>
+      <span className="font-mono text-sm text-gold">Buy {buy}</span>
+      <span className="text-xs text-muted">{pct}</span>
+      {extra && <span className="text-xs text-text/80">{extra}</span>}
+    </div>
+  );
+
+/** Ravo's bestiary: every tier with its buy range, spawn odds (this tournament's), bounty and the prize it unlocks; every monster with its slot and ability. */
+export function Bestiary({ s, open = false }: { s: HuntState; open?: boolean }) {
+  const odds = s.cfg.weights ?? DEFAULT_WEIGHTS;
+  const base = s.cfg.prize;
+  const tiers = HUNT as unknown as TierRow[];
+  const end = END as unknown as { c: string; prices: number[] };
+  const bosses = ENDBOSSES as unknown as (Look & { bounty?: number })[];
+  const angel = ANGEL as unknown as Look;
+  return (
+    <details open={open} className="panel group p-4 sm:p-6">
+      <summary className="cursor-pointer list-none font-display text-2xl text-text">
+        The Bestiary <span className="ml-2 align-middle font-head text-xs uppercase tracking-[0.18em] text-dim group-open:hidden">tap to open</span>
+      </summary>
+      <p className="mt-1 text-sm text-muted">
+        Base prize <b className="font-mono text-gold">{money(base)}</b>: slaying a monster sets your prize to base × its bounty (the highest counts).
+        Every monster has a {Math.round(CURSE_CHANCE * 100)}% chance of a Cult curse.
+      </p>
+      {tiers.map((t) => {
+        const b = t.bounty ?? 1;
+        return (
+          <div key={t.id}>
+            <BeastHead name={t.id} c={t.c} buy={range(t.prices)} pct={`Spawns in ${odds[t.id as keyof typeof odds] ?? 0}% of cases`}
+              extra={b > 1 ? `Bounty ×${b} · prize ${money(base * b)}` : "No extra prize"} />
+            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">{t.roster.map((m) => <BeastRow key={m.n} m={m} c={t.c} tier={t.id} chance={t.abChance} />)}</div>
+          </div>
+        );
+      })}
+      <BeastHead name="Endboss" c={end.c} buy={range(end.prices)} pct={`Only at the end: ${s.cfg.chance}% chance`}
+        extra={`Beat it: ×10 · prize ${money(base * 10)} · it wins: ${s.cfg.fall === "half" ? `champion keeps ${money(base / 2)}` : "nothing"}`} />
+      <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">{bosses.map((m) => <BeastRow key={m.n} m={m} c={end.c} tier="Endboss" chance={1} bounty={m.bounty} />)}</div>
+      <BeastHead name="Secret boss" c="#fff6d6" buy="∞" pct={`1 in ${Math.round(1 / ANGEL_ODDS).toLocaleString("en-US")} on every spawn (${(ANGEL_ODDS * 100).toFixed(4)}%)`} />
+      <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4"><BeastRow m={angel} c="#fff6d6" tier="Secret" chance={1} /></div>
+    </details>
   );
 }

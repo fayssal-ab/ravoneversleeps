@@ -27,28 +27,25 @@ const OUTCOME: Record<string, string> = {
   registered: "registered", rerolled: "slot changed", duplicate_message: "duplicate ignored", no_tournament: "no tournament",
   registration_closed: "registration closed", full: "full", locked_in_bracket: "locked in bracket", eliminated: "eliminated, ignored",
   pending_roll: "being rolled, ignored", disqualified: "disqualified, ignored", no_slots: "slot catalogue empty!", slot_taken: "slot already called, ignored", processing_failed: "server error", network_error: "network error",
-  already_joined: "already in", called: "called", no_hunt: "!call: no Hunt running", no_slot: "!call without a slot", hunt_not_player: "!call: not a player", hunt_no_monster: "!call: no monster for them yet",
+  already_joined: "already in", called: "called", no_hunt: "!call: no Hunt running", no_slot: "!call without a slot", hunt_not_player: "!call: not a player", hunt_no_monster: "!call: no monster for them yet", hunt_chat_picks: "!call: chat picks this one (host enters it)",
 };
 
 const SIZES = [4, 8, 16, 32] as const;
 
-// Hunt monster ranks: Easy = Fodder + Minion, Medium = Brute, Hard = Warlord, Nightmare = Overlord
-type RankOdds = { easy: number; medium: number; hard: number; nightmare: number };
+// Hunt monster odds per tier (rank shown on the cards: Fodder · Minion = Easy, Brute = Medium, Warlord = Hard, Overlord = Nightmare)
+type RankOdds = { Fodder: number; Minion: number; Brute: number; Warlord: number; Overlord: number };
 const RANKS: { key: keyof RankOdds; label: string; tiers: string; color: string }[] = [
-  { key: "easy", label: "Easy", tiers: "Fodder · Minion", color: "#8cff4a" },
-  { key: "medium", label: "Medium", tiers: "Brute", color: "#f5c95a" },
-  { key: "hard", label: "Hard", tiers: "Warlord", color: "#ff8a3d" },
-  { key: "nightmare", label: "Nightmare", tiers: "Overlord", color: "#b36bff" },
+  { key: "Fodder", label: "Fodder", tiers: "Easy", color: "#7fd6c2" },
+  { key: "Minion", label: "Minion", tiers: "Easy", color: "#8cff4a" },
+  { key: "Brute", label: "Brute", tiers: "Medium", color: "#f5c95a" },
+  { key: "Warlord", label: "Warlord", tiers: "Hard", color: "#ff8a3d" },
+  { key: "Overlord", label: "Overlord", tiers: "Nightmare", color: "#b36bff" },
 ];
 const RANK_PRESETS: { label: string; v: RankOdds }[] = [
-  { label: "Chill", v: { easy: 75, medium: 18, hard: 5, nightmare: 2 } },
-  { label: "Balanced", v: { easy: 60, medium: 25, hard: 11, nightmare: 4 } },
-  { label: "Brutal", v: { easy: 40, medium: 30, hard: 20, nightmare: 10 } },
+  { label: "Chill", v: { Fodder: 30, Minion: 40, Brute: 18, Warlord: 9, Overlord: 3 } },
+  { label: "Ravo", v: { Fodder: 15, Minion: 35, Brute: 20, Warlord: 20, Overlord: 10 } },
+  { label: "Brutal", v: { Fodder: 5, Minion: 25, Brute: 25, Warlord: 25, Overlord: 20 } },
 ];
-const rankWeights = (r: RankOdds) => {
-  const fodder = Math.round(r.easy / 2);
-  return { Fodder: fodder, Minion: r.easy - fodder, Brute: r.medium, Warlord: r.hard, Overlord: r.nightmare };
-};
 type Tab = "bracket" | "round" | "qualified" | "eliminated" | "final";
 
 export function KoDashboard({ initial, overlayUrl }: { initial: KoState | null; overlayUrl: string }) {
@@ -60,7 +57,7 @@ export function KoDashboard({ initial, overlayUrl }: { initial: KoState | null; 
   const [msg, setMsg] = useState<string | null>(null);
   const [revealed, setRevealed] = useState<number | null>(null);
   const [tab, setTab] = useState<Tab>("bracket");
-  const [form, setForm] = useState({ title: "", prize: "", size: 16 as (typeof SIZES)[number], duo: false, reaping: false, chance: 40, finalBoss: true, rollover: true, hunt: false, waves: 1 as 1 | 2 | 3, endChance: 50, fall: "half" as "half" | "nothing", rank: { easy: 60, medium: 25, hard: 11, nightmare: 4 }, p1: "", p2: "", p3: "" });
+  const [form, setForm] = useState({ title: "", prize: "", size: 16 as (typeof SIZES)[number], duo: false, reaping: false, chance: 40, finalBoss: true, rollover: true, hunt: false, waves: 1 as 1 | 2 | 3, endChance: 50, fall: "half" as "half" | "nothing", rank: { Fodder: 15, Minion: 35, Brute: 20, Warlord: 20, Overlord: 10 }, p1: "", p2: "", p3: "" });
   const boss = useBossReveal(state);
   const [manual, setManual] = useState({ username: "", slot: "" });
 
@@ -108,7 +105,7 @@ export function KoDashboard({ initial, overlayUrl }: { initial: KoState | null; 
             act("create", {
               title: form.title, prize: form.prize, size: form.size, duo: form.duo, prizes: [form.p1 || null, null, null],
               reaping: form.reaping ? { chance: form.chance, finalBoss: form.finalBoss, rollover: form.rollover } : null,
-              hunt: form.hunt ? { waves: form.waves, chance: form.endChance, fall: form.fall, weights: rankWeights(form.rank) } : null,
+              hunt: form.hunt ? { waves: form.waves, chance: form.endChance, fall: form.fall, weights: form.rank } : null,
             });
           }}
         >
@@ -177,7 +174,7 @@ export function KoDashboard({ initial, overlayUrl }: { initial: KoState | null; 
                     );
                   })}
                 </div>
-                <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
                   {RANKS.map((r) => (
                     <label key={r.key} className="block rounded-xl border border-line bg-bg-2 p-2">
                       <span className="block font-head text-[11px] font-bold uppercase tracking-wider" style={{ color: r.color }}>{r.label}</span>
@@ -205,7 +202,7 @@ export function KoDashboard({ initial, overlayUrl }: { initial: KoState | null; 
                 </div>
               </div>
               <p className="text-xs text-muted">
-                The champion prize below is the base. Slaying a monster raises it: Brute ×2, Warlord ×3, Overlord ×5 (the highest counts); beating the Endboss ×7 to ×10.
+                The prize is flexible: the amount below is only the base, what each player wins is shown at the end. Slaying a monster raises it: Brute ×2, Warlord ×3, Overlord ×5 (the highest counts); beating the Endboss ×10. Fodder and Minion add nothing. Top 3 are paid: 1st (the champion), 2nd (lost the Arena final) and 3rd (lost the round before), each base × their own bounty.
                 {form.p1 && /^\d+(\.\d{1,2})?$/.test(form.p1) ? ` Example: slay a Warlord and play for $${(Number(form.p1) * 3).toLocaleString("en-US")}; beat The Reaper King for $${(Number(form.p1) * 10).toLocaleString("en-US")}.` : ""}
               </p>
             </div>
@@ -250,7 +247,7 @@ export function KoDashboard({ initial, overlayUrl }: { initial: KoState | null; 
               ))}
             </div>
           </div>
-          <label className="block max-w-xs"><span className="label">Champion prize ($)</span>
+          <label className="block max-w-xs"><span className="label">{form.hunt ? "Base prize ($) · × bounty at the end" : "Champion prize ($)"}</span>
             <input inputMode="decimal" pattern="\d{1,9}(\.\d{1,2})?" value={form.p1} onChange={(e) => setForm({ ...form, p1: e.target.value })} placeholder="300" className="field font-mono" />
           </label>
           <button disabled={busy !== null || (form.hunt && RANKS.reduce((a, r) => a + form.rank[r.key], 0) !== 100)} className="btn btn-neon">
@@ -269,7 +266,7 @@ export function KoDashboard({ initial, overlayUrl }: { initial: KoState | null; 
           <div className="mt-4 border-t border-line pt-3">
             <p className="eyebrow mb-1">Chat · !join / !call</p>
             <ul className="max-h-48 space-y-0.5 overflow-y-auto font-mono text-[11px] text-dim">
-              {reader.events.map((e, i) => <li key={i}><span className="text-muted">{e.username}</span> · {OUTCOME[e.outcome] ?? e.outcome}{e.slot ? <> → <span className="text-neon">{e.slot}</span></> : null}</li>)}
+              {reader.events.map((e, i) => <li key={i}><span className="text-muted">{e.username}</span> · {OUTCOME[e.outcome] ?? e.outcome}{e.slot && e.outcome === "called" ? <> → <span className="text-neon">{e.slot}</span></> : null}</li>)}
             </ul>
           </div>
         ) : null}

@@ -35,7 +35,9 @@ export interface ArenaMatch { a: number; b: number; price: number; va: number | 
 export interface ArenaRound { ms: ArenaMatch[]; bye: number | null }
 export interface Reckon { champ: number; fate: "comes" | "spared" | null; boss: Monster | null; done: boolean; verdict: Verdict | null; keep: number | null; call?: SlotCall | null }
 export type ResultType = "wipe" | "champion" | "legend" | "fallen" | "judged";
-export interface HuntResult { type: ResultType; champ: number | null; boss: string | null; pf: number | null; bf: number | null; payout: number }
+/** One paid place: 1st is the champion's payout, 2nd (Arena final) and 3rd (the round before) get base × their own bounty. */
+export interface Place { eid: number; place: 1 | 2 | 3; bounty: number; payout: number }
+export interface HuntResult { type: ResultType; champ: number | null; boss: string | null; pf: number | null; bf: number | null; payout: number; podium?: Place[]; total?: number }
 export type LogTone = "g" | "gold" | "o" | "v" | "r" | "m" | "w";
 /**
  * What the stream plays: a monster spawning, a fight's outcome, an Arena
@@ -76,15 +78,16 @@ export const money = (v: number) => (v === Infinity ? "$∞" : "$" + cents(v).to
 const pick = <T,>(a: T[], rand: Rand) => a[rand(a.length)];
 const chance = (p: number, rand: Rand) => rand(1_000_000) < p * 1_000_000;
 function shuffle<T>(a: T[], rand: Rand): T[] { for (let i = a.length - 1; i > 0; i--) { const j = rand(i + 1); [a[i], a[j]] = [a[j], a[i]]; } return a; }
-export const DEFAULT_WEIGHTS: TierWeights = { Fodder: 30, Minion: 30, Brute: 25, Warlord: 11, Overlord: 4 };
+export const DEFAULT_WEIGHTS: TierWeights = { Fodder: 15, Minion: 35, Brute: 20, Warlord: 20, Overlord: 10 };
 export function validWeights(w: unknown): w is TierWeights {
   if (!w || typeof w !== "object") return false;
   const v = TIERS.map((t) => (w as Record<string, unknown>)[t.id]);
   return v.every((x) => Number.isInteger(x) && (x as number) >= 0 && (x as number) <= 100) && (v as number[]).reduce((a, b) => a + b, 0) === 100;
 }
-/** Weighted tier: the host's rank odds, else the bestiary's. */
+/** Weighted tier: the host's rank odds, else Ravo's defaults. */
 function rollTier(rand: Rand, weights?: TierWeights): TierDef {
-  const w = (t: TierDef) => (weights && validWeights(weights) ? weights[t.id as TierId] : t.w);
+  const odds = weights && validWeights(weights) ? weights : DEFAULT_WEIGHTS;
+  const w = (t: TierDef) => odds[t.id as TierId];
   const total = TIERS.reduce((s, t) => s + w(t), 0);
   let x = rand(total);
   for (const t of TIERS) { if (x < w(t)) return t; x -= w(t); }
@@ -408,21 +411,30 @@ export function bossFight(s: HuntState, p: number, b: number, rand: Rand): Verdi
   return v;
 }
 
+/** Blind Buy curse / Black Veil: chat picks the slot, not the player (the host types chat's pick in). */
+export function chatPicks(m: Monster | null | undefined): boolean {
+  if (!m || m.secret) return false;
+  const def = monsterDef(m);
+  return m.curse === "blind" || Boolean(m.abOn && def?.ab === "veil");
+}
+
 /**
  * `!call <slot>` (or the host): the slot an entrant plays against the monster
  * in front of them, until that fight is played. Teammates share the call.
  */
-export function callSlot(s: HuntState, eid: number, call: SlotCall): { fight: number | null } {
+export function callSlot(s: HuntState, eid: number, call: SlotCall, host = false): { fight: number | null } {
   if (s.phase === "hunt") {
     const i = s.fights.findIndex((f) => f.eid === eid && f.monster && !f.done);
     if (i < 0) throw new HuntError("hunt_no_monster");
     if (s.fights[i].monster!.secret) throw new HuntError("hunt_no_monster", "nothing can be played against the Seraph");
+    if (chatPicks(s.fights[i].monster)) { if (!host) throw new HuntError("hunt_chat_picks"); call = { ...call, by: "Chat" }; }
     s.fights[i].call = call;
     log(s, `${call.by} calls ${call.name} against ${s.fights[i].monster!.name}.`, "g");
     bump(s, { kind: "call", fight: i });
     return { fight: i };
   }
   if (s.phase === "reckon" && s.reckon?.champ === eid && s.reckon.boss && !s.reckon.done && !s.reckon.boss.secret) {
+    if (chatPicks(s.reckon.boss)) { if (!host) throw new HuntError("hunt_chat_picks"); call = { ...call, by: "Chat" }; }
     s.reckon.call = call;
     log(s, `${call.by} calls ${call.name} against ${s.reckon.boss.name}.`, "g");
     bump(s, { kind: "call", fight: null });
@@ -431,14 +443,21 @@ export function callSlot(s: HuntState, eid: number, call: SlotCall): { fight: nu
   throw new HuntError("hunt_no_monster");
 }
 
-/** Payout: spared / Legend = base × bounty; fell to the Endboss = 50 % of the base or nothing; wipe = nothing. */
-function finish(s: HuntState, r: Omit<HuntResult, "payout">) {
+/** Payout: spared / Legend = base × bounty; fell to the Endboss = 50 % of the base or nothing; wipe = nothing.
+ *  2nd (lost the Arena final) and 3rd (lost the round before) win base × their own bounty. */
+function finish(s: HuntState, r: Omit<HuntResult, "payout" | "podium" | "total">) {
   const base = s.cfg.prize;
   const champ = r.champ != null ? ent(s, r.champ) : null;
   const payout = r.type === "champion" || r.type === "legend" ? base * (champ?.bounty ?? 1)
     : r.type === "fallen" || r.type === "judged" ? (s.cfg.fall === "half" ? base / 2 : 0) : 0;
+  const podium: Place[] = champ ? [{ eid: champ.id, place: 1, bounty: champ.bounty, payout: cents(payout) }] : [];
+  const rounds = s.arena?.rounds ?? [];
+  const losers = (ri: number) => (rounds[ri]?.ms ?? []).filter((m) => m.done && m.winner != null).map((m) => (m.winner === m.a ? m.b : m.a));
+  ([[rounds.length - 1, 2], [rounds.length - 2, 3]] as const).forEach(([ri, place]) => {
+    for (const id of losers(ri)) { const e = ent(s, id); podium.push({ eid: id, place, bounty: e.bounty, payout: cents(base * e.bounty) }); }
+  });
   s.phase = "done";
-  s.result = { ...r, payout: cents(payout) };
+  s.result = { ...r, payout: cents(payout), podium, total: cents(podium.reduce((a, p) => a + p.payout, 0)) };
 }
 
 /** What the public sees: everything but the host's test switch. */
