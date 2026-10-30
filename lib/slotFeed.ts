@@ -14,9 +14,9 @@ export function normalizeName(name: string): string {
 }
 
 export interface Feed { generated?: string; image_base?: string; providers?: string[]; slots?: unknown[][] }
-interface FeedRow { id: string; slug: string; name: string; provider: string; imageUrl: string | null; popularity: number | null }
+interface FeedRow { id: string; slug: string; name: string; provider: string; imageUrl: string | null; popularity: number | null; stakeOnly: boolean }
 
-/** Feed rows: [position, name, providerIdx, slug, image, rtp, bonus_buy, exclusive, max_win, volatility, popularity]. */
+/** Feed rows: [position, name, providerIdx, slug, image, rtp, bonus_buy, only_on_stake, max_win, volatility, popularity]. */
 export function parseFeed(feed: Feed): FeedRow[] {
   const base = typeof feed.image_base === "string" && /^https:\/\/[a-z0-9.-]+\//i.test(feed.image_base) ? feed.image_base : "https://mediumrare.imgix.net/";
   const providers = Array.isArray(feed.providers) ? feed.providers : [];
@@ -36,6 +36,7 @@ export function parseFeed(feed: Feed): FeedRow[] {
       provider: typeof s[2] === "number" && typeof providers[s[2]] === "string" ? providers[s[2]].slice(0, 120) : "",
       imageUrl: image ? `${base}${image}?w=280&h=367&fit=min&auto=format` : null,
       popularity: typeof s[10] === "number" && Number.isFinite(s[10]) ? Math.trunc(s[10]) : null,
+      stakeOnly: s[7] === 1 || s[7] === true,
     });
   }
   return out;

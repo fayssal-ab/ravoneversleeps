@@ -6,7 +6,7 @@ import { getPool } from "./db";
 import { kickAvatars } from "./kickApi";
 import { bossLine, bossName, spinWheel, stageChance, type BossTier } from "./reaping";
 import { publicHunt, validWeights, type HuntState, type TierWeights } from "./hunt/engine";
-import { randomPoolSlot } from "./slots";
+import { ensureCatalogSchema, randomPoolSlot } from "./slots";
 import { AppError, lockApp, withTx } from "./tx";
 
 // Single-elimination slot knockout fed by Kick chat (ported from ONO, made
@@ -414,6 +414,7 @@ export function ensureKoSchema(): Promise<void> {
     const have = new Set(cols.map((r) => String(r.c)));
     for (const [col, ddl] of SCHEMA_ADDS) if (!have.has(col)) await pool.query(ddl);
     await pool.query(BOSS_ROLLS_DDL);
+    await ensureCatalogSchema(); // random / named slots skip Stake-only ones (inside transactions later)
   })().catch((e) => { dqColumn = null; throw e; });
   return dqColumn;
 }

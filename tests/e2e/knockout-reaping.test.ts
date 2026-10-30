@@ -96,8 +96,8 @@ test("reaping: ambush, reaped, boss advances, beaten in the final", async () => 
   assert.ok([done.p1!, done.p2!].every((p) => p.reaped && p.state === "eliminated"));
   assert.equal(s.reaped, 2);
 
-  // round 1 isn't over yet if the ambush came first: finish it
-  if (s.matches.some((m) => m.round === 1 && m.status === "ready")) {
+  // round 1 isn't over yet if the ambush came first: finish it (the other battle may not even be drawn yet)
+  if (s.matches.some((m) => m.round === 1 && (m.status === "ready" || m.status === "empty"))) {
     await playNext(id);
     s = await state(id);
     await recordBattleResult(id, s.live!.id, b("100", "300"), b("100", "100"));

@@ -19,6 +19,21 @@ const SYNC_MAX_AGE_H = 24;
 export const POOL_TOP = 1000;
 
 export interface CatalogSlot { id: string; name: string; provider: string; imageUrl: string | null }
+
+// Ravo plays on Qzino, so slots the feed marks "only on Stake" stay in the
+// table (kept for later) but are hidden everywhere: picker, search, !join,
+// !call and random tournament slots.
+const SHOWN = "active = 1 AND stake_only = 0";
+let stakeColumn: Promise<void> | null = null;
+/** Adds slot_catalog.stake_only on first use (migration 0021). Outside a transaction (DDL commits). */
+export function ensureCatalogSchema(): Promise<void> {
+  stakeColumn ??= (async () => {
+    const [c] = await getPool().query<RowDataPacket[]>(
+      "SELECT 1 FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'slot_catalog' AND COLUMN_NAME = 'stake_only'");
+    if (!c[0]) await getPool().query("ALTER TABLE slot_catalog ADD COLUMN stake_only TINYINT(1) NOT NULL DEFAULT 0");
+  })().catch((e) => { stakeColumn = null; throw e; });
+  return stakeColumn;
+}
 export interface AssignedSlot { id: string; name: string; provider: string; imageUrl: string }
 export interface ChosenSlot extends AssignedSlot { matched: boolean }
 
@@ -48,27 +63,28 @@ export function scoreName(query: string, name: string): number {
 
 // ── feed ──
 
-export async function syncCatalog(): Promise<{ total: number; withArt: number; generated: string | null }> {
+export async function syncCatalog(): Promise<{ total: number; withArt: number; generated: string | null; stakeOnly: number }> {
   const res = await fetch(FEED_URL, { cache: "no-store", headers: { Accept: "application/json" }, signal: AbortSignal.timeout(25_000) });
   if (!res.ok) throw new AppError("slot_feed_failed", `feed answered ${res.status}`);
   const feed = (await res.json()) as Feed;
   const rows = parseFeed(feed);
   if (rows.length < 500) throw new AppError("slot_feed_failed", `only ${rows.length} slots in the feed`);
   const now = new Date().toISOString().slice(0, 19).replace("T", " "); // UTC, like the session
+  await ensureCatalogSchema();
   await withTx(async (conn) => {
     await lockApp(conn, "slots");
     await conn.query("UPDATE slot_catalog SET active = 0");
     for (let i = 0; i < rows.length; i += 1000) {
       await conn.query(
-        `INSERT INTO slot_catalog (id, slug, name, name_norm, provider, image_url, popularity, active, synced_at) VALUES ?
+        `INSERT INTO slot_catalog (id, slug, name, name_norm, provider, image_url, popularity, stake_only, active, synced_at) VALUES ?
          ON DUPLICATE KEY UPDATE name = VALUES(name), name_norm = VALUES(name_norm), provider = VALUES(provider),
-           image_url = VALUES(image_url), popularity = VALUES(popularity), active = 1, synced_at = VALUES(synced_at)`,
-        [rows.slice(i, i + 1000).map((r) => [r.id, r.slug, r.name, normalizeName(r.name).slice(0, 191), r.provider, r.imageUrl, r.popularity, 1, now])]
+           image_url = VALUES(image_url), popularity = VALUES(popularity), stake_only = VALUES(stake_only), active = 1, synced_at = VALUES(synced_at)`,
+        [rows.slice(i, i + 1000).map((r) => [r.id, r.slug, r.name, normalizeName(r.name).slice(0, 191), r.provider, r.imageUrl, r.popularity, r.stakeOnly ? 1 : 0, 1, now])]
       );
     }
   });
   cache = null;
-  return { total: rows.length, withArt: rows.filter((r) => r.imageUrl).length, generated: typeof feed.generated === "string" ? feed.generated : null };
+  return { total: rows.length, withArt: rows.filter((r) => r.imageUrl).length, generated: typeof feed.generated === "string" ? feed.generated : null, stakeOnly: rows.filter((r) => r.stakeOnly).length };
 }
 
 export async function catalogIsStale(): Promise<boolean> {
@@ -77,11 +93,13 @@ export async function catalogIsStale(): Promise<boolean> {
   return Number(rows[0].n) === 0 || Number(rows[0].stale) === 1;
 }
 
-export async function getCatalogStats(): Promise<{ total: number; withArt: number; providers: number; syncedAt: string | null }> {
+export async function getCatalogStats(): Promise<{ total: number; withArt: number; providers: number; syncedAt: string | null; hidden: number }> {
+  await ensureCatalogSchema();
   const [rows] = await getPool().query<RowDataPacket[]>(
-    "SELECT COUNT(*) total, SUM(image_url IS NOT NULL) art, COUNT(DISTINCT provider) prov, MAX(synced_at) synced FROM slot_catalog WHERE active = 1");
+    `SELECT COUNT(*) total, SUM(image_url IS NOT NULL) art, COUNT(DISTINCT provider) prov, MAX(synced_at) synced,
+       (SELECT COUNT(*) FROM slot_catalog WHERE active = 1 AND stake_only = 1) hidden FROM slot_catalog WHERE ${SHOWN}`);
   const r = rows[0];
-  return { total: Number(r.total), withArt: Number(r.art ?? 0), providers: Number(r.prov ?? 0), syncedAt: r.synced ? String(r.synced) : null };
+  return { total: Number(r.total), withArt: Number(r.art ?? 0), providers: Number(r.prov ?? 0), syncedAt: r.synced ? String(r.synced) : null, hidden: Number(r.hidden ?? 0) };
 }
 
 // ── search ──
@@ -91,7 +109,8 @@ let cache: { rows: CacheRow[]; at: number } | null = null;
 
 async function loadCache(): Promise<CacheRow[]> {
   if (cache && Date.now() - cache.at < 5 * 60_000) return cache.rows;
-  const [rows] = await getPool().query<RowDataPacket[]>("SELECT id, name, name_norm, provider, image_url, popularity FROM slot_catalog WHERE active = 1");
+  await ensureCatalogSchema();
+  const [rows] = await getPool().query<RowDataPacket[]>(`SELECT id, name, name_norm, provider, image_url, popularity FROM slot_catalog WHERE ${SHOWN}`);
   const list = rows.map((r) => ({
     id: String(r.id), name: String(r.name), norm: String(r.name_norm), provider: String(r.provider),
     image: r.image_url ? String(r.image_url) : null,
@@ -124,8 +143,9 @@ export async function getSlot(id: string): Promise<CatalogSlot | null> {
 /** Popular slots with art (home/tournament decoration). */
 export async function popularSlots(limit = 24): Promise<CatalogSlot[]> {
   try {
+    await ensureCatalogSchema();
     const [rows] = await getPool().query<RowDataPacket[]>(
-      "SELECT id, name, provider, image_url FROM slot_catalog WHERE active = 1 AND image_url IS NOT NULL AND popularity IS NOT NULL ORDER BY popularity LIMIT ?", [limit]);
+      `SELECT id, name, provider, image_url FROM slot_catalog WHERE ${SHOWN} AND image_url IS NOT NULL AND popularity IS NOT NULL ORDER BY popularity LIMIT ?`, [limit]);
     return rows.map((r) => ({ id: String(r.id), name: String(r.name), provider: String(r.provider), imageUrl: String(r.image_url) }));
   } catch {
     return [];
@@ -134,7 +154,7 @@ export async function popularSlots(limit = 24): Promise<CatalogSlot[]> {
 
 /** Uniformly random slot among the POOL_TOP most played with art (crypto.randomInt). */
 export async function randomPoolSlot(conn: PoolConnection, exclude: string[] = []): Promise<AssignedSlot> {
-  const base = "FROM slot_catalog WHERE active = 1 AND image_url IS NOT NULL AND popularity IS NOT NULL AND popularity < ?";
+  const base = `FROM slot_catalog WHERE ${SHOWN} AND image_url IS NOT NULL AND popularity IS NOT NULL AND popularity < ?`;
   const pick = async (withExclude: boolean) => {
     const cond = withExclude && exclude.length ? " AND id NOT IN (?)" : "";
     const args: unknown[] = withExclude && exclude.length ? [POOL_TOP, exclude] : [POOL_TOP];

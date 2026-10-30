@@ -15,8 +15,8 @@ export default async function AdminSlots({ searchParams }: { searchParams: Promi
       <Flash ok={sp.ok} error={sp.error} detail={sp.detail} okText="Catalogue synced." />
       <Card>
         <div className="flex flex-wrap items-center justify-between gap-4">
-          <div className="grid grid-cols-3 gap-6">
-            {[["Slots", stats.total], ["With art", stats.withArt], ["Providers", stats.providers]].map(([l, v]) => (
+          <div className="grid grid-cols-2 gap-6 sm:grid-cols-4">
+            {[["Slots", stats.total], ["With art", stats.withArt], ["Providers", stats.providers], ["Hidden (Stake only)", stats.hidden]].map(([l, v]) => (
               <div key={l}><p className="font-mono text-3xl font-bold text-neon">{Number(v).toLocaleString("en-US")}</p><p className="text-xs uppercase tracking-widest text-dim">{l}</p></div>
             ))}
           </div>
