@@ -9,8 +9,8 @@ import { KickAvatar, Podium, RollReveal, VsScreen, matchLabel, roundName, teamNa
 import { useKoState } from "./useKoState";
 import { tierOf } from "@/lib/reapingTiers";
 import { BossBanner, BossReveal, useBossReveal } from "./reaping/Boss";
-import { HuntPhase, HuntStats, MonsterCard, useHuntReveal } from "./hunt/HuntBoard";
-import { money } from "@/lib/hunt/engine";
+import { HuntPhase, HuntStats } from "./hunt/HuntBoard";
+import { HuntStage } from "./hunt/HuntStage";
 
 // OBS overlay, transparent background. Default: a landscape card with the two
 // sides next to each other (browser source about 1280×720, any landscape size
@@ -23,7 +23,6 @@ export function KoOverlay({ wide = false, mute = false, demo = false }: { wide?:
   const [revealed, setRevealed] = useState<number | null>(null);
   const fin = useFinishers(state);
   const boss = useBossReveal(state);
-  const huntReveal = useHuntReveal(state?.hunt ?? null, 9000);
   const [demoRound, setDemoRound] = useState(0);
   const { current, push } = fin;
   useEffect(() => {
@@ -42,33 +41,19 @@ export function KoOverlay({ wide = false, mute = false, demo = false }: { wide?:
 
   if (t.mode === "hunt" && state.hunt) {
     const h = state.hunt;
-    const r = huntReveal.reveal;
-    const spawn = r?.kind === "spawn" && r.fight != null ? h.fights[r.fight] : null;
     const pill = h.phase === "hunt" ? `The Hunt · wave ${h.wave} of ${h.cfg.waves}` : h.phase === "arena" ? "The Arena" : h.phase === "reckon" ? "The Reckoning" : "The Reaping is over";
+    const tone = h.phase === "arena" ? "#f5c95a" : h.phase === "reckon" ? "#ff5a5a" : h.phase === "done" ? "#b36bff" : "#8cff4a";
     return (
       <div className="flex h-[100dvh] w-full p-[1.2vh]">
-        {finisher}
-        <div className="flex w-full flex-col gap-[1.5vh] overflow-hidden rounded-[2.4vh] border-[0.5vh] border-[#ff8a3d]/70 bg-[linear-gradient(160deg,#1a0f08,#040605_55%,#0b0714)] p-[2.4vh] shadow-[0_0_5vh_-1vh_rgb(255_138_61/0.6)]">
-          <div className="text-center">
-            <p className="truncate font-head text-[5vh] font-bold uppercase leading-none tracking-wider text-text">{t.title}</p>
-            <p className="mx-auto mt-[1vh] w-fit max-w-full truncate rounded-full bg-[#ff8a3d] px-[2vh] py-[0.4vh] font-head text-[2.8vh] font-bold uppercase tracking-[0.15em] text-bg">{pill}</p>
-          </div>
-          <div className="min-h-0 flex-1 overflow-hidden">
-            {r && spawn?.monster ? (
-              <div className="grid h-full place-items-center">
-                <div className="w-full max-w-[60vh]">
-                  <p className="mb-[1vh] text-center font-head text-[3vh] font-bold text-[#ff8a3d]">A monster hunts {h.ents[spawn.eid].name}</p>
-                  <MonsterCard m={spawn.monster} big line={`Both buy ${money(spawn.monster.price)}. ${h.ents[spawn.eid].name} must win more than the monster.`} />
-                </div>
-              </div>
-            ) : r?.kind === "endboss" && h.reckon?.boss ? (
-              <div className="grid h-full place-items-center"><div className="w-full max-w-[60vh]"><MonsterCard m={h.reckon.boss} big /></div></div>
-            ) : (
-              <div className="space-y-[1.5vh]">
-                <HuntStats s={h} />
-                <HuntPhase s={h} compact />
-              </div>
-            )}
+        <HuntStage s={h} sound={!mute} />
+        <div className="hud hud-lg flex w-full" style={{ ["--hc" as string]: tone }}>
+          <div className="hud-scan flex w-full flex-col gap-[1.5vh] overflow-hidden p-[2.4vh]">
+            <div className="flex items-center justify-between gap-[2vh]">
+              <p className="truncate font-display text-[6vh] leading-none text-[#f1ece4] [text-shadow:0_0.5vh_0_#000]">{t.title}</p>
+              <span className="hud-tab shrink-0 !text-[2.2vh]" style={{ ["--hc" as string]: tone }}>{pill}</span>
+            </div>
+            <HuntStats s={h} />
+            <div className="min-h-0 flex-1 overflow-hidden"><HuntPhase s={h} compact /></div>
           </div>
         </div>
       </div>

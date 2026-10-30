@@ -51,6 +51,8 @@ export const ERROR_TEXT: Record<string, string> = {
   hunt_not_started: "Start the Hunt first.",
   hunt_wrong_phase: "That isn't possible in this phase.",
   hunt_all_spawned: "Every player already has a monster.",
+  hunt_not_player: "That viewer isn't in the Hunt (or is already out).",
+  hunt_no_monster: "No monster is waiting for that player right now.",
   hunt_bad_fight: "That fight can't be played right now.",
   hunt_fate_known: "The Endboss's fate is already decided.",
   boss_roll_first: "The Reaping: roll for this stage's boss first (Start next battle does it).",

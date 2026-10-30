@@ -57,17 +57,18 @@ export function KickAvatar({ name, src, size, className = "" }: { name: string; 
 }
 
 /** `onDisqualify` (admin dashboard only) adds the DQ control. */
-export function ParticipantRow({ p, index, onDisqualify, team }: { p: KoParticipant; index: number; onDisqualify?: (p: KoParticipant) => void; team?: string }) {
+export function ParticipantRow({ p, index, onDisqualify, team, noSlot = false }: { p: KoParticipant; index: number; onDisqualify?: (p: KoParticipant) => void; team?: string; noSlot?: boolean }) {
   const canDq = onDisqualify && !p.disqualified && (p.state === "registered" || p.state === "in_knockout");
   return (
     <li className={`entrant-in flex min-w-0 items-center gap-2 rounded-xl sm:gap-3 border border-line bg-bg-2 p-2 ${p.state === "eliminated" ? "opacity-45" : ""}`}>
       <span className="w-6 text-center font-mono text-xs text-dim">{index + 1}</span>
-      <SlotArt name={p.slot_name} src={p.slot_image} size={44} rounded="rounded-lg" />
+      {/* Hunt: plain !join, the slot is called later (!call), so none to show */}
+      {!noSlot && <SlotArt name={p.slot_name} src={p.slot_image} size={44} rounded="rounded-lg" />}
       {/* on the narrowest phones the name needs the room more than the avatar */}
       <span className="hidden shrink-0 min-[400px]:block"><KickAvatar name={p.username} src={p.avatar} size="32px" /></span>
       <span className="min-w-0 flex-1">
         <span className="block truncate font-head font-bold">{p.username}</span>
-        <span className="block truncate text-xs text-dim">{p.slot_name}{p.slot_provider ? ` · ${p.slot_provider}` : ""}</span>
+        {!noSlot && <span className="block truncate text-xs text-dim">{p.slot_name}{p.slot_provider ? ` · ${p.slot_provider}` : ""}</span>}
         {team && <span className="block truncate text-[11px] text-neon/80">Team {team}</span>}
       </span>
       <StateBadge state={p.state} dq={p.disqualified} reaped={p.reaped} />

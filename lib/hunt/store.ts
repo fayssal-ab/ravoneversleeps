@@ -5,7 +5,7 @@ import { getPool } from "../db";
 import { closeRegistration, ensureKoSchema, getKoById, makeTeams, type HuntSetup } from "../knockout";
 import { AppError, withTx } from "../tx";
 import {
-  arenaFight, bossFight, createHunt, fight, HuntError, rerollMonster, revealFate, spawnAll, spawnNext, summonEndboss, type HuntState,
+  arenaFight, bossFight, callSlot, createHunt, fight, HuntError, rerollMonster, revealFate, spawnAll, spawnNext, summonEndboss, type HuntState, type SlotCall,
 } from "./engine";
 
 // Persistence of "The Reaping · Hunt": the game is one JSON document on its
@@ -15,7 +15,9 @@ import {
 export type HuntOp =
   | { op: "start" } | { op: "spawn" } | { op: "spawn_all" } | { op: "reroll"; index: number }
   | { op: "fight"; index: number; p: number; b: number } | { op: "arena"; index: number; a: number; b: number }
-  | { op: "fate" } | { op: "endboss" } | { op: "boss"; p: number; b: number } | { op: "secret"; on: boolean };
+  | { op: "fate" } | { op: "endboss" } | { op: "boss"; p: number; b: number } | { op: "secret"; on: boolean }
+  /** a slot call: from Kick chat (kickUserId) or by the host (eid) */
+  | { op: "call"; call: Omit<SlotCall, "by">; kickUserId?: string; eid?: number };
 
 const rand = (n: number) => randomInt(n);
 
@@ -85,6 +87,19 @@ export async function huntAction(id: number, a: HuntOp): Promise<{ seq: number; 
           case "endboss": summonEndboss(s, rand); break;
           case "boss": bossFight(s, a.p, a.b, rand); break;
           case "secret": s.secretNext = a.on; break;
+          case "call": {
+            let eid = a.eid;
+            let by = "Host";
+            if (a.kickUserId != null) {
+              const [me] = await conn.query<RowDataPacket[]>("SELECT id, username FROM ko_participants WHERE tournament_id = ? AND kick_user_id = ? AND disqualified = 0", [id, a.kickUserId]);
+              if (!me[0]) throw new AppError("hunt_not_player");
+              eid = s.ents.find((e) => e.pids.includes(Number(me[0].id)))?.id;
+              by = String(me[0].username);
+            }
+            if (eid == null || !s.ents[eid]?.alive) throw new AppError("hunt_not_player");
+            callSlot(s, eid, { ...a.call, by });
+            break;
+          }
         }
       }
       await conn.query("UPDATE ko_tournaments SET hunt = ? WHERE id = ?", [JSON.stringify(s), id]);

@@ -20,20 +20,29 @@ import { AB, ANGEL, ANGEL_ODDS, CURSE_CHANCE, CURSES, ENDBOSSES, END, HUNT, SECR
 export type Rand = (n: number) => number;
 export class HuntError extends Error { constructor(public code: string, public detail?: string) { super(code); } }
 
-export interface HuntConfig { title: string; prize: number; duo: boolean; waves: 1 | 2 | 3; chance: number; fall: "half" | "nothing" }
+export type TierId = "Fodder" | "Minion" | "Brute" | "Warlord" | "Overlord";
+/** Rank odds in % per tier (missing = the bestiary's weights). */
+export type TierWeights = Record<TierId, number>;
+export interface HuntConfig { title: string; prize: number; duo: boolean; waves: 1 | 2 | 3; chance: number; fall: "half" | "nothing"; weights?: TierWeights }
+/** The slot a player called with `!call <slot>` for the fight in front of them. */
+export interface SlotCall { name: string; provider: string; image: string | null; by: string }
 export interface Entrant { id: number; name: string; pids: number[]; alive: boolean; best: number; slain: number; byes: number; fate: string; bounty: number }
 export interface Monster { tier: string; name: string; price: number; abOn: boolean; curse: string | null; revived: boolean; prebuy: boolean; secret: boolean; bounty: number }
 export type Outcome = "p" | "b" | "rematch" | "revive" | "prebuy";
 export interface Verdict { p: number; b: number; pf: number; bf: number; notes: string[]; out: Outcome }
-export interface Fight { eid: number; monster: Monster | null; done: boolean; won: boolean | null; verdict: Verdict | null; keep: number | null }
+export interface Fight { eid: number; monster: Monster | null; done: boolean; won: boolean | null; verdict: Verdict | null; keep: number | null; call?: SlotCall | null }
 export interface ArenaMatch { a: number; b: number; price: number; va: number | null; vb: number | null; done: boolean; winner: number | null; tie: boolean }
 export interface ArenaRound { ms: ArenaMatch[]; bye: number | null }
-export interface Reckon { champ: number; fate: "comes" | "spared" | null; boss: Monster | null; done: boolean; verdict: Verdict | null; keep: number | null }
+export interface Reckon { champ: number; fate: "comes" | "spared" | null; boss: Monster | null; done: boolean; verdict: Verdict | null; keep: number | null; call?: SlotCall | null }
 export type ResultType = "wipe" | "champion" | "legend" | "fallen" | "judged";
 export interface HuntResult { type: ResultType; champ: number | null; boss: string | null; pf: number | null; bf: number | null; payout: number }
 export type LogTone = "g" | "gold" | "o" | "v" | "r" | "m" | "w";
-/** What the stream should pop up: a monster for a fight, the Endboss's fate, the Endboss. */
-export interface Reveal { seq: number; kind: "spawn" | "fate" | "endboss"; fight: number | null }
+/**
+ * What the stream plays: a monster spawning, a fight's outcome, an Arena
+ * K.O., the Endboss's fate, the Endboss, the final duel. `fight` is the
+ * fight / match index, `round` the Arena round.
+ */
+export interface Reveal { seq: number; kind: "spawn" | "fight" | "arena" | "fate" | "endboss" | "duel" | "call"; fight: number | null; round?: number }
 export interface HuntState {
   v: 1; cfg: HuntConfig; ents: Entrant[];
   phase: "hunt" | "arena" | "reckon" | "done"; wave: number;
@@ -44,6 +53,8 @@ export interface HuntState {
   log: { t: string; c: LogTone }[];
   /** bumps on every change (clients replay reveals once per seq) */
   seq: number; reveal: Reveal | null;
+  /** the last reveals, oldest first, so a stream that polls slower than the host plays them all */
+  events?: Reveal[];
   /** host test tool: the next spawn is the Seraph (never sent to the public) */
   secretNext: boolean;
 }
@@ -65,10 +76,18 @@ export const money = (v: number) => (v === Infinity ? "$∞" : "$" + cents(v).to
 const pick = <T,>(a: T[], rand: Rand) => a[rand(a.length)];
 const chance = (p: number, rand: Rand) => rand(1_000_000) < p * 1_000_000;
 function shuffle<T>(a: T[], rand: Rand): T[] { for (let i = a.length - 1; i > 0; i--) { const j = rand(i + 1); [a[i], a[j]] = [a[j], a[i]]; } return a; }
-function rollTier(rand: Rand): TierDef {
-  const total = TIERS.reduce((s, t) => s + t.w, 0);
+export const DEFAULT_WEIGHTS: TierWeights = { Fodder: 30, Minion: 30, Brute: 25, Warlord: 11, Overlord: 4 };
+export function validWeights(w: unknown): w is TierWeights {
+  if (!w || typeof w !== "object") return false;
+  const v = TIERS.map((t) => (w as Record<string, unknown>)[t.id]);
+  return v.every((x) => Number.isInteger(x) && (x as number) >= 0 && (x as number) <= 100) && (v as number[]).reduce((a, b) => a + b, 0) === 100;
+}
+/** Weighted tier: the host's rank odds, else the bestiary's. */
+function rollTier(rand: Rand, weights?: TierWeights): TierDef {
+  const w = (t: TierDef) => (weights && validWeights(weights) ? weights[t.id as TierId] : t.w);
+  const total = TIERS.reduce((s, t) => s + w(t), 0);
   let x = rand(total);
-  for (const t of TIERS) { if (x < t.w) return t; x -= t.w; }
+  for (const t of TIERS) { if (x < w(t)) return t; x -= w(t); }
   return TIERS[0];
 }
 export const monsterDef = (m: Monster): MonsterDef | null =>
@@ -169,7 +188,7 @@ function newWave(s: HuntState) {
 // ── I. hunt ──
 
 function rollMonster(s: HuntState, rand: Rand): Monster {
-  const t = rollTier(rand);
+  const t = rollTier(rand, s.cfg.weights);
   let pool = t.roster.filter((r) => !s.waveUsed.includes(r.n));
   if (!pool.length) pool = t.roster;
   const def = pick(pool, rand);
@@ -182,7 +201,13 @@ function logSpawn(s: HuntState, m: Monster, e: Entrant) {
   log(s, `${m.name} (${m.tier}, ${money(m.price)} buy${m.abOn && a ? `, ${a.name}` : ""}${m.curse ? `, curse: ${CURSE[m.curse].name}` : ""}) hunts ${e.name}.`, m.tier === "Warlord" || m.tier === "Overlord" ? "o" : "m");
 }
 const needPhase = (s: HuntState, p: HuntState["phase"]) => { if (s.phase !== p) throw new HuntError("hunt_wrong_phase", `this needs the ${p} phase`); };
-const bump = (s: HuntState, reveal?: Omit<Reveal, "seq">) => { s.seq++; if (reveal) s.reveal = { seq: s.seq, ...reveal }; };
+const EVENTS_MAX = 12;
+const bump = (s: HuntState, reveal?: Omit<Reveal, "seq">) => {
+  s.seq++;
+  if (!reveal) return;
+  s.reveal = { seq: s.seq, ...reveal };
+  s.events = [...(s.events ?? []), s.reveal].slice(-EVENTS_MAX);
+};
 
 /** Spawns the monster of the next player still waiting for one. */
 export function spawnNext(s: HuntState, rand: Rand): number {
@@ -199,8 +224,11 @@ export function spawnNext(s: HuntState, rand: Rand): number {
 export function spawnAll(s: HuntState, rand: Rand) {
   needPhase(s, "hunt");
   if (!s.fights.some((f) => !f.monster)) throw new HuntError("hunt_all_spawned");
+  const from = s.seq;
   while (s.fights.some((f) => !f.monster)) spawnNext(s, rand);
-  s.reveal = null; // a whole wave at once: no single pop-up
+  // a whole wave at once: no pop-up per monster
+  s.reveal = null;
+  s.events = (s.events ?? []).filter((e) => e.seq <= from);
 }
 
 /** Host re-rolls a monster that hasn't fought yet. */
@@ -228,9 +256,10 @@ export function fight(s: HuntState, i: number, p: number, b: number, rand: Rand)
   if (!m.secret) s.bought += m.price * (s.cfg.duo ? 3 : 2);
   f.verdict = v;
   for (const n of v.notes) log(s, `${m.name} vs ${e.name}: ${n}`, "o");
-  if (v.out === "rematch") { log(s, `Rematch: ${e.name} and ${m.name} buy again.`, "o"); bump(s); return v; }
-  if (v.out === "revive") { m.revived = true; f.keep = pv; log(s, `${m.name} RISES FROM THE DEAD and buys again. ${e.name} keeps ${money(v.pf)}.`, "o"); bump(s); return v; }
-  if (v.out === "prebuy") { m.prebuy = true; log(s, `${m.name} dozes off. ${e.name} gets a free second try.`, "g"); bump(s); return v; }
+  const shown = { kind: "fight" as const, fight: i };
+  if (v.out === "rematch") { log(s, `Rematch: ${e.name} and ${m.name} buy again.`, "o"); bump(s, shown); return v; }
+  if (v.out === "revive") { m.revived = true; f.keep = pv; log(s, `${m.name} RISES FROM THE DEAD and buys again. ${e.name} keeps ${money(v.pf)}.`, "o"); bump(s, shown); return v; }
+  if (v.out === "prebuy") { m.prebuy = true; log(s, `${m.name} dozes off. ${e.name} gets a free second try.`, "g"); bump(s, shown); return v; }
   f.done = true;
   e.best = Math.max(e.best, v.pf);
   trackWin(s, e.name, v.pf);
@@ -248,7 +277,7 @@ export function fight(s: HuntState, i: number, p: number, b: number, rand: Rand)
     log(s, `REAPED: ${e.name} ${money(v.pf)} vs ${m.name} ${money(v.bf)}.`, "v");
   }
   afterHunt(s, rand);
-  bump(s);
+  bump(s, shown);
   return v;
 }
 
@@ -288,7 +317,8 @@ export function arenaName(r: ArenaRound): string {
 
 export function arenaFight(s: HuntState, i: number, va: number, vb: number, rand: Rand) {
   needPhase(s, "arena");
-  const r = s.arena!.rounds[s.arena!.rounds.length - 1];
+  const ri = s.arena!.rounds.length - 1;
+  const r = s.arena!.rounds[ri];
   const m = r.ms[i];
   if (!m || m.done) throw new HuntError("hunt_bad_fight");
   m.va = va; m.vb = vb;
@@ -308,7 +338,7 @@ export function arenaFight(s: HuntState, i: number, va: number, vb: number, rand
     if (next.length === 1) { log(s, `${ent(s, next[0]).name} wins the Arena.`, "gold"); toReckon(s, ent(s, next[0])); }
     else pushRound(s, shuffle(next, rand), rand);
   }
-  bump(s);
+  bump(s, { kind: "arena", fight: i, round: ri });
 }
 
 // ── III. reckoning ──
@@ -354,8 +384,8 @@ export function bossFight(s: HuntState, p: number, b: number, rand: Rand): Verdi
   if (!m.secret) s.bought += m.price * (s.cfg.duo ? 3 : 2);
   r.verdict = v;
   for (const n of v.notes) log(s, `${m.name}: ${n}`, "o");
-  if (v.out === "rematch") { log(s, "Rematch against the Endboss.", "o"); bump(s); return v; }
-  if (v.out === "revive") { m.revived = true; r.keep = pv; log(s, `${m.name} rises again!`, "o"); bump(s); return v; }
+  if (v.out === "rematch") { log(s, "Rematch against the Endboss.", "o"); bump(s, { kind: "duel", fight: null }); return v; }
+  if (v.out === "revive") { m.revived = true; r.keep = pv; log(s, `${m.name} rises again!`, "o"); bump(s, { kind: "duel", fight: null }); return v; }
   if (v.out === "prebuy") v.out = "b"; // no Endboss gives a second try
   r.done = true;
   c.best = Math.max(c.best, v.pf);
@@ -374,8 +404,31 @@ export function bossFight(s: HuntState, p: number, b: number, rand: Rand): Verdi
     log(s, `${m.name} crushes ${c.name}: ${money(v.bf)} vs ${money(v.pf)}. The Cult wins.`, "v");
     finish(s, { type: "fallen", champ: c.id, boss: m.name, pf: v.pf, bf: v.bf });
   }
-  bump(s);
+  bump(s, { kind: "duel", fight: null });
   return v;
+}
+
+/**
+ * `!call <slot>` (or the host): the slot an entrant plays against the monster
+ * in front of them, until that fight is played. Teammates share the call.
+ */
+export function callSlot(s: HuntState, eid: number, call: SlotCall): { fight: number | null } {
+  if (s.phase === "hunt") {
+    const i = s.fights.findIndex((f) => f.eid === eid && f.monster && !f.done);
+    if (i < 0) throw new HuntError("hunt_no_monster");
+    if (s.fights[i].monster!.secret) throw new HuntError("hunt_no_monster", "nothing can be played against the Seraph");
+    s.fights[i].call = call;
+    log(s, `${call.by} calls ${call.name} against ${s.fights[i].monster!.name}.`, "g");
+    bump(s, { kind: "call", fight: i });
+    return { fight: i };
+  }
+  if (s.phase === "reckon" && s.reckon?.champ === eid && s.reckon.boss && !s.reckon.done && !s.reckon.boss.secret) {
+    s.reckon.call = call;
+    log(s, `${call.by} calls ${call.name} against ${s.reckon.boss.name}.`, "g");
+    bump(s, { kind: "call", fight: null });
+    return { fight: null };
+  }
+  throw new HuntError("hunt_no_monster");
 }
 
 /** Payout: spared / Legend = base × bounty; fell to the Endboss = 50 % of the base or nothing; wipe = nothing. */

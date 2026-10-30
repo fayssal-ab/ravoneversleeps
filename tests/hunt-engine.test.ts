@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { randomInt } from "node:crypto";
 import {
-  arenaFight, bossFight, createHunt, fight, judge, revealFate, spawnAll, spawnNext, summonEndboss,
+  arenaFight, bossFight, callSlot, createHunt, fight, judge, revealFate, spawnAll, spawnNext, summonEndboss, validWeights,
   type HuntConfig, type HuntState, type Monster,
 } from "../lib/hunt/engine";
 
@@ -149,4 +149,47 @@ test("random full runs always end with a valid result", () => {
     if (r.type === "wipe") assert.equal(r.payout, 0);
     assert.ok(s.bought > 0);
   }
+});
+
+test("rank odds: the host's weights decide the tiers", () => {
+  assert.equal(validWeights({ Fodder: 30, Minion: 30, Brute: 25, Warlord: 11, Overlord: 4 }), true);
+  assert.equal(validWeights({ Fodder: 30, Minion: 30, Brute: 25, Warlord: 11, Overlord: 5 }), false); // 101 %
+  const only = (tier: string) => {
+    const w = { Fodder: 0, Minion: 0, Brute: 0, Warlord: 0, Overlord: 0, [tier]: 100 } as never;
+    const s = createHunt(cfg({ weights: w }), players(8), (n) => randomInt(n));
+    spawnAll(s, (n) => randomInt(n));
+    return s.fights.every((f) => f.monster!.tier === tier || f.monster!.secret);
+  };
+  assert.ok(only("Overlord"));
+  assert.ok(only("Fodder"));
+  // 60 % easy by default when the setup passes the default odds
+  let easy = 0;
+  for (let i = 0; i < 200; i++) {
+    const s = createHunt(cfg({ weights: { Fodder: 30, Minion: 30, Brute: 25, Warlord: 11, Overlord: 4 } }), players(8), (n) => randomInt(n));
+    spawnAll(s, (n) => randomInt(n));
+    easy += s.fights.filter((f) => f.monster!.tier === "Fodder" || f.monster!.tier === "Minion").length;
+  }
+  assert.ok(easy / 1600 > 0.55 && easy / 1600 < 0.65, `easy share ${easy / 1600}`);
+});
+
+test("!call: only against a waiting monster, kept on the fight; events queue every reveal", () => {
+  const s = createHunt(cfg({ chance: 100 }), players(2), seq());
+  assert.throws(() => callSlot(s, 0, { name: "Gates of Olympus", provider: "Pragmatic", image: null, by: "p0" }), /hunt_no_monster/);
+  spawnNext(s, seq()); spawnNext(s, seq());
+  force(s, 0, {}); force(s, 1, {});
+  const eid = s.fights[0].eid;
+  callSlot(s, eid, { name: "Gates of Olympus", provider: "Pragmatic", image: null, by: "p0" });
+  assert.equal(s.fights[0].call!.name, "Gates of Olympus");
+  fight(s, 0, 900, 100, seq());
+  assert.throws(() => callSlot(s, eid, { name: "x", provider: "", image: null, by: "p0" }), /hunt_no_monster/);
+  fight(s, 1, 10, 900, seq());
+  // reckoning: the champion calls against the Endboss
+  revealFate(s, seq(0));
+  summonEndboss(s, seq());
+  s.reckon!.boss = mon({ tier: "Endboss", name: "The Reaper King", price: 3000, bounty: 10 });
+  callSlot(s, s.reckon!.champ, { name: "Mental", provider: "Nolimit", image: null, by: "p0" });
+  assert.equal(s.reckon!.call!.name, "Mental");
+  const kinds = s.events!.map((e) => e.kind);
+  assert.deepEqual(kinds.slice(-6), ["call", "fight", "fight", "fate", "endboss", "call"]);
+  assert.ok(s.events!.every((e, i, a) => i === 0 || e.seq > a[i - 1].seq));
 });

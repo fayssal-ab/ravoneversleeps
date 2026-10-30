@@ -25,9 +25,28 @@ const OUTCOME: Record<string, string> = {
   registered: "registered", rerolled: "slot changed", duplicate_message: "duplicate ignored", no_tournament: "no tournament",
   registration_closed: "registration closed", full: "full", locked_in_bracket: "locked in bracket", eliminated: "eliminated, ignored",
   pending_roll: "being rolled, ignored", disqualified: "disqualified, ignored", no_slots: "slot catalogue empty!", slot_taken: "slot already called, ignored", processing_failed: "server error", network_error: "network error",
+  already_joined: "already in", called: "called", no_hunt: "!call: no Hunt running", no_slot: "!call without a slot", hunt_not_player: "!call: not a player", hunt_no_monster: "!call: no monster for them yet",
 };
 
 const SIZES = [4, 8, 16, 32] as const;
+
+// Hunt monster ranks: Easy = Fodder + Minion, Medium = Brute, Hard = Warlord, Nightmare = Overlord
+type RankOdds = { easy: number; medium: number; hard: number; nightmare: number };
+const RANKS: { key: keyof RankOdds; label: string; tiers: string; color: string }[] = [
+  { key: "easy", label: "Easy", tiers: "Fodder · Minion", color: "#8cff4a" },
+  { key: "medium", label: "Medium", tiers: "Brute", color: "#f5c95a" },
+  { key: "hard", label: "Hard", tiers: "Warlord", color: "#ff8a3d" },
+  { key: "nightmare", label: "Nightmare", tiers: "Overlord", color: "#b36bff" },
+];
+const RANK_PRESETS: { label: string; v: RankOdds }[] = [
+  { label: "Chill", v: { easy: 75, medium: 18, hard: 5, nightmare: 2 } },
+  { label: "Balanced", v: { easy: 60, medium: 25, hard: 11, nightmare: 4 } },
+  { label: "Brutal", v: { easy: 40, medium: 30, hard: 20, nightmare: 10 } },
+];
+const rankWeights = (r: RankOdds) => {
+  const fodder = Math.round(r.easy / 2);
+  return { Fodder: fodder, Minion: r.easy - fodder, Brute: r.medium, Warlord: r.hard, Overlord: r.nightmare };
+};
 type Tab = "bracket" | "round" | "qualified" | "eliminated" | "final";
 
 export function KoDashboard({ initial, overlayUrl }: { initial: KoState | null; overlayUrl: string }) {
@@ -40,7 +59,7 @@ export function KoDashboard({ initial, overlayUrl }: { initial: KoState | null; 
   const [revealed, setRevealed] = useState<number | null>(null);
   const [tab, setTab] = useState<Tab>("bracket");
   const [preview, setPreview] = useState<{ n: number; show: Show | null }>({ n: 0, show: null });
-  const [form, setForm] = useState({ title: "", prize: "", size: 16 as (typeof SIZES)[number], duo: false, reaping: false, chance: 40, finalBoss: true, rollover: true, hunt: false, waves: 1 as 1 | 2 | 3, endChance: 50, fall: "half" as "half" | "nothing", p1: "", p2: "", p3: "" });
+  const [form, setForm] = useState({ title: "", prize: "", size: 16 as (typeof SIZES)[number], duo: false, reaping: false, chance: 40, finalBoss: true, rollover: true, hunt: false, waves: 1 as 1 | 2 | 3, endChance: 50, fall: "half" as "half" | "nothing", rank: { easy: 60, medium: 25, hard: 11, nightmare: 4 }, p1: "", p2: "", p3: "" });
   const boss = useBossReveal(state);
   const [manual, setManual] = useState({ username: "", slot: "" });
 
@@ -88,7 +107,7 @@ export function KoDashboard({ initial, overlayUrl }: { initial: KoState | null; 
             act("create", {
               title: form.title, prize: form.prize, size: form.size, duo: form.duo, prizes: [form.p1 || null, null, null],
               reaping: form.reaping ? { chance: form.chance, finalBoss: form.finalBoss, rollover: form.rollover } : null,
-              hunt: form.hunt ? { waves: form.waves, chance: form.endChance, fall: form.fall } : null,
+              hunt: form.hunt ? { waves: form.waves, chance: form.endChance, fall: form.fall, weights: rankWeights(form.rank) } : null,
             });
           }}
         >
@@ -145,6 +164,31 @@ export function KoDashboard({ initial, overlayUrl }: { initial: KoState | null; 
                       className={`rounded-xl border-2 py-2 font-mono text-lg font-bold transition ${form.waves === n ? "border-[#ff8a3d] bg-[#ff8a3d]/15" : "border-line-hot text-muted"}`}>{n}</button>
                   ))}
                 </div>
+              </div>
+              <div>
+                <span className="label">Monster ranks (odds for every player)</span>
+                <div className="mb-2 flex flex-wrap gap-2">
+                  {RANK_PRESETS.map((p) => {
+                    const on = RANKS.every((r) => form.rank[r.key] === p.v[r.key]);
+                    return (
+                      <button key={p.label} type="button" onClick={() => setForm({ ...form, rank: { ...p.v } })} aria-pressed={on}
+                        className={`rounded-lg border-2 px-3 py-1.5 font-head text-xs font-bold uppercase tracking-wider transition ${on ? "border-[#ff8a3d] bg-[#ff8a3d]/15" : "border-line-hot text-muted hover:text-text"}`}>{p.label}</button>
+                    );
+                  })}
+                </div>
+                <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                  {RANKS.map((r) => (
+                    <label key={r.key} className="block rounded-xl border border-line bg-bg-2 p-2">
+                      <span className="block font-head text-[11px] font-bold uppercase tracking-wider" style={{ color: r.color }}>{r.label}</span>
+                      <span className="block text-[10px] text-dim">{r.tiers}</span>
+                      <span className="mt-1 flex items-center gap-1">
+                        <input type="number" min={0} max={100} value={form.rank[r.key]} onChange={(e) => setForm({ ...form, rank: { ...form.rank, [r.key]: Math.max(0, Math.min(100, Math.round(Number(e.target.value) || 0))) } })} className="field !py-1 text-right font-mono" aria-label={`${r.label} %`} />
+                        <span className="text-sm text-muted">%</span>
+                      </span>
+                    </label>
+                  ))}
+                </div>
+                {(() => { const t = RANKS.reduce((a, r) => a + form.rank[r.key], 0); return <p className={`mt-1 text-xs ${t === 100 ? "text-dim" : "text-danger"}`}>Total {t}%{t === 100 ? "" : " · must be 100%"}</p>; })()}
               </div>
               <label className="block">
                 <span className="label">Endboss chance at the end: <b className="font-mono text-text">{form.endChance}%</b></span>
@@ -208,7 +252,7 @@ export function KoDashboard({ initial, overlayUrl }: { initial: KoState | null; 
           <label className="block max-w-xs"><span className="label">Champion prize ($)</span>
             <input inputMode="decimal" pattern="\d{1,9}(\.\d{1,2})?" value={form.p1} onChange={(e) => setForm({ ...form, p1: e.target.value })} placeholder="300" className="field font-mono" />
           </label>
-          <button disabled={busy !== null} className="btn btn-neon">
+          <button disabled={busy !== null || (form.hunt && RANKS.reduce((a, r) => a + form.rank[r.key], 0) !== 100)} className="btn btn-neon">
             Create {form.duo ? `${form.size}-team${form.reaping || form.hunt ? "" : " duo"} (${form.size * 2} players)` : `${form.size}-player`} {form.hunt ? "Hunt" : form.reaping ? "Reaping" : "tournament"}
           </button>
           {msg && <p role="alert" className="text-sm text-danger">{msg}</p>}
@@ -220,6 +264,14 @@ export function KoDashboard({ initial, overlayUrl }: { initial: KoState | null; 
   if (t.mode === "hunt") {
     return (
       <HuntDashboard state={state} act={act} busy={busy} msg={msg} onDisqualify={disqualify}
+        chat={reader.events.length > 0 ? (
+          <div className="mt-4 border-t border-line pt-3">
+            <p className="eyebrow mb-1">Chat · !join / !call</p>
+            <ul className="max-h-48 space-y-0.5 overflow-y-auto font-mono text-[11px] text-dim">
+              {reader.events.map((e, i) => <li key={i}><span className="text-muted">{e.username}</span> · {OUTCOME[e.outcome] ?? e.outcome}{e.slot ? <> → <span className="text-neon">{e.slot}</span></> : null}</li>)}
+            </ul>
+          </div>
+        ) : null}
         reader={<>
           <p className={`mt-1 text-xs ${READER[reader.status].tone}`}>● {READER[reader.status].label}{reader.status === "error" && reader.detail ? <span className="text-dim"> ({reader.detail})</span> : null}</p>
           <p className="text-[11px] text-dim">{reader.lastSeen ? <>Last chat message: <span className="text-muted">{reader.lastSeen.username}</span> at {new Date(reader.lastSeen.at).toLocaleTimeString()}</> : "No chat message received yet (set the webhook URL in your Kick app)"}</p>

@@ -12,8 +12,8 @@ import { EventLog, HuntPhase, HuntStats, PhaseBar, RevealOverlay, useHuntReveal,
 
 type Act = (action: string, extra?: Record<string, unknown>, confirmText?: string) => Promise<boolean>;
 
-export function HuntDashboard({ state, act, busy, msg, reader, onDisqualify }: {
-  state: KoState; act: Act; busy: string | null; msg: string | null; reader: ReactNode; onDisqualify: (p: KoParticipant) => void;
+export function HuntDashboard({ state, act, busy, msg, reader, chat, onDisqualify }: {
+  state: KoState; act: Act; busy: string | null; msg: string | null; reader: ReactNode; chat?: ReactNode; onDisqualify: (p: KoParticipant) => void;
 }) {
   const t = state.tournament;
   const s = state.hunt;
@@ -63,7 +63,8 @@ export function HuntDashboard({ state, act, busy, msg, reader, onDisqualify }: {
             </div>
             {setup && (
               <p className="text-sm text-muted">
-                {setup.waves} monster wave{setup.waves === 1 ? "" : "s"} · Endboss chance {setup.chance}% · base prize <b className="font-mono text-gold">{money(Number(t.prize_1 ?? 0))}</b> (× the best bounty) · if the Endboss wins: {setup.fall === "half" ? "the champion keeps 50%" : "nothing"}
+                {setup.waves} monster wave{setup.waves === 1 ? "" : "s"} · Endboss chance {setup.chance}%
+                {setup.weights && <> · ranks: easy {setup.weights.Fodder + setup.weights.Minion}% · medium {setup.weights.Brute}% · hard {setup.weights.Warlord}% · nightmare {setup.weights.Overlord}%</>} · base prize <b className="font-mono text-gold">{money(Number(t.prize_1 ?? 0))}</b> (× the best bounty) · if the Endboss wins: {setup.fall === "half" ? "the champion keeps 50%" : "nothing"}
               </p>
             )}
             <div className="flex flex-col items-center gap-2 pt-2">
@@ -89,7 +90,8 @@ export function HuntDashboard({ state, act, busy, msg, reader, onDisqualify }: {
             )}
             {state.participants.length === 0
               ? <p className="text-sm text-dim">{t.status === "open" ? "Waiting for the first !join…" : "Open registration to collect !join from chat."}</p>
-              : <ol className="max-h-[520px] space-y-2 overflow-y-auto pr-1">{state.participants.map((p, i) => <ParticipantRow key={p.id} p={p} index={i} onDisqualify={onDisqualify} />)}</ol>}
+              : <ol className="max-h-[520px] space-y-2 overflow-y-auto pr-1">{state.participants.map((p, i) => <ParticipantRow key={p.id} p={p} index={i} onDisqualify={onDisqualify} noSlot />)}</ol>}
+            {chat}
           </section>
         </div>
       ) : (
@@ -121,7 +123,10 @@ export function HuntDashboard({ state, act, busy, msg, reader, onDisqualify }: {
             </div>
             <HuntPhase s={s} admin={admin} />
           </section>
-          <EventLog s={s} />
+          <div className="grid gap-4 lg:grid-cols-[1fr_340px]">
+            <EventLog s={s} />
+            {chat && <div className="panel p-4">{chat}</div>}
+          </div>
         </>
       )}
     </div>

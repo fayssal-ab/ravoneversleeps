@@ -21,18 +21,23 @@ const Id = z.number().int().positive().max(2_147_483_647);
 const Money = z.string().trim().regex(/^\d{1,9}(\.\d{1,2})?$/);
 const Bonus = z.object({ cost: Money, payout: Money });
 const Amount = z.union([z.null(), Money]);
+const Pct = z.number().int().min(0).max(100);
 const Body = z.discriminatedUnion("action", [
   z.object({
     action: z.literal("create"), title: z.string().trim().min(1).max(120), prize: z.string().trim().max(120).default(""),
     size: z.union([z.literal(4), z.literal(8), z.literal(16), z.literal(32)]), duo: z.boolean().default(false), prizes: z.tuple([Amount, Amount, Amount]).optional(),
     reaping: z.object({ chance: z.number().int().min(0).max(100), finalBoss: z.boolean(), rollover: z.boolean() }).nullable().optional(),
-    hunt: z.object({ waves: z.union([z.literal(1), z.literal(2), z.literal(3)]), chance: z.number().int().min(0).max(100), fall: z.enum(["half", "nothing"]) }).nullable().optional(),
+    hunt: z.object({
+      waves: z.union([z.literal(1), z.literal(2), z.literal(3)]), chance: z.number().int().min(0).max(100), fall: z.enum(["half", "nothing"]),
+      weights: z.object({ Fodder: Pct, Minion: Pct, Brute: Pct, Warlord: Pct, Overlord: Pct }).optional(),
+    }).nullable().optional(),
   }),
   // The Reaping · Hunt: wins are dollar amounts
   z.object({
     action: z.literal("hunt"), id: Id,
-    op: z.enum(["start", "spawn", "spawn_all", "reroll", "fight", "arena", "fate", "endboss", "boss", "secret"]),
+    op: z.enum(["start", "spawn", "spawn_all", "reroll", "fight", "arena", "fate", "endboss", "boss", "secret", "call"]),
     index: z.number().int().min(0).max(63).optional(), p: Money.optional(), b: Money.optional(), on: z.boolean().optional(),
+    slot: z.string().trim().min(2).max(80).optional(),
   }),
   z.object({ action: z.enum(["open", "close", "reset", "roll", "confirm", "cancel_roll", "start", "next", "make_teams", "undo_teams", "play", "boss_roll", "boss_respin"]), id: Id }),
   // a side facing a boss in the bracket has no bonus, so p1 / p2 are each optional (checked server-side)
@@ -41,6 +46,13 @@ const Body = z.discriminatedUnion("action", [
   z.object({ action: z.literal("disqualify"), id: Id, participantId: z.number().int().positive() }),
   z.object({ action: z.literal("add_player"), id: Id, username: z.string().trim().min(1).max(40), slot: z.string().trim().max(80).default("") }),
 ]);
+
+/** Host sets an entrant's slot (when chat can't): catalogue match, else the name as typed. */
+async function hostCall(b: { index?: number; slot?: string }): Promise<HuntOp> {
+  if (b.index == null || !b.slot) throw new AppError("invalid_input", "pick a player and a slot");
+  const found = await findSlotByName(b.slot);
+  return { op: "call", eid: b.index, call: { name: found?.name ?? b.slot, provider: found?.provider ?? "", image: found?.imageUrl || null } };
+}
 
 /** API body → engine op; missing numbers are refused (invalid_input). */
 function huntOp(b: { op: string; index?: number; p?: string; b?: string; on?: boolean }): HuntOp {
@@ -70,7 +82,7 @@ export async function POST(request: Request) {
     let result: unknown = null;
     switch (body.action) {
       case "create": result = { id: await createKo({ title: body.title, prize: body.prize, size: body.size, duo: body.duo, prizes: body.prizes, reaping: body.reaping ?? null, hunt: body.hunt ?? null }) }; break;
-      case "hunt": result = await huntAction(body.id, huntOp(body)); break;
+      case "hunt": result = await huntAction(body.id, body.op === "call" ? await hostCall(body) : huntOp(body)); break;
       case "open":
         await openRegistration(body.id);
         // official Kick webhook for !join (best effort; the dashboard socket is the fallback)

@@ -2,6 +2,7 @@ import { z } from "zod";
 import { isAdminSession } from "@/lib/admin";
 import { isSameOrigin, json, jsonError } from "@/lib/http";
 import { ensureKoSchema, JOIN_RE, recordJoin } from "@/lib/knockout";
+import { CALL_RE, chatCall } from "@/lib/hunt/chat";
 import { findSlotByName } from "@/lib/slots";
 import { withTx } from "@/lib/tx";
 
@@ -24,6 +25,10 @@ export async function POST(request: Request) {
     body = Body.parse(await request.json());
   } catch {
     return jsonError("invalid_body", 400);
+  }
+  if (CALL_RE.test(body.content)) {
+    try { return json({ ok: true, ...(await chatCall(String(body.userId), body.content)) }); }
+    catch { return jsonError("processing_failed", 503); }
   }
   if (!JOIN_RE.test(body.content)) return json({ ok: true, outcome: "not_command" });
   try {

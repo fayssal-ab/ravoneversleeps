@@ -5,7 +5,7 @@ import type { PoolConnection, ResultSetHeader, RowDataPacket } from "mysql2/prom
 import { getPool } from "./db";
 import { kickAvatars } from "./kickApi";
 import { bossLine, bossName, spinWheel, stageChance, type BossTier } from "./reaping";
-import { publicHunt, type HuntState } from "./hunt/engine";
+import { publicHunt, validWeights, type HuntState, type TierWeights } from "./hunt/engine";
 import { randomPoolSlot } from "./slots";
 import { AppError, lockApp, withTx } from "./tx";
 
@@ -100,7 +100,7 @@ export interface KoState {
   /** Hunt: the game once started (public view), else the chosen settings. */
   hunt: HuntState | null; huntSetup: HuntSetup | null;
 }
-export interface HuntSetup { waves: 1 | 2 | 3; chance: number; fall: "half" | "nothing" }
+export interface HuntSetup { waves: 1 | 2 | 3; chance: number; fall: "half" | "nothing"; weights?: TierWeights }
 
 /** Higher multiplier (payout ÷ cost, exact decimals) wins; exact tie undecided. */
 export function decideBattle(p1: { cost: string; payout: string }, p2: { cost: string; payout: string }): { side: 1 | 2 | "tie"; m1: string; m2: string } {
@@ -291,6 +291,7 @@ export async function createKo(input: { title: string; prize: string; size: KoSi
     const h = input.hunt ?? null;
     if (r && h) throw new AppError("invalid_input", "pick one mode");
     if (h && !([1, 2, 3].includes(h.waves) && Number.isInteger(h.chance) && h.chance >= 0 && h.chance <= 100 && (h.fall === "half" || h.fall === "nothing"))) throw new AppError("invalid_input", "bad Hunt settings");
+    if (h?.weights && !validWeights(h.weights)) throw new AppError("invalid_input", "rank odds must add up to 100%");
     if (r && !(Number.isInteger(r.chance) && r.chance >= 0 && r.chance <= 100)) throw new AppError("invalid_input", "boss chance must be 0 to 100");
     const [res] = await conn.query<ResultSetHeader>(
       "INSERT INTO ko_tournaments (title, prize, prize_1, prize_2, prize_3, status, max_players, team_size, mode, boss_chance, final_boss, rollover, hunt) VALUES (?, ?, ?, ?, ?, 'closed', ?, ?, ?, ?, ?, ?, ?)",
@@ -479,7 +480,7 @@ export interface JoinInput {
 }
 export type JoinOutcome =
   | "registered" | "rerolled" | "duplicate_message" | "no_tournament" | "registration_closed"
-  | "full" | "locked_in_bracket" | "eliminated" | "disqualified" | "pending_roll" | "no_slots" | "slot_taken";
+  | "full" | "locked_in_bracket" | "eliminated" | "disqualified" | "pending_roll" | "no_slots" | "slot_taken" | "already_joined";
 
 /** Run inside a transaction. */
 export async function recordJoin(conn: PoolConnection, input: JoinInput): Promise<{ outcome: JoinOutcome; count?: number; slot?: string }> {
@@ -497,12 +498,14 @@ export async function recordJoin(conn: PoolConnection, input: JoinInput): Promis
   const taken = everyone.map((r) => String(r.slot_id));
   const assigned = everyone.filter((r) => !Number(r.is_boss));
   // A named slot can only be called by one player per tournament.
-  if (input.slot && assigned.some((r) => !r.disqualified && String(r.slot_id) === input.slot!.id && String(r.kick_user_id) !== input.kickUserId))
+  if (t.mode !== "hunt" && input.slot && assigned.some((r) => !r.disqualified && String(r.slot_id) === input.slot!.id && String(r.kick_user_id) !== input.kickUserId))
     return { outcome: "slot_taken", slot: input.slot.name };
 
   if (existing[0]) {
     const p = existing[0];
     if (p.disqualified) return { outcome: "disqualified" };
+    // Hunt: the monster brings the fight, nothing to change after joining
+    if (t.mode === "hunt") return { outcome: "already_joined" };
     if (p.state === "eliminated") return { outcome: "eliminated" };
     if (p.state !== "registered") return { outcome: "locked_in_bracket" };
     const [inMatch] = await conn.query<RowDataPacket[]>("SELECT status FROM ko_matches WHERE tournament_id = ? AND (p1_id = ? OR p2_id = ?) LIMIT 1", [t.id, p.id, p.id]);
@@ -520,7 +523,8 @@ export async function recordJoin(conn: PoolConnection, input: JoinInput): Promis
   if (t.status !== "open") return { outcome: "registration_closed" };
   const count = assigned.filter((r) => !r.disqualified).length;
   if (count >= t.max_players * t.team_size) return { outcome: "full" };
-  let slot = input.slot ?? null;
+  // Hunt: a plain !join (a slot typed after it is ignored; the row just keeps a placeholder slot)
+  let slot = t.mode === "hunt" ? null : input.slot ?? null;
   if (!slot) {
     try { slot = await randomPoolSlot(conn, taken); } catch { return { outcome: "no_slots" }; }
   }

@@ -151,7 +151,7 @@ export function KoPublic({ initial, id }: { initial: KoState; id?: number }) {
       {s.participants.length > 0 && (
         <section className="panel p-4 sm:p-6">
           <h3 className="mb-4 font-head text-sm font-bold uppercase tracking-[0.2em] text-muted">Players ({s.registered})</h3>
-          <ol className="grid grid-cols-1 gap-2 md:grid-cols-2 lg:grid-cols-3">{s.participants.map((p, i) => <ParticipantRow key={p.id} p={p} index={i} />)}</ol>
+          <ol className="grid grid-cols-1 gap-2 md:grid-cols-2 lg:grid-cols-3">{s.participants.map((p, i) => <ParticipantRow key={p.id} p={p} index={i} noSlot={t.mode === "hunt"} />)}</ol>
         </section>
       )}
     </div>
