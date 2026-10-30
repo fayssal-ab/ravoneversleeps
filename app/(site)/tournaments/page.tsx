@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Crown } from "lucide-react";
+import { Crown, Skull } from "lucide-react";
 import { LiveRefresh } from "@/components/shell/AutoUpdate";
 import { KoPublic } from "@/components/tournament/KoPublic";
 import { EmptyState, PageHeader } from "@/components/ui/bits";
@@ -48,8 +48,12 @@ export default async function TournamentsPage({ searchParams }: { searchParams: 
               <Link key={a.id} href={`/tournaments?id=${a.id}`} className="panel neon-frame flex min-w-0 items-center gap-4 p-4 sm:p-5 transition hover:-translate-y-1">
                 <SlotArt name={a.champion_slot ?? "?"} src={a.champion_image} size={64} />
                 <span className="min-w-0">
-                  <span className="block truncate text-sm text-muted">{a.title || "Knockout"} · {a.team_size === 2 ? `duo · ${a.max_players} teams` : `${a.max_players} players`}</span>
-                  <span className="flex min-w-0 items-center gap-1.5 font-head text-lg font-bold text-gold"><Crown className="size-4 shrink-0" /><span className="truncate">{a.champion ?? "—"}</span></span>
+                  <span className="block truncate text-sm text-muted">{a.title || "Knockout"}{a.mode === "reaping" ? " · reaping" : a.mode === "hunt" ? " · hunt" : ""} · {a.team_size === 2 ? `duo · ${a.max_players} teams` : `${a.max_players} players`}</span>
+                  {a.champion_is_boss || (a.mode === "hunt" && !a.champion) ? (
+                    <span className="flex min-w-0 items-center gap-1.5 font-head text-lg font-bold text-[#c9a6ff]"><Skull className="size-4 shrink-0" /><span className="truncate">The Cult{a.champion ? ` · ${a.champion}` : " wins"}</span></span>
+                  ) : (
+                    <span className="flex min-w-0 items-center gap-1.5 font-head text-lg font-bold text-gold"><Crown className="size-4 shrink-0" /><span className="truncate">{a.champion ?? "—"}</span></span>
+                  )}
                   {a.champion_slot && <span className="block truncate text-xs text-dim">{a.champion_slot}</span>}
                 </span>
               </Link>

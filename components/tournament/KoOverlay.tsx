@@ -1,12 +1,16 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Crown } from "lucide-react";
+import { Crown, Skull } from "lucide-react";
 import { SlotArt } from "@/components/ui/SlotArt";
 import type { KoMatch, KoParticipant } from "@/lib/knockout";
 import { FinisherStage, demoShow, useFinishers } from "./fight/Finishers";
 import { KickAvatar, Podium, RollReveal, VsScreen, matchLabel, roundName, teamName, useRollSpin } from "./parts";
 import { useKoState } from "./useKoState";
+import { tierOf } from "@/lib/reapingTiers";
+import { BossBanner, BossReveal, useBossReveal } from "./reaping/Boss";
+import { HuntPhase, HuntStats, MonsterCard, useHuntReveal } from "./hunt/HuntBoard";
+import { money } from "@/lib/hunt/engine";
 
 // OBS overlay, transparent background. Default: a landscape card with the two
 // sides next to each other (browser source about 1280×720, any landscape size
@@ -18,6 +22,8 @@ export function KoOverlay({ wide = false, mute = false, demo = false }: { wide?:
   const { state } = useKoState(null, 1500);
   const [revealed, setRevealed] = useState<number | null>(null);
   const fin = useFinishers(state);
+  const boss = useBossReveal(state);
+  const huntReveal = useHuntReveal(state?.hunt ?? null, 9000);
   const [demoRound, setDemoRound] = useState(0);
   const { current, push } = fin;
   useEffect(() => {
@@ -34,6 +40,41 @@ export function KoOverlay({ wide = false, mute = false, demo = false }: { wide?:
   const rolling = (focus?.status === "rolled" || focus?.status === "live") && focus.roll_seq != null && revealed !== focus.roll_seq;
   const header = t.status === "open" ? `!join · ${state.registered}/${state.capacity}` : focus ? roundName(t.max_players, focus.round) : "";
 
+  if (t.mode === "hunt" && state.hunt) {
+    const h = state.hunt;
+    const r = huntReveal.reveal;
+    const spawn = r?.kind === "spawn" && r.fight != null ? h.fights[r.fight] : null;
+    const pill = h.phase === "hunt" ? `The Hunt · wave ${h.wave} of ${h.cfg.waves}` : h.phase === "arena" ? "The Arena" : h.phase === "reckon" ? "The Reckoning" : "The Reaping is over";
+    return (
+      <div className="flex h-[100dvh] w-full p-[1.2vh]">
+        {finisher}
+        <div className="flex w-full flex-col gap-[1.5vh] overflow-hidden rounded-[2.4vh] border-[0.5vh] border-[#ff8a3d]/70 bg-[linear-gradient(160deg,#1a0f08,#040605_55%,#0b0714)] p-[2.4vh] shadow-[0_0_5vh_-1vh_rgb(255_138_61/0.6)]">
+          <div className="text-center">
+            <p className="truncate font-head text-[5vh] font-bold uppercase leading-none tracking-wider text-text">{t.title}</p>
+            <p className="mx-auto mt-[1vh] w-fit max-w-full truncate rounded-full bg-[#ff8a3d] px-[2vh] py-[0.4vh] font-head text-[2.8vh] font-bold uppercase tracking-[0.15em] text-bg">{pill}</p>
+          </div>
+          <div className="min-h-0 flex-1 overflow-hidden">
+            {r && spawn?.monster ? (
+              <div className="grid h-full place-items-center">
+                <div className="w-full max-w-[60vh]">
+                  <p className="mb-[1vh] text-center font-head text-[3vh] font-bold text-[#ff8a3d]">A monster hunts {h.ents[spawn.eid].name}</p>
+                  <MonsterCard m={spawn.monster} big line={`Both buy ${money(spawn.monster.price)}. ${h.ents[spawn.eid].name} must win more than the monster.`} />
+                </div>
+              </div>
+            ) : r?.kind === "endboss" && h.reckon?.boss ? (
+              <div className="grid h-full place-items-center"><div className="w-full max-w-[60vh]"><MonsterCard m={h.reckon.boss} big /></div></div>
+            ) : (
+              <div className="space-y-[1.5vh]">
+                <HuntStats s={h} />
+                <HuntPhase s={h} compact />
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   if (wide) {
     return (
       <div className="flex h-[100dvh] w-full items-center justify-center p-10">
@@ -45,6 +86,8 @@ export function KoOverlay({ wide = false, mute = false, demo = false }: { wide?:
           </div>
           {state.champion ? (
             <Podium state={state} />
+          ) : !state.live && boss.waiting ? (
+            <BossReveal boss={boss.waiting.boss} roll={boss.waiting.roll} duo={t.team_size === 2} big animateSpin={boss.animateSpin} onDone={boss.finish} />
           ) : focus && focus.status !== "empty" ? (
             rolling ? (
               <RollReveal key={`roll-${focus.roll_seq}`} match={focus} pool={pool} size={t.max_players} big onDone={() => setRevealed(focus.roll_seq)} />
@@ -66,12 +109,16 @@ export function KoOverlay({ wide = false, mute = false, demo = false }: { wide?:
         <div className="text-center">
           <p className="truncate font-head text-[6vh] font-bold uppercase leading-none tracking-wider text-text">{t.title}</p>
           <p className="mx-auto mt-[1vh] w-fit max-w-full truncate rounded-full bg-neon px-[2vh] py-[0.4vh] font-head text-[3.2vh] font-bold uppercase tracking-[0.15em] text-neon-ink">
-            {focus && !state.champion && focus.status !== "empty" ? matchLabel(focus, t.max_players) : t.team_size === 2 ? "Duo 2v2 knockout" : "Solo 1v1 knockout"}
+            {!state.champion && !state.live && boss.waiting ? `Boss · round ${boss.waiting.roll.round}`
+              : focus && !state.champion && focus.status !== "empty" ? matchLabel(focus, t.max_players)
+              : t.mode === "reaping" ? `The Reaping · Wheel · ${t.team_size === 2 ? "duo" : "solo"}` : t.team_size === 2 ? "Duo 2v2 knockout" : "Solo 1v1 knockout"}
           </p>
         </div>
         <div className="flex min-h-0 flex-1 flex-col justify-center">
           {state.champion ? (
-            <Champion p={state.champion} prize={t.prize_1} />
+            <Champion p={state.champion} prize={t.prize_1} rollover={t.rollover} />
+          ) : !state.live && boss.waiting ? (
+            <BossReveal boss={boss.waiting.boss} roll={boss.waiting.roll} duo={t.team_size === 2} big animateSpin={boss.animateSpin} onDone={boss.finish} />
           ) : focus && focus.status !== "empty" ? (
             rolling ? (
               <RollRow key={`roll-${focus.roll_seq}`} match={focus} pool={pool} onDone={() => setRevealed(focus.roll_seq)} />
@@ -197,7 +244,17 @@ function Side({ p, multi, results, color, outcome, live }: {
 }) {
   return (
     <div className={`flex min-w-0 flex-1 flex-col items-center text-center transition-opacity duration-500 ${outcome === "lose" ? "opacity-40 grayscale" : ""}`}>
-      {!p ? (
+      {p?.is_boss ? (
+        <>
+          <div className="relative overflow-hidden rounded-[1.6vh] border-[0.5vh]" style={{ borderColor: tierOf(p.boss_tier).color, boxShadow: `0 0 4vh -1vh ${tierOf(p.boss_tier).color}` }}>
+            <SlotArt name={p.slot_name} src={p.slot_image} fluid="min(42vh, 28vw)" rounded="rounded-[1.2vh]" className="!border-0 brightness-75" />
+            <Skull className="absolute left-1/2 top-1/2 size-1/3 -translate-x-1/2 -translate-y-1/2 text-white/85" />
+          </div>
+          <p className="mt-[1vh] w-full truncate font-head text-[6.4vh] font-bold leading-tight" style={{ color: tierOf(p.boss_tier).color }}>{p.username}</p>
+          <p className="w-full truncate text-[3.6vh] font-semibold leading-tight text-muted">Boss · target</p>
+          <p className="mt-[0.6vh] font-mono text-[10vh] font-bold leading-none" style={{ color: tierOf(p.boss_tier).color }}>{Number(p.boss_target)}x</p>
+        </>
+      ) : !p ? (
         <div className="overflow-hidden rounded-[1.6vh] border-[0.35vh]" style={{ borderColor: color }}>
           <span className="grid size-[min(42vh,28vw)] place-items-center font-display text-[6vh] text-dim">?</span>
         </div>
@@ -221,7 +278,7 @@ function Side({ p, multi, results, color, outcome, live }: {
           <p className="w-full truncate text-[3.6vh] font-semibold leading-tight" style={{ color }}>{p.slot_name}</p>
         </>
       )}
-      {multi || live ? (
+      {!p?.is_boss && (multi || live) ? (
         // live: x0.00 until the first bonus is in
         <p className={`mt-[0.6vh] font-mono text-[10vh] font-bold leading-none ${outcome === "win" ? "text-gold" : multi ? "text-muted" : "text-dim"}`}>x{multi ?? "0.00"}</p>
       ) : null}
@@ -233,6 +290,8 @@ function VsRow({ match }: { match: KoMatch }) {
   const outcome = (p: KoParticipant | null) => (match.winner_id == null || !p ? null : match.winner_id === p.id ? "win" : "lose");
   const live = match.status === "live";
   return (
+    <div>
+    <BossBanner match={match} duo={Boolean(match.p1?.partner || match.p2?.partner)} big />
     <div className="flex items-center justify-center gap-[3vw]">
       <Side p={match.p1} multi={match.p1_multi} results={[match.p1_result, match.p1b_result]} color="var(--color-neon)" outcome={outcome(match.p1)} live={live} />
       <span className="flex shrink-0 flex-col items-center gap-[1.5vh]">
@@ -241,10 +300,22 @@ function VsRow({ match }: { match: KoMatch }) {
       </span>
       <Side p={match.p2} multi={match.p2_multi} results={[match.p2_result, match.p2b_result]} color="var(--color-silver)" outcome={outcome(match.p2)} live={live} />
     </div>
+    </div>
   );
 }
 
-function Champion({ p, prize }: { p: KoParticipant; prize: string | null }) {
+function Champion({ p, prize, rollover }: { p: KoParticipant; prize: string | null; rollover: boolean }) {
+  if (p.is_boss) {
+    const tier = tierOf(p.boss_tier);
+    return (
+      <div className="flex flex-col items-center rounded-[2vh] border-[0.4vh] bg-[radial-gradient(ellipse_at_50%_0%,rgb(176_107_255/0.2),#07050a_70%)] p-[3vh] text-center" style={{ borderColor: tier.color, boxShadow: `0 0 6vh -1vh ${tier.color}` }}>
+        <Skull className="size-[10vh]" style={{ color: tier.color }} />
+        <p className="mt-[1.5vh] font-display text-[12vh] leading-none text-[#efe9f5]">The Cult wins</p>
+        <p className="mt-[1.5vh] font-head text-[4.4vh] font-bold" style={{ color: tier.color }}>{p.username} · {Number(p.boss_target)}x</p>
+        {rollover && prize != null && <p className="mt-[1vh] text-[3.2vh] text-muted">The ${Number(prize).toLocaleString("en-US")} prize rolls over to the next Reaping</p>}
+      </div>
+    );
+  }
   return (
     <div className="ko-glow flex flex-col items-center rounded-[2vh] border-[0.3vh] border-gold/60 bg-gradient-to-b from-gold/15 to-transparent p-[2vh] text-center">
       <Crown className="ko-crown size-[9vh] text-gold" />

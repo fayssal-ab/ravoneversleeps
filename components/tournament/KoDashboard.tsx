@@ -1,13 +1,15 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Dices, Play, SkipForward, UserPlus } from "lucide-react";
+import { Dices, Play, RotateCw, Skull, SkipForward, UserPlus } from "lucide-react";
 import { confirmDialog } from "@/components/ui/confirm";
 import type { BonusKey, KoMatch, KoParticipant, KoState } from "@/lib/knockout";
 import { Bracket, Counter, ParticipantRow, Podium, RollReveal, VsScreen, roundName, teamName } from "./parts";
 import { useJoinReader, type ReaderStatus } from "./useJoinReader";
 import { useKoState } from "./useKoState";
 import { FinisherStage, demoShow, type Show } from "./fight/Finishers";
+import { BossReveal, useBossReveal } from "./reaping/Boss";
+import { HuntDashboard } from "./hunt/HuntDashboard";
 
 // Live control room (ported from ONO). All state comes from the server
 // (polled); every button is a server call with backend rule checks.
@@ -38,7 +40,8 @@ export function KoDashboard({ initial, overlayUrl }: { initial: KoState | null; 
   const [revealed, setRevealed] = useState<number | null>(null);
   const [tab, setTab] = useState<Tab>("bracket");
   const [preview, setPreview] = useState<{ n: number; show: Show | null }>({ n: 0, show: null });
-  const [form, setForm] = useState({ title: "", prize: "", size: 16 as (typeof SIZES)[number], duo: false, p1: "", p2: "", p3: "" });
+  const [form, setForm] = useState({ title: "", prize: "", size: 16 as (typeof SIZES)[number], duo: false, reaping: false, chance: 40, finalBoss: true, rollover: true, hunt: false, waves: 1 as 1 | 2 | 3, endChance: 50, fall: "half" as "half" | "nothing", p1: "", p2: "", p3: "" });
+  const boss = useBossReveal(state);
   const [manual, setManual] = useState({ username: "", slot: "" });
 
   const act = useCallback(async (action: string, extra: Record<string, unknown> = {}, confirmText?: string) => {
@@ -82,7 +85,11 @@ export function KoDashboard({ initial, overlayUrl }: { initial: KoState | null; 
           className="panel space-y-5 p-6"
           onSubmit={(e) => {
             e.preventDefault();
-            act("create", { title: form.title, prize: form.prize, size: form.size, duo: form.duo, prizes: [form.p1 || null, null, null] });
+            act("create", {
+              title: form.title, prize: form.prize, size: form.size, duo: form.duo, prizes: [form.p1 || null, null, null],
+              reaping: form.reaping ? { chance: form.chance, finalBoss: form.finalBoss, rollover: form.rollover } : null,
+              hunt: form.hunt ? { waves: form.waves, chance: form.endChance, fall: form.fall } : null,
+            });
           }}
         >
           <p className="font-display text-3xl"><span className="chrome">New</span> <span className="neon-text">tournament</span></p>
@@ -96,16 +103,97 @@ export function KoDashboard({ initial, overlayUrl }: { initial: KoState | null; 
           </div>
           <div>
             <span className="label">Mode</span>
-            <div className="grid grid-cols-2 gap-2">
-              {([false, true] as const).map((duo) => (
-                <button key={String(duo)} type="button" onClick={() => setForm({ ...form, duo })} aria-pressed={form.duo === duo}
-                  className={`rounded-xl border-2 px-3 py-3 text-left transition ${form.duo === duo ? "border-neon bg-neon/10" : "border-line-hot hover:border-neon"}`}>
-                  <span className="block font-head text-lg font-bold">{duo ? "Duo · 2v2" : "Solo · 1v1"}</span>
-                  <span className="block text-xs text-muted">{duo ? "Everyone !joins alone, then gets a random teammate. Both bonuses count: the higher combined multiplier wins." : "Each player battles alone. The higher multiplier wins."}</span>
-                </button>
-              ))}
+            <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+              {([false, true] as const).map((duo) => {
+                const on = !form.reaping && !form.hunt && form.duo === duo;
+                return (
+                  <button key={String(duo)} type="button" onClick={() => setForm({ ...form, duo, reaping: false, hunt: false })} aria-pressed={on}
+                    className={`rounded-xl border-2 px-3 py-3 text-left transition ${on ? "border-neon bg-neon/10" : "border-line-hot hover:border-neon"}`}>
+                    <span className="block font-head text-lg font-bold">{duo ? "Duo · 2v2" : "Solo · 1v1"}</span>
+                    <span className="block text-xs text-muted">{duo ? "Everyone !joins alone, then gets a random teammate. Both bonuses count: the higher combined multiplier wins." : "Each player battles alone. The higher multiplier wins."}</span>
+                  </button>
+                );
+              })}
+              <button type="button" onClick={() => setForm({ ...form, reaping: true, hunt: false })} aria-pressed={form.reaping}
+                className={`rounded-xl border-2 px-3 py-3 text-left transition ${form.reaping ? "border-[#b06bff] bg-[#b06bff]/10 shadow-[0_0_30px_-10px_#b06bff]" : "border-line-hot hover:border-[#b06bff]"}`}>
+                <span className="flex items-center gap-1.5 font-head text-lg font-bold"><Skull className="size-4 text-[#c9a6ff]" /> The Reaping · Wheel</span>
+                <span className="block text-xs text-muted">Players fight each other, but the Cult sends bosses. Spin the wheel, beat the number, or get reaped.</span>
+              </button>
+              <button type="button" onClick={() => setForm({ ...form, hunt: true, reaping: false })} aria-pressed={form.hunt}
+                className={`rounded-xl border-2 px-3 py-3 text-left transition ${form.hunt ? "border-[#ff8a3d] bg-[#ff8a3d]/10 shadow-[0_0_30px_-10px_#ff8a3d]" : "border-line-hot hover:border-[#ff8a3d]"}`}>
+                <span className="flex items-center gap-1.5 font-head text-lg font-bold"><Skull className="size-4 text-[#ff8a3d]" /> The Reaping · Hunt</span>
+                <span className="block text-xs text-muted">A monster for every player, then the Arena, then the Endboss. Slay monsters to multiply the prize.</span>
+              </button>
             </div>
           </div>
+          {form.hunt && (
+            <div className="space-y-4 rounded-2xl border border-[#ff8a3d]/40 bg-[#ff8a3d]/[0.06] p-4">
+              <p className="font-head text-sm font-bold uppercase tracking-[0.18em] text-[#ff8a3d]">Hunt settings</p>
+              <div className="grid grid-cols-2 gap-2">
+                {([false, true] as const).map((duo) => (
+                  <button key={String(duo)} type="button" onClick={() => setForm({ ...form, duo })} aria-pressed={form.duo === duo}
+                    className={`rounded-xl border-2 px-3 py-2 font-head font-bold transition ${form.duo === duo ? "border-[#ff8a3d] bg-[#ff8a3d]/15" : "border-line-hot text-muted hover:text-text"}`}>
+                    {duo ? "Duo · 2v2 (monster win ×2)" : "Solo"}
+                  </button>
+                ))}
+              </div>
+              <div>
+                <span className="label">Monster waves in the Hunt</span>
+                <div className="grid grid-cols-3 gap-2">
+                  {([1, 2, 3] as const).map((n) => (
+                    <button key={n} type="button" onClick={() => setForm({ ...form, waves: n })} aria-pressed={form.waves === n}
+                      className={`rounded-xl border-2 py-2 font-mono text-lg font-bold transition ${form.waves === n ? "border-[#ff8a3d] bg-[#ff8a3d]/15" : "border-line-hot text-muted"}`}>{n}</button>
+                  ))}
+                </div>
+              </div>
+              <label className="block">
+                <span className="label">Endboss chance at the end: <b className="font-mono text-text">{form.endChance}%</b></span>
+                <input type="range" min={0} max={100} step={5} value={form.endChance} onChange={(e) => setForm({ ...form, endChance: Number(e.target.value) })} className="w-full accent-[#ff8a3d]" />
+              </label>
+              <div>
+                <span className="label">If the Endboss wins, the champion gets</span>
+                <div className="grid grid-cols-2 gap-2">
+                  {(["half", "nothing"] as const).map((f) => (
+                    <button key={f} type="button" onClick={() => setForm({ ...form, fall: f })} aria-pressed={form.fall === f}
+                      className={`rounded-xl border-2 px-3 py-2 font-head font-bold transition ${form.fall === f ? "border-[#ff8a3d] bg-[#ff8a3d]/15" : "border-line-hot text-muted"}`}>{f === "half" ? "50% of the prize" : "Nothing"}</button>
+                  ))}
+                </div>
+              </div>
+              <p className="text-xs text-muted">
+                The champion prize below is the base. Slaying a monster raises it: Brute ×2, Warlord ×3, Overlord ×5 (the highest counts); beating the Endboss ×7 to ×10.
+                {form.p1 && /^\d+(\.\d{1,2})?$/.test(form.p1) ? ` Example: slay a Warlord and play for $${(Number(form.p1) * 3).toLocaleString("en-US")}; beat The Reaper King for $${(Number(form.p1) * 10).toLocaleString("en-US")}.` : ""}
+              </p>
+            </div>
+          )}
+          {form.reaping && (
+            <div className="space-y-4 rounded-2xl border border-[#b06bff]/40 bg-[#b06bff]/[0.06] p-4">
+              <p className="font-head text-sm font-bold uppercase tracking-[0.18em] text-[#c9a6ff]">Reaping settings</p>
+              <div className="grid grid-cols-2 gap-2">
+                {([false, true] as const).map((duo) => (
+                  <button key={String(duo)} type="button" onClick={() => setForm({ ...form, duo })} aria-pressed={form.duo === duo}
+                    className={`rounded-xl border-2 px-3 py-2 font-head font-bold transition ${form.duo === duo ? "border-[#b06bff] bg-[#b06bff]/15" : "border-line-hot text-muted hover:text-text"}`}>
+                    {duo ? "Duo · 2v2" : "Solo · 1v1"}
+                  </button>
+                ))}
+              </div>
+              <label className="block">
+                <span className="label">Boss chance per round: <b className="font-mono text-text">{form.chance}%</b></span>
+                <input type="range" min={0} max={100} step={5} value={form.chance} onChange={(e) => setForm({ ...form, chance: Number(e.target.value) })} className="w-full accent-[#b06bff]" />
+              </label>
+              <label className="flex items-start gap-3 text-sm">
+                <input type="checkbox" checked={form.finalBoss} onChange={(e) => setForm({ ...form, finalBoss: e.target.checked })} className="mt-1 accent-[#b06bff]" />
+                <span><b>Guaranteed final boss</b><span className="block text-xs text-muted">Off: the final still gets at least a 60% chance, and a boss for sure if none rose before.</span></span>
+              </label>
+              <label className="flex items-start gap-3 text-sm">
+                <input type="checkbox" checked={form.rollover} onChange={(e) => setForm({ ...form, rollover: e.target.checked })} className="mt-1 accent-[#b06bff]" />
+                <span><b>Rollover if the Cult wins</b><span className="block text-xs text-muted">The end screen says the prize rolls over to the next Reaping. Add it to that prize yourself.</span></span>
+              </label>
+              <p className="text-xs text-muted">
+                Wheel: Minion 20–75x (45%) · Brute 76–150x (30%) · Warlord 151–300x (18%) · Overlord 301–500x (7%){form.duo ? ". Duo targets are doubled (40–1000x) against the team total." : "."}
+                {" "}Nobody reaches the target → the boss advances and both are reaped.
+              </p>
+            </div>
+          )}
           <div>
             <span className="label">{form.duo ? "Teams" : "Players"}</span>
             <div className="grid grid-cols-4 gap-2">
@@ -120,10 +208,22 @@ export function KoDashboard({ initial, overlayUrl }: { initial: KoState | null; 
           <label className="block max-w-xs"><span className="label">Champion prize ($)</span>
             <input inputMode="decimal" pattern="\d{1,9}(\.\d{1,2})?" value={form.p1} onChange={(e) => setForm({ ...form, p1: e.target.value })} placeholder="300" className="field font-mono" />
           </label>
-          <button disabled={busy !== null} className="btn btn-neon">Create {form.duo ? `${form.size}-team duo (${form.size * 2} players)` : `${form.size}-player`} tournament</button>
+          <button disabled={busy !== null} className="btn btn-neon">
+            Create {form.duo ? `${form.size}-team${form.reaping || form.hunt ? "" : " duo"} (${form.size * 2} players)` : `${form.size}-player`} {form.hunt ? "Hunt" : form.reaping ? "Reaping" : "tournament"}
+          </button>
           {msg && <p role="alert" className="text-sm text-danger">{msg}</p>}
         </form>
       </div>
+    );
+  }
+
+  if (t.mode === "hunt") {
+    return (
+      <HuntDashboard state={state} act={act} busy={busy} msg={msg} onDisqualify={disqualify}
+        reader={<>
+          <p className={`mt-1 text-xs ${READER[reader.status].tone}`}>● {READER[reader.status].label}{reader.status === "error" && reader.detail ? <span className="text-dim"> ({reader.detail})</span> : null}</p>
+          <p className="text-[11px] text-dim">{reader.lastSeen ? <>Last chat message: <span className="text-muted">{reader.lastSeen.username}</span> at {new Date(reader.lastSeen.at).toLocaleTimeString()}</> : "No chat message received yet (set the webhook URL in your Kick app)"}</p>
+        </>} />
     );
   }
 
@@ -144,7 +244,12 @@ export function KoDashboard({ initial, overlayUrl }: { initial: KoState | null; 
       <FinisherStage show={preview.show} sound skippable onDone={() => setPreview((v) => ({ ...v, show: null }))} />
       <div className="panel flex flex-wrap items-center justify-between gap-4 p-5">
         <div>
-          <p className="eyebrow">Tournament #{t.id} · {duo ? `Duo 2v2 · ${size} teams` : `Solo · ${size} players`}{t.prize ? ` · ${t.prize}` : ""}</p>
+          <p className="eyebrow">Tournament #{t.id} · {t.mode === "reaping" ? "The Reaping · Wheel · " : ""}{duo ? `Duo 2v2 · ${size} teams` : `Solo · ${size} players`}{t.prize ? ` · ${t.prize}` : ""}</p>
+          {t.mode === "reaping" && (
+            <p className="mt-0.5 text-[11px] text-[#c9a6ff]">
+              Boss chance {t.boss_chance}%{t.final_boss ? " · final boss guaranteed" : ""} · {state.bosses.length} boss{state.bosses.length === 1 ? "" : "es"} risen · {state.reaped} reaped
+            </p>
+          )}
           <h2 className="font-display text-3xl"><span className="chrome">{t.title}</span></h2>
           <p className={`mt-1 text-xs ${READER[reader.status].tone}`}>● {READER[reader.status].label}{reader.status === "error" && reader.detail ? <span className="text-dim"> ({reader.detail})</span> : null}</p>
           <p className="text-[11px] text-dim">
@@ -154,7 +259,7 @@ export function KoDashboard({ initial, overlayUrl }: { initial: KoState | null; 
         <Counter value={state.registered} max={state.capacity} open={t.status === "open"} />
         <div className="flex flex-wrap gap-2">
           {t.status === "closed" ? (
-            <button disabled={busy !== null || state.registered >= state.capacity || state.teamsMade} onClick={() => act("open")} className="btn btn-neon btn-sm">Open registration</button>
+            <button disabled={busy !== null || state.registered >= state.capacity || state.teamsMade || state.bossRolls.length > 0} onClick={() => act("open")} className="btn btn-neon btn-sm">Open registration</button>
           ) : (
             <button disabled={busy !== null} onClick={() => act("close", {}, "Close registration? Nobody new can join (registered players can still change slot until they're rolled).")} className="btn btn-ghost btn-sm">Close registration</button>
           )}
@@ -176,6 +281,15 @@ export function KoDashboard({ initial, overlayUrl }: { initial: KoState | null; 
         <section className="panel relative overflow-hidden p-4 sm:p-6">
           {state.champion ? (
             <Podium state={state} />
+          ) : !state.live && boss.waiting ? (
+            <div className="py-2">
+              <BossReveal boss={boss.waiting.boss} roll={boss.waiting.roll} duo={duo} animateSpin={boss.animateSpin} onDone={boss.finish} />
+              <div className="mt-4 text-center">
+                <button disabled={busy !== null} onClick={() => act("boss_respin", {}, "Re-spin the boss wheel? The boss gets a new tier and target.")} className="btn btn-ghost btn-sm">
+                  <RotateCw className="size-4" /> Re-spin the wheel
+                </button>
+              </div>
+            </div>
           ) : focus && focus.status !== "empty" ? (
             showRoll ? (
               <RollReveal key={`roll-${focus.roll_seq}`} match={focus} pool={pool} size={size} onDone={() => setRevealed(focus.roll_seq)} />
@@ -210,7 +324,7 @@ export function KoDashboard({ initial, overlayUrl }: { initial: KoState | null; 
                 }} />
               {/* disqualify straight from the battle: the opponent goes through */}
               <div className="mt-4 flex flex-wrap justify-center gap-2">
-                {[state.live.p1, state.live.p2].map((p) => p && (
+                {[state.live.p1, state.live.p2].map((p) => p && !p.is_boss && (
                   <button key={p.id} disabled={busy !== null} onClick={() => disqualify(p)}
                     className="rounded-lg border border-danger/40 px-3 py-1.5 font-head text-[11px] font-bold uppercase tracking-wider text-danger transition hover:bg-danger/10">
                     Disqualify {teamName(p)}
@@ -322,8 +436,12 @@ function multi(b: Bonus): string | null {
 function BattleResultForm({ match, duo, busy, onBonus, onSubmit }: {
   match: KoMatch; duo: boolean; busy: boolean;
   onBonus: (key: BonusKey, b: Bonus) => void;
-  onSubmit: (r: { p1: Bonus; p2: Bonus; p1b?: Bonus; p2b?: Bonus }, andNext: boolean) => void;
+  onSubmit: (r: { p1?: Bonus; p2?: Bonus; p1b?: Bonus; p2b?: Bonus }, andNext: boolean) => void;
 }) {
+  // Reaping: a boss side plays its target (no bonus); an ambushing boss sets a bar for both sides
+  const bossSide: 1 | 2 | null = match.p1?.is_boss ? 1 : match.p2?.is_boss ? 2 : null;
+  const bossOf = (n: 1 | 2) => (n === 1 ? match.p1 : match.p2);
+  const bar = bossSide ? Number(bossOf(bossSide)!.boss_target) : match.boss ? Number(match.boss.boss_target) : null;
   // default bonus cost is $100 (the usual stake); payouts start empty, or with what was already saved
   const init = (r: KoMatch["p1_result"]): Bonus => (r ? { cost: String(Number(r.cost)), payout: String(Number(r.payout)) } : { cost: "100", payout: "" });
   const [b, setB] = useState<Record<BonusKey, Bonus>>(() => ({ p1: init(match.p1_result), p1b: init(match.p1b_result), p2: init(match.p2_result), p2b: init(match.p2b_result) }));
@@ -339,20 +457,26 @@ function BattleResultForm({ match, duo, busy, onBonus, onSubmit }: {
   useEffect(() => {
     const id = setTimeout(() => {
       for (const k of duo ? KEYS : (["p1", "p2"] as const)) {
+        if (bossSide && k.startsWith(`p${bossSide}`)) continue;
         if (multi(b[k]) && saved[k] !== sig(b[k])) { save.current(k, b[k]); setSaved((x) => ({ ...x, [k]: sig(b[k]) })); }
       }
     }, 700);
     return () => clearTimeout(id);
-  }, [b, saved, duo]);
+  }, [b, saved, duo, bossSide]);
   const total = (a: Bonus, c: Bonus) => {
     const x = multi(a);
     if (!duo) return x;
     const y = multi(c);
     return x || y ? (Number(x ?? 0) + Number(y ?? 0)).toFixed(2) : null; // a missing bonus counts 0 until entered
   };
-  const m1 = total(b.p1, b.p1b), m2 = total(b.p2, b.p2b);
-  const complete = (duo ? KEYS : (["p1", "p2"] as const)).every((k) => multi(b[k]));
-  const lead = complete ? (Number(m1) > Number(m2) ? 1 : Number(m2) > Number(m1) ? 2 : 0) : null;
+  const m1 = bossSide === 1 ? String(bar) : total(b.p1, b.p1b), m2 = bossSide === 2 ? String(bar) : total(b.p2, b.p2b);
+  const needed = (duo ? KEYS : (["p1", "p2"] as const)).filter((k) => !(bossSide && k.startsWith(`p${bossSide}`)));
+  const complete = needed.every((k) => multi(b[k]));
+  // preview only (the server decides with exact decimals): "boss" = the ambusher takes the seat
+  const lead: 0 | 1 | 2 | "boss" | null = !complete ? null
+    : bossSide ? (Number(bossSide === 1 ? m2 : m1) >= bar! ? (bossSide === 1 ? 2 : 1) : bossSide)
+    : bar != null && Number(m1) < bar && Number(m2) < bar ? "boss"
+    : Number(m1) > Number(m2) ? 1 : Number(m2) > Number(m1) ? 2 : 0;
   const bonus = (label: string, key: BonusKey) => {
     const v = b[key], onChange = set(key);
     return (
@@ -376,6 +500,16 @@ function BattleResultForm({ match, duo, busy, onBonus, onSubmit }: {
   const side = (n: 1 | 2) => {
     const cap = n === 1 ? match.p1 : match.p2;
     const m = n === 1 ? m1 : m2;
+    if (bossSide === n && cap) {
+      return (
+        <div className={`flex flex-col items-center justify-center gap-2 rounded-2xl border-2 p-3 text-center ${lead === n ? "border-[#b06bff] bg-[#b06bff]/10" : "border-[#b06bff]/40 bg-bg-2"}`}>
+          <Skull className="size-7 text-[#c9a6ff]" />
+          <p className="font-head font-bold text-[#c9a6ff]">{cap.username}</p>
+          <p className="text-xs text-muted">Boss target, no bonus to play</p>
+          <p className="font-mono text-3xl font-bold text-[#c9a6ff]">{bar}x</p>
+        </div>
+      );
+    }
     return (
       <div className={`space-y-3 rounded-2xl border-2 p-3 ${lead === n ? "border-gold/70 bg-gold/10" : n === 1 ? "border-neon/30 bg-bg-2" : "border-silver/30 bg-bg-2"}`}>
         <p className={`truncate font-head font-bold ${n === 1 ? "text-neon" : "text-silver"}`}>{cap ? teamName(cap) : `Side ${n}`}</p>
@@ -385,20 +519,27 @@ function BattleResultForm({ match, duo, busy, onBonus, onSubmit }: {
       </div>
     );
   };
-  const winner = lead === 1 ? match.p1 : lead === 2 ? match.p2 : null;
+  const winner = lead === 1 ? match.p1 : lead === 2 ? match.p2 : lead === "boss" ? match.boss : null;
   return (
     <form className="mt-6 space-y-3" onSubmit={(e) => {
       e.preventDefault();
       // which button sent it: "Save & start next" (default, Enter) or "Save only"
       const andNext = (e.nativeEvent as SubmitEvent).submitter?.getAttribute("value") !== "only";
-      if (complete) onSubmit(duo ? b : { p1: b.p1, p2: b.p2 }, andNext);
+      if (!complete) return;
+      const r: { p1?: Bonus; p2?: Bonus; p1b?: Bonus; p2b?: Bonus } = {};
+      for (const k of needed) r[k] = b[k];
+      onSubmit(r, andNext);
     }}>
       <p className="text-center font-head text-xs font-bold uppercase tracking-[0.18em] text-muted">
-        Bonus results · {duo ? "the higher combined multiplier wins" : "the higher multiplier wins"}
+        Bonus results · {bossSide ? `reach the boss's ${bar}x${duo ? " as a team" : ""} or get reaped`
+          : bar != null ? `ambush: reach ${bar}x${duo ? " as a team" : ""}, the higher multiplier wins, nobody = both reaped`
+          : duo ? "the higher combined multiplier wins" : "the higher multiplier wins"}
       </p>
       <div className="grid gap-3 sm:grid-cols-2">{side(1)}{side(2)}</div>
       {lead === 0 && <p className="text-center text-sm text-gold">Exact tie: replay the bonus and enter the replay&apos;s results.</p>}
-      {winner && <p className="text-center text-sm text-muted"><b className="text-gold">{teamName(winner)}</b> win{duo ? "" : "s"}</p>}
+      {winner && (winner.is_boss
+        ? <p className="text-center text-sm text-[#c9a6ff]"><Skull className="mr-1 inline size-4" /><b>{winner.username}</b> reaps {bossSide ? teamName(bossOf(bossSide === 1 ? 2 : 1)!) : "both sides"}</p>
+        : <p className="text-center text-sm text-muted"><b className="text-gold">{teamName(winner)}</b> win{duo ? "" : "s"}</p>)}
       <div className="flex flex-wrap justify-center gap-2">
         <button value="next" disabled={busy || !complete || lead === 0} className="btn btn-neon"><Play className="size-4" /> Save &amp; start next</button>
         <button value="only" disabled={busy || !complete || lead === 0} className="btn btn-ghost">Save only</button>

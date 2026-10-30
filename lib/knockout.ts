@@ -4,6 +4,8 @@ import Decimal from "decimal.js";
 import type { PoolConnection, ResultSetHeader, RowDataPacket } from "mysql2/promise";
 import { getPool } from "./db";
 import { kickAvatars } from "./kickApi";
+import { bossLine, bossName, spinWheel, stageChance, type BossTier } from "./reaping";
+import { publicHunt, type HuntState } from "./hunt/engine";
 import { randomPoolSlot } from "./slots";
 import { AppError, lockApp, withTx } from "./tx";
 
@@ -25,6 +27,8 @@ import { AppError, lockApp, withTx } from "./tx";
 //   (last round, match 1), which still plays out;
 // - fewer players than seats: once registration is closed and nobody is left
 //   to roll, empty first-round seats become void and lone players get byes.
+// - mode 'reaping' adds computer bosses that ambush battles (rules in
+//   lib/reaping.ts); bosses are participant rows with is_boss = 1.
 
 export const SIZES = [4, 8, 16, 32] as const;
 export type KoSize = (typeof SIZES)[number];
@@ -49,6 +53,10 @@ export interface KoTournament {
   prize_1: string | null; prize_2: string | null; prize_3: string | null;
   champion_id: number | null; runner_up_id: number | null; third_id: number | null;
   roll_seq: number; focus_match_id: number | null; created_at: string; finished_at: string | null;
+  /** 'reaping' = boss wheel mode, 'hunt' = The Reaping · Hunt (lib/hunt). */
+  mode: "classic" | "reaping" | "hunt";
+  /** Reaping: % chance a boss rises before a stage; final boss guaranteed; prize rolls over when the Cult wins. */
+  boss_chance: number; final_boss: boolean; rollover: boolean;
 }
 export interface KoParticipant {
   id: number; username: string; slot_name: string; slot_provider: string; slot_image: string;
@@ -59,7 +67,13 @@ export interface KoParticipant {
   team_id: number | null;
   /** Duo: the captain's teammate (set on captains by getKoState). */
   partner?: KoParticipant | null;
+  /** Reaping: a computer boss (target multiplier, tier, intro line). */
+  is_boss: boolean; boss_target: string | null; boss_tier: BossTier | null; boss_line: string | null;
+  /** Knocked out by a boss. */
+  reaped: boolean;
 }
+/** Reaping: the roll before a stage (spins counts re-spins, so clients replay the wheel). */
+export interface BossRoll { id: number; round: number; chance: number; spawned: boolean; boss_id: number | null; match_id: number | null; spins: number; at: string }
 export interface BattleResult { cost: string; payout: string; multi: string }
 export interface KoMatch {
   id: number; round: number; match_index: number; status: MatchStatus;
@@ -67,8 +81,10 @@ export interface KoMatch {
   p1_result: BattleResult | null; p2_result: BattleResult | null;
   /** Duo: the teammates' bonuses. */
   p1b_result: BattleResult | null; p2b_result: BattleResult | null;
-  /** Side score: the multiplier (solo) or the sum of both multipliers (duo). */
+  /** Side score: the multiplier (solo) or the sum of both multipliers (duo); a boss side shows its target. */
   p1_multi: string | null; p2_multi: string | null;
+  /** Reaping: the boss ambushing this battle (both sides must reach its target). */
+  boss: KoParticipant | null;
 }
 export interface KoState {
   tournament: KoTournament; rounds: number; participants: KoParticipant[]; matches: KoMatch[];
@@ -79,7 +95,12 @@ export interface KoState {
   teamsMade: boolean;
   focus: KoMatch | null; live: KoMatch | null; pendingRoll: KoMatch | null; nextReady: KoMatch | null;
   champion: KoParticipant | null; runnerUp: KoParticipant | null; third: KoParticipant | null;
+  /** Reaping: every boss that rose, the stage rolls, players reaped. Bosses aren't in `participants`. */
+  bosses: KoParticipant[]; bossRolls: BossRoll[]; reaped: number;
+  /** Hunt: the game once started (public view), else the chosen settings. */
+  hunt: HuntState | null; huntSetup: HuntSetup | null;
 }
+export interface HuntSetup { waves: 1 | 2 | 3; chance: number; fall: "half" | "nothing" }
 
 /** Higher multiplier (payout ÷ cost, exact decimals) wins; exact tie undecided. */
 export function decideBattle(p1: { cost: string; payout: string }, p2: { cost: string; payout: string }): { side: 1 | 2 | "tie"; m1: string; m2: string } {
@@ -135,9 +156,17 @@ const currentStage = (matches: { round: unknown; status: unknown }[]): number | 
 
 // ── reads ──
 
-const T_COLS = "id, title, prize, prize_1, prize_2, prize_3, status, max_players, team_size, champion_id, runner_up_id, third_id, roll_seq, focus_match_id, created_at, finished_at";
-const P_COLS = "id, username, avatar, slot_name, slot_provider, slot_image, state, disqualified, team_id, bracket_pos, rerolls, joined_at";
-const toT = (r: RowDataPacket): KoTournament => ({ ...(r as KoTournament), id: Number(r.id), max_players: Number(r.max_players), team_size: Number(r.team_size ?? 1), roll_seq: Number(r.roll_seq) });
+const T_COLS = "id, title, prize, prize_1, prize_2, prize_3, status, max_players, team_size, champion_id, runner_up_id, third_id, roll_seq, focus_match_id, created_at, finished_at, mode, boss_chance, final_boss, rollover";
+const P_COLS = "id, username, avatar, slot_name, slot_provider, slot_image, state, disqualified, team_id, bracket_pos, rerolls, joined_at, is_boss, boss_target, boss_tier, boss_line, reaped";
+const toT = (r: RowDataPacket): KoTournament => ({
+  ...(r as KoTournament), id: Number(r.id), max_players: Number(r.max_players), team_size: Number(r.team_size ?? 1), roll_seq: Number(r.roll_seq),
+  mode: r.mode === "reaping" || r.mode === "hunt" ? r.mode : "classic", boss_chance: Number(r.boss_chance ?? 40), final_boss: Boolean(Number(r.final_boss ?? 1)), rollover: Boolean(Number(r.rollover ?? 0)),
+});
+const toP = (p: RowDataPacket): KoParticipant => ({
+  ...(p as KoParticipant), id: Number(p.id), avatar: p.avatar || null, disqualified: Boolean(p.disqualified), team_id: p.team_id != null ? Number(p.team_id) : null,
+  is_boss: Boolean(Number(p.is_boss ?? 0)), boss_target: p.boss_target != null ? new Decimal(String(p.boss_target)).toFixed(2) : null,
+  boss_tier: (p.boss_tier as BossTier | null) ?? null, boss_line: p.boss_line ?? null, reaped: Boolean(Number(p.reaped ?? 0)),
+});
 /** Bracket units: everyone in solo, team captains in duo. */
 const UNIT_SQL = "(team_id IS NULL OR team_id = id)";
 
@@ -155,10 +184,10 @@ export async function getKoById(id: number): Promise<KoTournament | null> {
   return rows[0] ? toT(rows[0]) : null;
 }
 
-export async function getKoArchive(limit = 12): Promise<(KoTournament & { champion: string | null; champion_slot: string | null; champion_image: string | null })[]> {
+export async function getKoArchive(limit = 12): Promise<(KoTournament & { champion: string | null; champion_slot: string | null; champion_image: string | null; champion_is_boss: boolean })[]> {
   await ensureKoSchema();
   const [rows] = await getPool().query<RowDataPacket[]>(
-    `SELECT t.${T_COLS.split(", ").join(", t.")}, p.username AS champion, mate.username AS champion_mate, p.slot_name AS champion_slot, p.slot_image AS champion_image
+    `SELECT t.${T_COLS.split(", ").join(", t.")}, p.username AS champion, mate.username AS champion_mate, p.slot_name AS champion_slot, p.slot_image AS champion_image, p.is_boss AS champion_is_boss
        FROM ko_tournaments t
        LEFT JOIN ko_participants p ON p.id = t.champion_id
        LEFT JOIN ko_participants mate ON mate.team_id = p.id AND mate.id <> p.id
@@ -166,19 +195,29 @@ export async function getKoArchive(limit = 12): Promise<(KoTournament & { champi
   return rows.map((r) => ({
     ...toT(r),
     champion: r.champion ? (r.champion_mate ? `${r.champion} & ${r.champion_mate}` : String(r.champion)) : null,
-    champion_slot: r.champion_slot ?? null, champion_image: r.champion_image || null,
+    champion_slot: r.champion_slot ?? null, champion_image: r.champion_image || null, champion_is_boss: Boolean(Number(r.champion_is_boss ?? 0)),
   }));
 }
 
 export async function getKoState(t: KoTournament): Promise<KoState> {
   await ensureKoSchema();
   const pool = getPool();
-  const [[pRows], [mRows]] = await Promise.all([
+  const [[pRows], [mRows], [rRows]] = await Promise.all([
     pool.query<RowDataPacket[]>(`SELECT ${P_COLS} FROM ko_participants WHERE tournament_id = ? ORDER BY id`, [t.id]),
     pool.query<RowDataPacket[]>("SELECT * FROM ko_matches WHERE tournament_id = ? ORDER BY round, match_index", [t.id]),
+    pool.query<RowDataPacket[]>("SELECT id, round, chance, spawned, boss_id, match_id, spins, DATE_FORMAT(created_at, '%Y-%m-%dT%H:%i:%sZ') AS at FROM ko_boss_rolls WHERE tournament_id = ? ORDER BY round", [t.id]),
   ]);
-  const participants: KoParticipant[] = pRows.map((p) => ({ ...(p as KoParticipant), id: Number(p.id), avatar: p.avatar || null, disqualified: Boolean(p.disqualified), team_id: p.team_id != null ? Number(p.team_id) : null }));
-  const byId = new Map(participants.map((p) => [p.id, p]));
+  let hunt: HuntState | null = null, huntSetup: HuntSetup | null = null;
+  if (t.mode === "hunt") {
+    const [h] = await pool.query<RowDataPacket[]>("SELECT hunt FROM ko_tournaments WHERE id = ?", [t.id]);
+    const raw = h[0]?.hunt ? JSON.parse(String(h[0].hunt)) : null;
+    if (raw?.v === 1) hunt = publicHunt(raw as HuntState);
+    else if (raw?.setup) huntSetup = raw.setup as HuntSetup;
+  }
+  const everyone = pRows.map(toP);
+  const participants = everyone.filter((p) => !p.is_boss);
+  const bosses = everyone.filter((p) => p.is_boss);
+  const byId = new Map(everyone.map((p) => [p.id, p]));
   const duo = t.team_size === 2;
   for (const p of participants) if (p.team_id != null && p.team_id !== p.id) { const cap = byId.get(p.team_id); if (cap) cap.partner = p; }
   const matches: KoMatch[] = mRows.map((m) => ({
@@ -192,8 +231,12 @@ export async function getKoState(t: KoTournament): Promise<KoState> {
     p1b_result: resultOf(m.p1b_cost, m.p1b_payout),
     p2b_result: resultOf(m.p2b_cost, m.p2b_payout),
     p1_multi: null, p2_multi: null,
+    boss: m.boss_id ? byId.get(Number(m.boss_id)) ?? null : null,
   }));
-  for (const m of matches) { m.p1_multi = sumMulti(m.p1_result, m.p1b_result, duo); m.p2_multi = sumMulti(m.p2_result, m.p2b_result, duo); }
+  for (const m of matches) {
+    m.p1_multi = m.p1?.is_boss ? m.p1.boss_target : sumMulti(m.p1_result, m.p1b_result, duo);
+    m.p2_multi = m.p2?.is_boss ? m.p2.boss_target : sumMulti(m.p2_result, m.p2b_result, duo);
+  }
   const rounds = roundsFor(t.max_players);
   const inMatch = new Set<number>();
   for (const m of mRows) if (Number(m.round) === 1) { if (m.p1_id) inMatch.add(Number(m.p1_id)); if (m.p2_id) inMatch.add(Number(m.p2_id)); }
@@ -212,6 +255,10 @@ export async function getKoState(t: KoTournament): Promise<KoState> {
     champion: t.champion_id ? byId.get(Number(t.champion_id)) ?? null : null,
     runnerUp: t.runner_up_id ? byId.get(Number(t.runner_up_id)) ?? null : null,
     third: t.third_id ? byId.get(Number(t.third_id)) ?? null : null,
+    bosses,
+    bossRolls: rRows.map((r) => ({ id: Number(r.id), round: Number(r.round), chance: Number(r.chance), spawned: Boolean(Number(r.spawned)), boss_id: r.boss_id != null ? Number(r.boss_id) : null, match_id: r.match_id != null ? Number(r.match_id) : null, spins: Number(r.spins), at: String(r.at) })),
+    reaped: participants.filter((p) => p.reaped).length,
+    hunt, huntSetup,
   };
 }
 
@@ -230,7 +277,9 @@ async function lockRunning(conn: PoolConnection, id: number): Promise<KoTourname
   return t;
 }
 
-export async function createKo(input: { title: string; prize: string; size: KoSize; duo?: boolean; prizes?: [string | null, string | null, string | null] }): Promise<number> {
+export interface ReapingOptions { chance: number; finalBoss: boolean; rollover: boolean }
+
+export async function createKo(input: { title: string; prize: string; size: KoSize; duo?: boolean; prizes?: [string | null, string | null, string | null]; reaping?: ReapingOptions | null; hunt?: HuntSetup | null }): Promise<number> {
   await ensureKoSchema();
   if (!SIZES.includes(input.size)) throw new AppError("invalid_input", "size must be 4, 8, 16 or 32");
   return withTx(async (conn) => {
@@ -238,9 +287,14 @@ export async function createKo(input: { title: string; prize: string; size: KoSi
     const [active] = await conn.query<RowDataPacket[]>("SELECT id FROM ko_tournaments WHERE status IN ('open','closed') LIMIT 1");
     if (active[0]) throw new AppError("ko_running", `#${active[0].id} is still running: finish or reset it first`);
     const [p1, p2, p3] = input.prizes ?? [null, null, null];
+    const r = input.reaping ?? null;
+    const h = input.hunt ?? null;
+    if (r && h) throw new AppError("invalid_input", "pick one mode");
+    if (h && !([1, 2, 3].includes(h.waves) && Number.isInteger(h.chance) && h.chance >= 0 && h.chance <= 100 && (h.fall === "half" || h.fall === "nothing"))) throw new AppError("invalid_input", "bad Hunt settings");
+    if (r && !(Number.isInteger(r.chance) && r.chance >= 0 && r.chance <= 100)) throw new AppError("invalid_input", "boss chance must be 0 to 100");
     const [res] = await conn.query<ResultSetHeader>(
-      "INSERT INTO ko_tournaments (title, prize, prize_1, prize_2, prize_3, status, max_players, team_size) VALUES (?, ?, ?, ?, ?, 'closed', ?, ?)",
-      [input.title, input.prize, p1, p2, p3, input.size, input.duo ? 2 : 1]
+      "INSERT INTO ko_tournaments (title, prize, prize_1, prize_2, prize_3, status, max_players, team_size, mode, boss_chance, final_boss, rollover, hunt) VALUES (?, ?, ?, ?, ?, 'closed', ?, ?, ?, ?, ?, ?, ?)",
+      [input.title, input.prize, p1, p2, p3, input.size, input.duo ? 2 : 1, r ? "reaping" : h ? "hunt" : "classic", r?.chance ?? 40, r ? Number(r.finalBoss) : 1, r ? Number(r.rollover) : 0, h ? JSON.stringify({ setup: h }) : null]
     );
     const id = res.insertId;
     const values: unknown[][] = [];
@@ -253,11 +307,15 @@ export async function createKo(input: { title: string; prize: string; size: KoSi
 export async function openRegistration(id: number): Promise<void> {
   await withTx(async (conn) => {
     const t = await lockRunning(conn, id);
-    const [n] = await conn.query<RowDataPacket[]>("SELECT COUNT(*) AS n, SUM(team_id IS NOT NULL) AS teamed FROM ko_participants WHERE tournament_id = ? AND disqualified = 0", [id]);
+    const [n] = await conn.query<RowDataPacket[]>("SELECT COUNT(*) AS n, SUM(team_id IS NOT NULL) AS teamed FROM ko_participants WHERE tournament_id = ? AND disqualified = 0 AND is_boss = 0", [id]);
     if (Number(n[0].n) >= t.max_players * t.team_size) throw new AppError("ko_full");
     if (Number(n[0].teamed) > 0) throw new AppError("teams_made");
     const [sealed] = await conn.query<RowDataPacket[]>("SELECT COUNT(*) AS n FROM ko_matches WHERE tournament_id = ? AND round = 1 AND status IN ('void','bye')", [id]);
     if (Number(sealed[0].n) > 0) throw new AppError("ko_sealed");
+    const [rolls] = await conn.query<RowDataPacket[]>("SELECT COUNT(*) AS n FROM ko_boss_rolls WHERE tournament_id = ?", [id]);
+    if (Number(rolls[0].n) > 0) throw new AppError("bracket_started");
+    const [hs] = await conn.query<RowDataPacket[]>("SELECT hunt FROM ko_tournaments WHERE id = ?", [id]);
+    if (hs[0]?.hunt && JSON.parse(String(hs[0].hunt)).v === 1) throw new AppError("bracket_started");
     await conn.query("UPDATE ko_tournaments SET status = 'open', opened_at = COALESCE(opened_at, UTC_TIMESTAMP()) WHERE id = ?", [id]);
   });
 }
@@ -282,14 +340,25 @@ export async function resetKo(id: number): Promise<void> {
 // ── disqualification ──
 
 let dqColumn: Promise<void> | null = null;
-/** Columns added after 0005 (migrations 0008, 0009, 0018). */
+/** Columns added after 0005 (migrations 0008, 0009, 0018, 0019). */
 const SCHEMA_ADDS: [string, string][] = [
   ["ko_participants.disqualified", "ALTER TABLE ko_participants ADD COLUMN disqualified TINYINT(1) NOT NULL DEFAULT 0"],
   ["ko_tournaments.team_size", "ALTER TABLE ko_tournaments ADD COLUMN team_size TINYINT NOT NULL DEFAULT 1"],
   ["ko_participants.team_id", "ALTER TABLE ko_participants ADD COLUMN team_id BIGINT NULL"],
   ["ko_participants.avatar", "ALTER TABLE ko_participants ADD COLUMN avatar VARCHAR(512) NULL"],
   ["ko_matches.p1b_cost", "ALTER TABLE ko_matches ADD COLUMN p1b_cost DECIMAL(20,2) NULL, ADD COLUMN p1b_payout DECIMAL(20,2) NULL, ADD COLUMN p2b_cost DECIMAL(20,2) NULL, ADD COLUMN p2b_payout DECIMAL(20,2) NULL"],
+  ["ko_tournaments.mode", "ALTER TABLE ko_tournaments ADD COLUMN mode VARCHAR(16) NOT NULL DEFAULT 'classic', ADD COLUMN boss_chance TINYINT UNSIGNED NOT NULL DEFAULT 40, ADD COLUMN final_boss TINYINT(1) NOT NULL DEFAULT 1, ADD COLUMN rollover TINYINT(1) NOT NULL DEFAULT 0"],
+  ["ko_participants.is_boss", "ALTER TABLE ko_participants ADD COLUMN is_boss TINYINT(1) NOT NULL DEFAULT 0, ADD COLUMN boss_target DECIMAL(10,2) NULL, ADD COLUMN boss_tier VARCHAR(16) NULL, ADD COLUMN boss_line VARCHAR(191) NULL, ADD COLUMN reaped TINYINT(1) NOT NULL DEFAULT 0"],
+  ["ko_matches.boss_id", "ALTER TABLE ko_matches ADD COLUMN boss_id BIGINT NULL"],
+  ["ko_tournaments.hunt", "ALTER TABLE ko_tournaments ADD COLUMN hunt MEDIUMTEXT NULL"],
 ];
+const BOSS_ROLLS_DDL = `CREATE TABLE IF NOT EXISTS ko_boss_rolls (
+  id BIGINT AUTO_INCREMENT PRIMARY KEY, tournament_id INT NOT NULL, round TINYINT NOT NULL,
+  chance TINYINT UNSIGNED NOT NULL, spawned TINYINT(1) NOT NULL, boss_id BIGINT NULL, match_id BIGINT NULL,
+  spins INT NOT NULL DEFAULT 1, created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_ko_boss_round (tournament_id, round),
+  CONSTRAINT fk_ko_boss_t FOREIGN KEY (tournament_id) REFERENCES ko_tournaments(id) ON DELETE CASCADE
+) ENGINE=InnoDB`;
 const avatarTried = new Map<number, number>();
 /**
  * Players who joined without a known picture (before avatars were stored, or
@@ -320,6 +389,7 @@ export function ensureKoSchema(): Promise<void> {
       "SELECT CONCAT(TABLE_NAME, '.', COLUMN_NAME) AS c FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME IN ('ko_tournaments','ko_participants','ko_matches')");
     const have = new Set(cols.map((r) => String(r.c)));
     for (const [col, ddl] of SCHEMA_ADDS) if (!have.has(col)) await pool.query(ddl);
+    await pool.query(BOSS_ROLLS_DDL);
   })().catch((e) => { dqColumn = null; throw e; });
   return dqColumn;
 }
@@ -344,6 +414,8 @@ export async function disqualifyPlayer(id: number, participantId: number): Promi
       const [cap] = await conn.query<RowDataPacket[]>("SELECT id, state, disqualified FROM ko_participants WHERE id = ? FOR UPDATE", [participantId]);
       p = cap[0];
     }
+    const [isBoss] = await conn.query<RowDataPacket[]>("SELECT is_boss FROM ko_participants WHERE id = ?", [participantId]);
+    if (Number(isBoss[0]?.is_boss)) throw new AppError("invalid_input", "a boss can't be disqualified");
     if (p.disqualified) throw new AppError("already_disqualified");
     if (p.state === "eliminated" || p.state === "champion") throw new AppError("player_out");
     const [mRows] = await conn.query<RowDataPacket[]>(
@@ -421,8 +493,9 @@ export async function recordJoin(conn: PoolConnection, input: JoinInput): Promis
 
   const [existing] = await conn.query<RowDataPacket[]>(
     "SELECT id, state, disqualified, slot_id FROM ko_participants WHERE tournament_id = ? AND kick_user_id = ? FOR UPDATE", [t.id, input.kickUserId]);
-  const [assigned] = await conn.query<RowDataPacket[]>("SELECT kick_user_id, slot_id, disqualified FROM ko_participants WHERE tournament_id = ? FOR SHARE", [t.id]);
-  const taken = assigned.map((r) => String(r.slot_id));
+  const [everyone] = await conn.query<RowDataPacket[]>("SELECT kick_user_id, slot_id, disqualified, is_boss FROM ko_participants WHERE tournament_id = ? FOR SHARE", [t.id]);
+  const taken = everyone.map((r) => String(r.slot_id));
+  const assigned = everyone.filter((r) => !Number(r.is_boss));
   // A named slot can only be called by one player per tournament.
   if (input.slot && assigned.some((r) => !r.disqualified && String(r.slot_id) === input.slot!.id && String(r.kick_user_id) !== input.kickUserId))
     return { outcome: "slot_taken", slot: input.slot.name };
@@ -470,6 +543,7 @@ export async function addPlayerManually(username: string, slot: JoinInput["slot"
 export async function rollPlayers(id: number): Promise<{ matchId: number; p1: number; p2: number | null; bye: boolean }> {
   return withTx(async (conn) => {
     const t = await lockRunning(conn, id);
+    if (t.mode === "hunt") throw new AppError("hunt_mode");
     const [matches] = await conn.query<RowDataPacket[]>("SELECT * FROM ko_matches WHERE tournament_id = ? AND round = 1 ORDER BY match_index FOR UPDATE", [id]);
     if (matches.some((m) => m.status === "rolled")) throw new AppError("roll_pending");
     const target = matches.find((m) => m.status === "empty");
@@ -524,16 +598,98 @@ export async function cancelRoll(id: number): Promise<void> {
   });
 }
 
+// ── reaping bosses ──
+
+export interface BossRollResult { round: number; chance: number; spawned: boolean; bossId: number | null; matchId: number | null }
+
+/**
+ * Reaping: rolls whether a boss rises before the current stage (once per
+ * stage, under the tournament lock). A boss ambushes one random battle of
+ * the stage that has no boss in it; in round 1 only the battles that will
+ * really be played (pairs of the fixed field, drawn in seat order) count.
+ */
+export async function rollBoss(id: number): Promise<BossRollResult> {
+  await ensureKoSchema();
+  return withTx(async (conn) => {
+    const t = await lockRunning(conn, id);
+    if (t.mode !== "reaping") throw new AppError("invalid_input", "not a Reaping tournament");
+    if (t.status === "open") throw new AppError("close_registration_first");
+    const [rows] = await conn.query<RowDataPacket[]>("SELECT * FROM ko_matches WHERE tournament_id = ? ORDER BY round, match_index FOR UPDATE", [id]);
+    if (rows.some((m) => m.status === "live")) throw new AppError("battle_live");
+    const stage = currentStage(rows as { round: unknown; status: unknown }[]);
+    if (stage == null) throw new AppError("no_ready_battle");
+    const [prev] = await conn.query<RowDataPacket[]>("SELECT * FROM ko_boss_rolls WHERE tournament_id = ? AND round = ?", [id, stage]);
+    if (prev[0]) return { round: stage, chance: Number(prev[0].chance), spawned: Boolean(prev[0].spawned), bossId: prev[0].boss_id != null ? Number(prev[0].boss_id) : null, matchId: prev[0].match_id != null ? Number(prev[0].match_id) : null };
+
+    const last = roundsFor(t.max_players);
+    const [bossRows] = await conn.query<RowDataPacket[]>("SELECT id, username FROM ko_participants WHERE tournament_id = ? AND is_boss = 1", [id]);
+    const bossIds = new Set(bossRows.map((r) => Number(r.id)));
+    const chance = stageChance({ chance: t.boss_chance, isFinal: stage === last, finalBoss: t.final_boss, bossesSoFar: bossRows.length });
+    let candidates = rows.filter((m) => Number(m.round) === stage && m.boss_id == null && !bossIds.has(Number(m.p1_id)) && !bossIds.has(Number(m.p2_id))
+      && !(stage === last && Number(m.match_index) === 1));
+    if (stage === 1) {
+      const [u] = await conn.query<RowDataPacket[]>(
+        `SELECT COUNT(*) AS n FROM ko_participants WHERE tournament_id = ? AND is_boss = 0 AND disqualified = 0 AND state IN ('registered','in_knockout') AND ${UNIT_SQL}${t.team_size === 2 ? " AND team_id IS NOT NULL" : ""}`, [id]);
+      const pairs = Math.min(Math.floor(Number(u[0].n) / 2), matchesIn(t.max_players, 1));
+      candidates = candidates.filter((m) => ["empty", "rolled", "ready"].includes(String(m.status)) && Number(m.match_index) < pairs);
+    } else {
+      candidates = candidates.filter((m) => m.status === "ready");
+    }
+    const spawned = candidates.length > 0 && randomInt(100) < chance;
+    let bossId: number | null = null;
+    let matchId: number | null = null;
+    if (spawned) {
+      const m = candidates[randomInt(candidates.length)];
+      const { tier, target } = spinWheel(t.team_size === 2);
+      const [slots] = await conn.query<RowDataPacket[]>("SELECT slot_id FROM ko_participants WHERE tournament_id = ?", [id]);
+      const slot = await randomPoolSlot(conn, slots.map((r) => String(r.slot_id)));
+      const [ins] = await conn.query<ResultSetHeader>(
+        "INSERT INTO ko_participants (tournament_id, kick_user_id, username, avatar, slot_id, slot_name, slot_provider, slot_image, state, is_boss, boss_target, boss_tier, boss_line) VALUES (?, ?, ?, '', ?, ?, ?, ?, 'in_knockout', 1, ?, ?, ?)",
+        [id, `boss:${stage}`, bossName(bossRows.map((r) => String(r.username))), slot.id, slot.name, slot.provider, slot.imageUrl, target, tier, bossLine(target)]);
+      bossId = ins.insertId;
+      matchId = Number(m.id);
+      // duo: a boss is a team of one, so it counts as a bracket unit
+      if (t.team_size === 2) await conn.query("UPDATE ko_participants SET team_id = id WHERE id = ?", [bossId]);
+      await conn.query("UPDATE ko_matches SET boss_id = ? WHERE id = ?", [bossId, matchId]);
+    }
+    await conn.query("INSERT INTO ko_boss_rolls (tournament_id, round, chance, spawned, boss_id, match_id) VALUES (?, ?, ?, ?, ?, ?)", [id, stage, chance, spawned ? 1 : 0, bossId, matchId]);
+    return { round: stage, chance, spawned, bossId, matchId };
+  });
+}
+
+/** Host re-spins the wheel of the boss that just rose (before its battle starts): new tier, target and line. */
+export async function respinBoss(id: number): Promise<{ target: number }> {
+  await ensureKoSchema();
+  return withTx(async (conn) => {
+    const t = await lockRunning(conn, id);
+    const [rows] = await conn.query<RowDataPacket[]>(
+      `SELECT r.id, r.boss_id, m.status FROM ko_boss_rolls r JOIN ko_matches m ON m.id = r.match_id
+        WHERE r.tournament_id = ? AND r.spawned = 1 AND m.boss_id = r.boss_id ORDER BY r.round DESC LIMIT 1 FOR UPDATE`, [id]);
+    const r = rows[0];
+    if (!r || !["empty", "rolled", "ready"].includes(String(r.status))) throw new AppError("invalid_input", "no boss waiting for its battle");
+    const { tier, target } = spinWheel(t.team_size === 2);
+    await conn.query("UPDATE ko_participants SET boss_target = ?, boss_tier = ?, boss_line = ? WHERE id = ?", [target, tier, bossLine(target), r.boss_id]);
+    await conn.query("UPDATE ko_boss_rolls SET spins = spins + 1 WHERE id = ?", [r.id]);
+    return { target };
+  });
+}
+
 // ── battles ──
 
 /** Starts the focused battle if ready, else the next ready one in bracket order. */
 export async function startBattle(id: number): Promise<number> {
   return withTx(async (conn) => {
     const t = await lockRunning(conn, id);
+    if (t.mode === "hunt") throw new AppError("hunt_mode");
     const [rows] = await conn.query<RowDataPacket[]>(`SELECT * FROM ko_matches WHERE tournament_id = ? ORDER BY ${playOrderSql(roundsFor(t.max_players))} FOR UPDATE`, [id]);
     if (rows.some((m) => m.status === "live")) throw new AppError("battle_live");
     if (rows.some((m) => m.status === "rolled")) throw new AppError("roll_pending");
     const stage = currentStage(rows as { round: unknown; status: unknown }[]);
+    if (t.mode === "reaping") {
+      if (t.status === "open") throw new AppError("close_registration_first");
+      const [rolled] = await conn.query<RowDataPacket[]>("SELECT 1 FROM ko_boss_rolls WHERE tournament_id = ? AND round = ?", [id, stage]);
+      if (!rolled[0]) throw new AppError("boss_roll_first");
+    }
     const ready = rows.filter((x) => x.status === "ready" && Number(x.round) === stage);
     const m = ready.find((x) => Number(x.id) === Number(t.focus_match_id)) ?? ready[0];
     if (!m) throw new AppError(rows.some((x) => x.status === "ready") ? "stage_unfinished" : "no_ready_battle");
@@ -550,13 +706,28 @@ export async function startBattle(id: number): Promise<number> {
  * Duo: the first press closes registration and draws the teams. A last
  * player with nobody left gets a bye (nothing to start, press again).
  */
-export async function playNext(id: number): Promise<{ matchId: number | null; bye: boolean }> {
+export async function playNext(id: number): Promise<{ matchId: number | null; bye: boolean; boss?: BossRollResult }> {
   const t = await getKoById(id);
   if (!t) throw new AppError("not_found");
   // after the final ("Save & start next") there is simply nothing left to start
   if (t.status !== "open" && t.status !== "closed") return { matchId: null, bye: false };
+  if (t.mode === "hunt") throw new AppError("hunt_mode");
   let state = await getKoState(t);
   if (state.live) throw new AppError("battle_live");
+  // Reaping: the field is fixed before the first boss roll, then every stage
+  // opens with its roll; a boss rising stops here so the stream sees the
+  // wheel before the battle starts (the next press plays on)
+  if (t.mode === "reaping") {
+    if (t.status === "open") await closeRegistration(id);
+    if (t.team_size === 2 && !state.teamsMade) await makeTeams(id);
+    state = await getKoState((await getKoById(id))!);
+    const stage = currentStage(state.matches);
+    if (stage != null && !state.bossRolls.some((r) => r.round === stage)) {
+      const roll = await rollBoss(id);
+      if (roll.spawned) return { matchId: null, bye: false, boss: roll };
+      state = await getKoState((await getKoById(id))!);
+    }
+  }
   if (!state.pendingRoll && !state.nextReady) {
     if (t.team_size === 2 && !state.teamsMade) {
       if (t.status === "open") await closeRegistration(id);
@@ -596,35 +767,93 @@ export type BonusKey = "p1" | "p1b" | "p2" | "p2b";
 /** One bonus of the live battle, saved as soon as it is known so stream shows it; no winner yet. */
 export async function saveBonus(id: number, matchId: number, key: BonusKey, bonus: { cost: string; payout: string }): Promise<void> {
   await withTx(async (conn) => {
-    const { t } = await lockLiveMatch(conn, id, matchId);
+    const { t, m } = await lockLiveMatch(conn, id, matchId);
     if (t.team_size !== 2 && (key === "p1b" || key === "p2b")) throw new AppError("invalid_input", "solo battles have one bonus per side");
+    const [side] = await conn.query<RowDataPacket[]>("SELECT is_boss FROM ko_participants WHERE id = ?", [key.startsWith("p1") ? m.p1_id : m.p2_id]);
+    if (Number(side[0]?.is_boss)) throw new AppError("invalid_input", "the boss side plays its target, no bonus to enter");
     if (new Decimal(bonus.cost).lte(0)) throw new AppError("invalid_input", "bonus cost must be above 0");
     // key is one of four literals (validated above and by the API schema)
     await conn.query(`UPDATE ko_matches SET ${key}_cost = ?, ${key}_payout = ? WHERE id = ?`, [bonus.cost, bonus.payout, matchId]);
   });
 }
 
-/** Both bonus results of the live battle; the higher multiplier wins. */
+type Bonus = { cost: string; payout: string };
+
+/** Exact side score: the multiplier, or both teammates' multipliers added (duo). */
+function sideScore(a: Bonus | undefined, b: Bonus | undefined, duo: boolean): Decimal {
+  if (!a || (duo && !b)) throw new AppError("invalid_input", duo ? "duo battles need both bonuses of a team" : "missing bonus result");
+  const one = (x: Bonus) => {
+    const c = new Decimal(x.cost);
+    if (c.lte(0)) throw new AppError("invalid_input", "bonus cost must be above 0");
+    return new Decimal(x.payout).div(c);
+  };
+  return duo ? one(a).plus(one(b!)) : one(a);
+}
+
+/**
+ * Results of the live battle; the higher multiplier wins (exact tie =
+ * replay). Reaping: against a boss in the bracket only the player side plays
+ * and must reach the boss's target; in an ambushed battle, if neither side
+ * reaches the target the boss advances and both are reaped.
+ */
 export async function recordBattleResult(
-  id: number, matchId: number, p1: { cost: string; payout: string }, p2: { cost: string; payout: string },
-  duo?: { p1b: { cost: string; payout: string }; p2b: { cost: string; payout: string } },
-): Promise<{ winnerId: number; champion: boolean; m1: string; m2: string }> {
+  id: number, matchId: number, p1: Bonus | undefined, p2: Bonus | undefined,
+  duo?: { p1b?: Bonus; p2b?: Bonus },
+): Promise<{ winnerId: number; champion: boolean; m1: string; m2: string; reaped: boolean }> {
   return withTx(async (conn) => {
     const { t, m } = await lockLiveMatch(conn, id, matchId);
-    if (t.team_size === 2 && !duo) throw new AppError("invalid_input", "duo battles need all four bonuses");
-    const dec = t.team_size === 2 && duo ? decideTeamBattle(p1, duo.p1b, p2, duo.p2b) : decideBattle(p1, p2);
-    if (dec.side === "tie") throw new AppError("battle_tied", `both at x${dec.m1}`);
+    const isDuo = t.team_size === 2;
+    const ids = [m.p1_id, m.p2_id, m.boss_id].filter((x) => x != null).map(Number);
+    const [bRows] = await conn.query<RowDataPacket[]>("SELECT id, boss_target FROM ko_participants WHERE id IN (?) AND is_boss = 1", [ids]);
+    const target = new Map(bRows.map((r) => [Number(r.id), new Decimal(String(r.boss_target))]));
+    const t1 = target.get(Number(m.p1_id)), t2 = target.get(Number(m.p2_id));
+    const save = (key: "p1" | "p1b" | "p2" | "p2b", b: Bonus | undefined) =>
+      conn.query(`UPDATE ko_matches SET ${key}_cost = ?, ${key}_payout = ? WHERE id = ?`, [b?.cost ?? null, b?.payout ?? null, matchId]);
+
+    if (t1 || t2) {
+      // a player (team) against a boss: reach its target or be reaped
+      const human: 1 | 2 = t1 ? 2 : 1;
+      const score = human === 1 ? sideScore(p1, duo?.p1b, isDuo) : sideScore(p2, duo?.p2b, isDuo);
+      const need = (t1 ?? t2)!;
+      if (human === 1) { await save("p1", p1); await save("p1b", isDuo ? duo?.p1b : undefined); }
+      else { await save("p2", p2); await save("p2b", isDuo ? duo?.p2b : undefined); }
+      const side: 1 | 2 = score.gte(need) ? human : human === 1 ? 2 : 1;
+      const res = await finishMatch(conn, t, m, side, { reap: side !== human });
+      const [m1, m2] = human === 1 ? [score.toFixed(2), need.toFixed(2)] : [need.toFixed(2), score.toFixed(2)];
+      return { ...res, m1, m2, reaped: side !== human };
+    }
+
+    const e1 = sideScore(p1, duo?.p1b, isDuo), e2 = sideScore(p2, duo?.p2b, isDuo);
+    const ambusher = m.boss_id != null ? target.get(Number(m.boss_id)) : undefined;
+    // nobody reaches the ambushing boss: it advances, even on an exact tie
+    if (!(ambusher && e1.lt(ambusher) && e2.lt(ambusher)) && e1.eq(e2)) throw new AppError("battle_tied", `both at x${e1.toFixed(2)}`);
     await conn.query(
       "UPDATE ko_matches SET p1_cost = ?, p1_payout = ?, p2_cost = ?, p2_payout = ?, p1b_cost = ?, p1b_payout = ?, p2b_cost = ?, p2b_payout = ? WHERE id = ?",
-      [p1.cost, p1.payout, p2.cost, p2.payout, duo?.p1b.cost ?? null, duo?.p1b.payout ?? null, duo?.p2b.cost ?? null, duo?.p2b.payout ?? null, matchId]);
-    return { ...(await finishMatch(conn, t, m, dec.side as 1 | 2)), m1: dec.m1, m2: dec.m2 };
+      [p1!.cost, p1!.payout, p2!.cost, p2!.payout, isDuo ? duo!.p1b!.cost : null, isDuo ? duo!.p1b!.payout : null, isDuo ? duo!.p2b!.cost : null, isDuo ? duo!.p2b!.payout : null, matchId]);
+    if (ambusher && e1.lt(ambusher) && e2.lt(ambusher)) {
+      return { ...(await finishReaped(conn, t, m)), m1: e1.toFixed(2), m2: e2.toFixed(2), reaped: true };
+    }
+    return { ...(await finishMatch(conn, t, m, e1.gt(e2) ? 1 : 2)), m1: e1.toFixed(2), m2: e2.toFixed(2), reaped: false };
   });
 }
 
-async function finishMatch(conn: PoolConnection, t: KoTournament, m: RowDataPacket, side: 1 | 2): Promise<{ winnerId: number; champion: boolean }> {
+/** Ambushed battle where neither side reached the target: the boss takes the seat. */
+async function finishReaped(conn: PoolConnection, t: KoTournament, m: RowDataPacket): Promise<{ winnerId: number; champion: boolean }> {
+  const boss = Number(m.boss_id);
+  await conn.query("UPDATE ko_matches SET status = 'done', winner_id = ?, finished_at = UTC_TIMESTAMP() WHERE id = ?", [boss, m.id]);
+  await conn.query("UPDATE ko_participants SET state = 'eliminated', reaped = 1 WHERE id IN (?, ?)", [m.p1_id, m.p2_id]);
+  await conn.query("UPDATE ko_tournaments SET focus_match_id = ? WHERE id = ?", [m.id, t.id]);
+  const champion = await propagate(conn, t.id);
+  return { winnerId: boss, champion: champion === boss };
+}
+
+async function finishMatch(conn: PoolConnection, t: KoTournament, m: RowDataPacket, side: 1 | 2, opts: { reap?: boolean } = {}): Promise<{ winnerId: number; champion: boolean }> {
   const winner = Number(side === 1 ? m.p1_id : m.p2_id);
   const loser = Number(side === 1 ? m.p2_id : m.p1_id);
   await conn.query("UPDATE ko_matches SET status = 'done', winner_id = ?, finished_at = UTC_TIMESTAMP() WHERE id = ?", [winner, m.id]);
+  if (opts.reap) await conn.query("UPDATE ko_participants SET reaped = 1 WHERE id = ?", [loser]);
+  // a player beat the ambushing boss (or won on a walkover): the boss is gone
+  if (m.boss_id != null && Number(m.boss_id) !== winner) await conn.query("UPDATE ko_participants SET state = 'eliminated' WHERE id = ?", [m.boss_id]);
   // semi-final losers of older tournaments aren't out yet: they play the 3rd-place match
   const last = roundsFor(t.max_players);
   const [bronze] = await conn.query<RowDataPacket[]>("SELECT 1 FROM ko_matches WHERE tournament_id = ? AND round = ? AND match_index = 1", [t.id, last]);
@@ -665,6 +894,8 @@ async function propagate(conn: PoolConnection, id: number): Promise<number | nul
   const [dqRows] = await conn.query<RowDataPacket[]>("SELECT id FROM ko_participants WHERE tournament_id = ? AND disqualified = 1", [id]);
   const dq = new Set(dqRows.map((r) => Number(r.id)));
   const out = (x: Side): Side => (x.kind === "player" && dq.has(x.id) ? { kind: "void" } : x);
+  const [bossRows] = await conn.query<RowDataPacket[]>("SELECT id, boss_target FROM ko_participants WHERE tournament_id = ? AND is_boss = 1", [id]);
+  const bossT = new Map(bossRows.map((r) => [Number(r.id), new Decimal(String(r.boss_target))]));
 
   if (closed) {
     const r1 = rows.filter((m) => Number(m.round) === 1);
@@ -694,13 +925,22 @@ async function propagate(conn: PoolConnection, id: number): Promise<number | nul
       if (p1 && p2) status = "ready";
       else if (a.kind === "void" && b.kind === "void") status = "void";
       else if ((p1 && b.kind === "void") || (p2 && a.kind === "void")) { status = "bye"; winner = p1 ?? p2; }
+      // two bosses meet: the stronger target advances, nothing to play
+      if (p1 && p2 && bossT.has(p1) && bossT.has(p2)) { status = "done"; winner = bossT.get(p2)!.gt(bossT.get(p1)!) ? p2 : p1; }
       if (status !== m.status || p1 !== (m.p1_id ? Number(m.p1_id) : null) || p2 !== (m.p2_id ? Number(m.p2_id) : null)) {
         await conn.query(
-          "UPDATE ko_matches SET p1_id = ?, p2_id = ?, status = ?, winner_id = ?, finished_at = IF(? = 'bye', UTC_TIMESTAMP(), NULL) WHERE id = ?",
+          "UPDATE ko_matches SET p1_id = ?, p2_id = ?, status = ?, winner_id = ?, finished_at = IF(? IN ('bye','done'), UTC_TIMESTAMP(), NULL) WHERE id = ?",
           [p1, p2, status, winner, status, m.id]);
+        if (status === "done") await conn.query("UPDATE ko_participants SET state = 'eliminated' WHERE id = ?", [winner === p1 ? p2 : p1]);
         Object.assign(m, { p1_id: p1, p2_id: p2, status, winner_id: winner });
       }
     }
+  }
+
+  // a boss whose ambushed battle turned into a bye or an empty seat (a DQ) leaves
+  if (bossT.size) {
+    await conn.query(
+      "UPDATE ko_participants p JOIN ko_matches m ON m.boss_id = p.id SET p.state = 'eliminated', m.boss_id = NULL WHERE m.tournament_id = ? AND m.status IN ('void','bye') AND p.state = 'in_knockout'", [id]);
   }
 
   const final = rows.find((x) => Number(x.round) === last && Number(x.match_index) === 0);
@@ -723,6 +963,6 @@ async function propagate(conn: PoolConnection, id: number): Promise<number | nul
 /** Duo: teammates mirror their captain's bracket state. */
 async function syncPartners(conn: PoolConnection, id: number): Promise<void> {
   await conn.query(
-    "UPDATE ko_participants m JOIN ko_participants c ON c.id = m.team_id SET m.state = c.state, m.disqualified = c.disqualified WHERE m.tournament_id = ? AND m.team_id IS NOT NULL AND m.id <> m.team_id",
+    "UPDATE ko_participants m JOIN ko_participants c ON c.id = m.team_id SET m.state = c.state, m.disqualified = c.disqualified, m.reaped = c.reaped WHERE m.tournament_id = ? AND m.team_id IS NOT NULL AND m.id <> m.team_id",
     [id]);
 }

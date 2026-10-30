@@ -768,3 +768,72 @@ iframe[src*=".netlify/scripts/hud"],
 .discord-cta { box-shadow: 0 4px 0 0 var(--edge), 0 12px 36px -8px rgb(88 101 242 / 0.6); }
 .signin-card { box-shadow: 0 40px 80px -20px rgb(0 0 0 / 0.8), 0 0 0 1px rgb(141 255 74 / 0.05); }
 @media (prefers-reduced-motion: reduce) { .btn-discord::after { animation: none; } }
+
+/* The Reaping · Hunt: monster portrait animations (components/tournament/hunt),
+   ported from Ravo's prototype; they play inside .hunt-live */
+.pt g{transform-box:fill-box;transform-origin:50% 50%}
+.pt .g-head{transform-origin:50% 100%}
+@keyframes a-wig{0%,100%{transform:rotate(0)}25%{transform:rotate(-7deg)}75%{transform:rotate(7deg)}}
+@keyframes a-float{0%,100%{transform:translateY(0)}50%{transform:translateY(-7px)}}
+@keyframes a-flap{0%,100%{transform:scaleX(1)}50%{transform:scaleX(.55)}}
+@keyframes a-pulse{0%,100%{opacity:1}50%{opacity:.25}}
+@keyframes a-flick{0%,100%{opacity:1}20%{opacity:.5}40%{opacity:.9}60%{opacity:.35}80%{opacity:.85}}
+@keyframes a-swing{0%,100%{transform:rotate(-14deg)}50%{transform:rotate(14deg)}}
+@keyframes a-drip{0%{transform:translateY(-3px);opacity:1}100%{transform:translateY(9px);opacity:0}}
+@keyframes a-rattle{0%,100%{transform:translateX(0)}25%{transform:translateX(-3px)}75%{transform:translateX(3px)}}
+@keyframes a-spin{to{transform:rotate(360deg)}}
+@keyframes a-squash{0%,100%{transform:scale(1,1)}50%{transform:scale(1.07,.93)}}
+@keyframes a-burn{0%,100%{transform:scale(1,1)}33%{transform:scale(.95,1.08)}66%{transform:scale(1.04,.96)}}
+@keyframes a-chop{0%,100%{transform:rotate(0)}40%{transform:rotate(-40deg)}60%{transform:rotate(8deg)}}
+@keyframes a-blink{0%,90%,100%{transform:scaleY(1)}95%{transform:scaleY(.1)}}
+@keyframes a-rise{0%{transform:translateY(4px);opacity:.4}100%{transform:translateY(-10px);opacity:1}}
+@keyframes a-grow{0%,100%{transform:scale(1)}50%{transform:scale(1.12)}}
+.hunt-live .pt[data-anim=nibble] .g-head{animation:a-wig .35s infinite}
+.hunt-live .pt[data-anim=nibble] .g-front{animation:a-rattle .3s infinite}
+.hunt-live .pt[data-anim=flicker] .g-front{animation:a-flick .8s infinite}
+.hunt-live .pt[data-anim=flicker] .g-eyes{animation:a-pulse 1.2s infinite}
+.hunt-live .pt[data-anim=imp] .g-head{animation:a-float .6s infinite}
+.hunt-live .pt[data-anim=imp] .g-front{animation:a-swing 1s infinite}
+.hunt-live .pt[data-anim=flap] .g-back{animation:a-flap .35s infinite}
+.hunt-live .pt[data-anim=wag] .g-head{animation:a-wig .5s infinite}
+.hunt-live .pt[data-anim=glow] .g-eyes{animation:a-pulse .7s infinite}
+.hunt-live .pt[data-anim=glow] .g-head{animation:a-squash .7s infinite}
+.hunt-live .pt[data-anim=float] .g-head{animation:a-float 1.4s infinite}
+.hunt-live .pt[data-anim=float] .g-front{animation:a-float 1.4s infinite}
+.hunt-live .pt[data-anim=sing] .g-head{animation:a-wig 1.6s infinite}
+.hunt-live .pt[data-anim=ooze] .g-front{animation:a-drip 1s infinite}
+.hunt-live .pt[data-anim=tip] .g-head{animation:a-wig 1.2s infinite}
+.hunt-live .pt[data-anim=tip] .g-front{animation:a-rattle .4s infinite}
+.hunt-live .pt[data-anim=rattle] .g-front{animation:a-rattle .15s infinite}
+.hunt-live .pt[data-anim=rattle] .g-eyes{animation:a-pulse .6s infinite}
+.hunt-live .pt[data-anim=twins] .g-head{animation:a-rattle .25s infinite}
+.hunt-live .pt[data-anim=sparkle] .g-front{animation:a-grow .6s infinite}
+.hunt-live .pt[data-anim=sparkle] .g-eyes{animation:a-pulse .9s infinite}
+.hunt-live .pt[data-anim=chop] .g-front{animation:a-chop .6s infinite}
+.hunt-live .pt[data-anim=pray] .g-eyes{animation:a-pulse .9s infinite}
+.hunt-live .pt[data-anim=pray] .g-front{animation:a-grow 1s infinite}
+.hunt-live .pt[data-anim=deal] .g-front{animation:a-swing .8s infinite}
+.hunt-live .pt[data-anim=deal] .g-eyes{animation:a-blink 2s infinite}
+.hunt-live .pt[data-anim=summon] .g-back{animation:a-grow .8s infinite}
+.hunt-live .pt[data-anim=summon] .g-eyes{animation:a-pulse .8s infinite}
+.hunt-live .pt[data-anim=veil] .g-head{animation:a-wig 2.4s infinite}
+.hunt-live .pt[data-anim=veil] .g-eyes{animation:a-pulse 1.6s infinite}
+.hunt-live .pt[data-anim=burn] .g-head{animation:a-burn .45s infinite}
+.hunt-live .pt[data-anim=void] .g-back{animation:a-spin 6s linear infinite}
+.hunt-live .pt[data-anim=void] .g-head{animation:a-grow 1.4s infinite}
+.hunt-live .pt[data-anim=grab] .g-back{animation:a-grow .7s infinite}
+.hunt-live .pt[data-anim=grab] .g-eyes{animation:a-blink 1.5s infinite}
+.hunt-live .pt[data-anim=reap] .g-back{animation:a-chop 1s infinite}
+.hunt-live .pt[data-anim=reap] .g-eyes{animation:a-pulse 1s infinite}
+.hunt-live .pt[data-anim=sway] .g-head{animation:a-wig 2s infinite}
+.hunt-live .pt[data-anim=sway] .g-front{animation:a-rise 1.2s infinite}
+.hunt-live .pt[data-anim=gaze] .g-eyes{animation:a-blink 1.6s infinite}
+.hunt-live .pt[data-anim=gaze] .g-back{animation:a-spin 10s linear infinite}
+.hunt-live .pt[data-anim=holy] .g-back{animation:a-flap .9s infinite}
+.hunt-live .pt[data-anim=holy] .g-head{animation:a-float 2s infinite}
+.hunt-live .pt[data-anim=bob] .g-head{animation:a-float 1.6s infinite}
+@media (prefers-reduced-motion: reduce) { .hunt-live .pt g { animation: none !important; } }
+/* heavy reveal (Warlord, Overlord, Endboss): one short shake */
+@keyframes ko-shake { 20% { translate: -8px 0; } 40% { translate: 7px 0; } 60% { translate: -5px 0; } 80% { translate: 3px 0; } }
+.ko-shake { animation: ko-shake 0.5s 0.2s; }
+@media (prefers-reduced-motion: reduce) { .ko-shake { animation: none; } }

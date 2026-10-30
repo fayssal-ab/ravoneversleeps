@@ -1,9 +1,11 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Crown } from "lucide-react";
+import { Crown, Skull } from "lucide-react";
 import { SlotArt } from "@/components/ui/SlotArt";
 import type { KoMatch, KoParticipant, KoState } from "@/lib/knockout";
+import { tierOf } from "@/lib/reapingTiers";
+import { BossBanner } from "./reaping/Boss";
 
 // Tournament presentation shared by the admin dashboard, public page and OBS
 // overlay (logic ported from ONO). Player 1 is the neon side, player 2 the
@@ -32,7 +34,8 @@ const STATE: Record<KoParticipant["state"], { label: string; tone: string }> = {
   champion: { label: "Champion", tone: "border-gold/60 text-gold" },
 };
 
-export function StateBadge({ state, dq = false }: { state: KoParticipant["state"]; dq?: boolean }) {
+export function StateBadge({ state, dq = false, reaped = false }: { state: KoParticipant["state"]; dq?: boolean; reaped?: boolean }) {
+  if (reaped && !dq) return <span className="rounded-full border border-[#b06bff]/70 bg-[#b06bff]/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-[#c9a6ff]">Reaped</span>;
   if (dq) return <span className="rounded-full border border-danger/60 bg-danger/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-danger">Disqualified</span>;
   return <span className={`rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider ${STATE[state].tone}`}>{STATE[state].label}</span>;
 }
@@ -67,7 +70,7 @@ export function ParticipantRow({ p, index, onDisqualify, team }: { p: KoParticip
         <span className="block truncate text-xs text-dim">{p.slot_name}{p.slot_provider ? ` · ${p.slot_provider}` : ""}</span>
         {team && <span className="block truncate text-[11px] text-neon/80">Team {team}</span>}
       </span>
-      <StateBadge state={p.state} dq={p.disqualified} />
+      <StateBadge state={p.state} dq={p.disqualified} reaped={p.reaped} />
       {canDq && (
         <button
           type="button"
@@ -113,6 +116,25 @@ function Fighter({ p, side, outcome, big, result, resultB, total, pending }: {
       <div className={`flex min-w-0 flex-col items-center gap-2 text-center ${s.anim}`}>
         <span className="grid place-items-center rounded-2xl border-2 border-dashed border-line-hot font-display text-4xl text-dim" style={{ width: art, height: art }}>?</span>
         <span className="font-head text-lg text-dim">TBD</span>
+      </div>
+    );
+  }
+  if (p.is_boss) {
+    // a boss in the bracket: its slot, its name, the target to reach
+    const tier = tierOf(p.boss_tier);
+    return (
+      <div className={`flex min-w-0 flex-col items-center gap-1.5 text-center transition-[opacity,filter] duration-500 ${s.anim} ${outcome === "lose" ? "opacity-40 grayscale" : ""}`}>
+        <div className="relative mb-1 overflow-hidden rounded-2xl border-2" style={{ borderColor: tier.color, boxShadow: `0 0 40px -8px ${tier.color}` }}>
+          <SlotArt name={p.slot_name} src={p.slot_image} fluid={art} rounded="rounded-[0.9rem]" className="!border-0 brightness-75" />
+          <Skull className="absolute left-1/2 top-1/2 size-1/3 -translate-x-1/2 -translate-y-1/2 text-white/85 drop-shadow-[0_2px_10px_rgb(0_0_0/0.9)]" />
+          {outcome === "win" && <span className="absolute inset-x-0 bottom-0 py-1 text-center font-head text-[11px] font-black uppercase tracking-[0.3em] text-bg" style={{ background: tier.color }}>Reaps</span>}
+        </div>
+        <p className={`w-full truncate font-head font-bold leading-tight ${big ? "text-4xl" : "text-[clamp(1rem,3.2vw,1.4rem)]"}`} style={{ color: tier.color }}>{p.username}</p>
+        <p className={`w-full truncate font-semibold leading-tight text-muted ${big ? "text-xl" : "text-sm"}`}>Boss · {tier.label}</p>
+        <div className="mt-2">
+          <p className={`font-head font-bold uppercase tracking-[0.2em] text-dim ${big ? "text-base" : "text-[10px]"}`}>Target</p>
+          <p className={`font-mono font-bold tabular-nums leading-none ${big ? "text-6xl" : "text-[clamp(1.6rem,4.5vw,2.2rem)]"}`} style={{ color: tier.color }}>{Number(p.boss_target)}x</p>
+        </div>
       </div>
     );
   }
@@ -168,6 +190,7 @@ export function VsScreen({ match, size, big = false }: { match: KoMatch; size: n
   const art = duo ? duoArt(big) : big ? "240px" : "clamp(96px, min(26vw, 12vw + 40px), 200px)";
   return (
     <div className="relative">
+      <BossBanner match={match} duo={duo} big={big} />
       {/* split arena glow */}
       <div className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(ellipse_at_15%_40%,rgb(141_255_74/0.16),transparent_55%),radial-gradient(ellipse_at_85%_40%,rgb(217_225_220/0.12),transparent_55%)]" />
       <p className="mb-5 text-center font-head text-xs font-bold uppercase tracking-[0.22em] text-muted">
@@ -285,15 +308,27 @@ function BracketCell({ m, champion }: { m: KoMatch; champion: number | null }) {
       <div className={`flex items-center gap-2.5 px-2.5 py-2 ${won ? "bg-gold/10" : ""} ${lost ? "opacity-45" : ""}`}>
         <span className="h-6 w-0.5 rounded-full" style={{ background: SIDE[side].color }} />
         {p ? <SlotArt name={p.slot_name} src={p.slot_image} size={34} rounded="rounded-md" /> : <span className="size-[34px] rounded-md border border-dashed border-line" />}
+        {p?.is_boss && <Skull className="size-3.5 shrink-0" style={{ color: tierOf(p.boss_tier).color }} />}
         <span className={`min-w-0 flex-1 truncate text-sm ${won ? "font-bold text-gold" : "text-text/80"}`}>{p ? teamName(p) : m.status === "void" ? "—" : "TBD"}</span>
-        {res && <span className={`font-mono text-xs ${won ? "font-bold text-gold" : "text-dim"}`}>x{res}</span>}
+        {/* only in the battle a boss took: the same player may have won earlier rounds */}
+        {lost && p.reaped && (m.winner_id === m.boss?.id || m.p1?.is_boss || m.p2?.is_boss) && <span className="shrink-0 font-head text-[9px] font-bold uppercase tracking-wider text-[#c9a6ff]">Reaped</span>}
+        {res && <span className={`font-mono text-xs ${won ? "font-bold text-gold" : "text-dim"}`}>{p?.is_boss ? `${Number(res)}x` : `x${res}`}</span>}
         {won && champion === p?.id && <Crown className="size-3.5 text-gold" />}
       </div>
     );
   };
   const tone = m.status === "live" ? "border-danger/70 shadow-[0_0_20px_-6px_var(--color-danger)]" : m.status === "rolled" ? "border-gold/50" : m.winner_id ? "border-neon/30" : "border-line";
+  const ambush = m.boss ? tierOf(m.boss.boss_tier) : null;
   return (
-    <div className={`overflow-hidden rounded-xl border bg-surface ${tone} ${m.status === "void" ? "opacity-30" : ""}`}>
+    <div className={`overflow-hidden rounded-xl border bg-surface ${ambush ? "" : tone} ${m.status === "void" ? "opacity-30" : ""}`}
+      style={ambush ? { borderColor: ambush.color, boxShadow: `0 0 18px -8px ${ambush.color}` } : undefined}>
+      {m.boss && (
+        <div className="flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-bold" style={{ background: `${ambush!.color}22`, color: ambush!.color }}>
+          <Skull className="size-3.5 shrink-0" />
+          <span className="min-w-0 flex-1 truncate">{m.winner_id === m.boss.id ? `${m.boss.username} reaped both` : `Ambush · ${m.boss.username}`}</span>
+          <span className="font-mono">{Number(m.boss.boss_target)}x</span>
+        </div>
+      )}
       {row(m.p1, m.p1_multi, "l")}
       <div className="h-px bg-line" />
       {m.status === "bye" ? <div className="px-3 py-1.5 text-xs text-dim">bye</div> : row(m.p2, m.p2_multi, "r")}
@@ -354,6 +389,18 @@ export function ChampionCard({ p, compact = false, celebrate = false }: { p: KoP
     return { bx: `${Math.cos(a) * (160 + (i % 4) * 40)}px`, by: `${Math.sin(a) * (120 + (i % 3) * 40)}px`, c: ["var(--color-gold)", "var(--color-neon)", "var(--color-silver)", "var(--color-neon-bright)"][i % 4], d: `${(i % 7) * 0.08}s` };
   }), [celebrate]);
   if (!p) return <div className="w-full rounded-xl border border-dashed border-line p-4 text-center text-sm text-dim">To be crowned</div>;
+  if (p.is_boss) {
+    const tier = tierOf(p.boss_tier);
+    return (
+      <div className={`relative w-full overflow-hidden rounded-2xl border-2 bg-[radial-gradient(ellipse_at_50%_0%,rgb(176_107_255/0.18),#07050a_70%)] text-center ${compact ? "p-3" : "p-8"}`}
+        style={{ borderColor: tier.color, boxShadow: `0 0 60px -14px ${tier.color}` }}>
+        <Skull className={`mx-auto ${compact ? "size-6" : "size-12"}`} style={{ color: tier.color }} />
+        <p className={`mt-2 font-display leading-none text-[#efe9f5] ${compact ? "text-xl" : "text-4xl md:text-6xl"}`}>The Cult wins</p>
+        <p className={`mt-2 truncate font-head font-bold ${compact ? "text-xs" : "text-xl"}`} style={{ color: tier.color }}>{p.username} · {Number(p.boss_target)}x</p>
+        {!compact && <p className="mt-1 text-sm text-muted">Nobody beat the boss. Nobody sleeps.</p>}
+      </div>
+    );
+  }
   return (
     <div className={`ko-glow relative w-full overflow-hidden rounded-2xl border border-gold/50 bg-gradient-to-b from-gold/15 to-transparent text-center ${compact ? "p-3" : "p-8"}`}>
       {bursts.map((b, i) => (
@@ -374,6 +421,16 @@ export function Podium({ state, compact = false }: { state: KoState; compact?: b
   const t = state.tournament;
   const p = state.champion;
   const amount = t.prize_1;
+  if (p?.is_boss) {
+    return (
+      <div className={compact ? "w-full" : "mx-auto max-w-md"}>
+        <ChampionCard p={p} compact={compact} />
+        {!compact && amount != null && (
+          <p className="mt-2 text-center text-sm text-muted">{t.rollover ? <>The <b className="font-mono text-gold">${Number(amount).toLocaleString("en-US")}</b> prize rolls over to the next Reaping.</> : "No champion this time."}</p>
+        )}
+      </div>
+    );
+  }
   if (compact) {
     return (
       <div className="flex w-full items-center gap-2 rounded-lg border border-gold/50 bg-gold/10 p-2">

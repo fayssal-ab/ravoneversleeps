@@ -29,6 +29,9 @@ export function useFinishers(state: KoState | null) {
       const add: Show[] = [];
       for (const m of state.matches) {
         if (m.winner_id == null || !m.p1 || !m.p2 || m.status === "bye" || m.status === "void") continue;
+        // reaped (the ambushing boss took the seat) or two bosses meeting: no K.O. between the sides
+        if (m.winner_id !== m.p1.id && m.winner_id !== m.p2.id) continue;
+        if (m.p1.is_boss && m.p2.is_boss) continue;
         if (prev.winners.has(m.id) && prev.winners.get(m.id) == null) {
           add.push({ key: `f${m.id}-${m.winner_id}`, kind: "fight", card: { match: m, label: matchLabel(m, t.max_players) } });
         }
@@ -79,6 +82,7 @@ const DEMO = [
 const demoPlayer = (id: number, username: string, slot: string): KoParticipant => ({
   id, username, avatar: null, slot_name: slot, slot_provider: "Demo", slot_image: "", state: "in_knockout", disqualified: false,
   bracket_pos: null, rerolls: 0, joined_at: "", team_id: null,
+  is_boss: false, boss_target: null, boss_tier: null, boss_line: null, reaped: false,
 });
 
 const MATES = [["blep90", "Xmas Drop"], ["cake_b", "Le Viking"]] as const;
@@ -94,7 +98,7 @@ export function demoShow(i: number): Show {
   }
   const match: KoMatch = {
     id: i, round: 1, match_index: 0, status: "done", p1, p2, winner_id: Number(a[2]) > Number(b[2]) ? 1 : 2, roll_seq: null,
-    p1_result: null, p2_result: null, p1b_result: null, p2b_result: null, p1_multi: a[2], p2_multi: b[2],
+    p1_result: null, p2_result: null, p1b_result: null, p2b_result: null, p1_multi: a[2], p2_multi: b[2], boss: null,
   };
   return { key: `demo-f${i}`, kind: "fight", card: { match, label: "Demo battle" } };
 }
