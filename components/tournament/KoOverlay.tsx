@@ -9,7 +9,7 @@ import { KickAvatar, Podium, RollReveal, VsScreen, matchLabel, roundName, teamNa
 import { useKoState } from "./useKoState";
 import { tierOf } from "@/lib/reapingTiers";
 import { BossBanner, BossReveal, useBossReveal } from "./reaping/Boss";
-import { HuntPhase, HuntStats } from "./hunt/HuntBoard";
+import { HuntAvatars, HuntPhase, HuntStats } from "./hunt/HuntBoard";
 import { HuntStage } from "./hunt/HuntStage";
 
 // OBS overlay, transparent background. Default: a landscape card with the two
@@ -44,6 +44,7 @@ export function KoOverlay({ wide = false, mute = false, demo = false }: { wide?:
     const pill = h.phase === "hunt" ? `The Hunt · wave ${h.wave} of ${h.cfg.waves}` : h.phase === "arena" ? "The Arena" : h.phase === "reckon" ? "The Reckoning" : "The Reaping is over";
     const tone = h.phase === "arena" ? "#f5c95a" : h.phase === "reckon" ? "#ff5a5a" : h.phase === "done" ? "#b36bff" : "#8cff4a";
     return (
+      <HuntAvatars participants={state.participants}>
       <div className="flex h-[100dvh] w-full p-[1.2vh]">
         <HuntStage s={h} sound={!mute} />
         <div className="hud hud-lg flex w-full" style={{ ["--hc" as string]: tone }}>
@@ -57,6 +58,7 @@ export function KoOverlay({ wide = false, mute = false, demo = false }: { wide?:
           </div>
         </div>
       </div>
+      </HuntAvatars>
     );
   }
 

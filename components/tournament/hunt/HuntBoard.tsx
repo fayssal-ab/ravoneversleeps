@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { createContext, useContext, useEffect, useMemo, useState } from "react";
 import { Crown, Skull, Swords } from "lucide-react";
 import { SlotArt } from "@/components/ui/SlotArt";
 import { AB, CURSES, findMonster, portrait, tierById } from "@/lib/hunt/bestiary.js";
@@ -154,14 +154,30 @@ export function HuntStats({ s }: { s: HuntState }) {
 }
 
 const Bounty = ({ n }: { n: number }) => (n > 1 ? <Tag c="#f5c95a" solid>×{n}</Tag> : null);
-export function Avatar({ e, big = false, size }: { e: Pick<Entrant, "name">; big?: boolean; size?: number | string }) {
+/** Kick profile pictures by participant id (the Hunt state only keeps ids). */
+const AvatarsCtx = createContext<Map<number, string | null>>(new Map());
+export function HuntAvatars({ participants, children }: { participants: { id: number; avatar: string | null }[]; children: React.ReactNode }) {
+  const map = useMemo(() => new Map(participants.map((p) => [p.id, p.avatar])), [participants]);
+  return <AvatarsCtx.Provider value={map}>{children}</AvatarsCtx.Provider>;
+}
+
+/** Hex avatar: the Kick picture when known (duo: the captain's), else the initials. */
+export function Avatar({ e, big = false, size }: { e: Pick<Entrant, "name"> & { pids?: number[] }; big?: boolean; size?: number | string }) {
+  const pics = useContext(AvatarsCtx);
+  const [broken, setBroken] = useState(false);
   let h = 7;
   for (const ch of e.name) h = (h * 31 + ch.charCodeAt(0)) % 360;
   const ini = e.name.split(/[\s&_]+/).filter(Boolean);
   const d = size ?? (big ? 64 : 30);
+  const src = e.pids?.map((id) => pics.get(id)).find(Boolean) ?? null;
   return (
-    <span aria-hidden className="emblem shrink-0 !text-white" style={{ width: d, ...css({ "--hc": `hsl(${h} 50% 38%)` }) }}>
-      <span style={{ fontSize: `calc(${typeof d === "number" ? `${d}px` : d} * 0.34)` }}>{(ini.length > 1 ? ini[0][0] + ini[1][0] : e.name.slice(0, 2)).toUpperCase()}</span>
+    <span aria-hidden className="emblem relative shrink-0 overflow-hidden !text-white" style={{ width: d, ...css({ "--hc": `hsl(${h} 50% 38%)` }) }}>
+      {src && !broken ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={src} alt="" draggable={false} referrerPolicy="no-referrer" onError={() => setBroken(true)} className="absolute inset-[6%] size-[88%] object-cover [clip-path:polygon(50%_0,93%_25%,93%_75%,50%_100%,7%_75%,7%_25%)]" />
+      ) : (
+        <span style={{ fontSize: `calc(${typeof d === "number" ? `${d}px` : d} * 0.34)` }}>{(ini.length > 1 ? ini[0][0] + ini[1][0] : e.name.slice(0, 2)).toUpperCase()}</span>
+      )}
     </span>
   );
 }

@@ -5,7 +5,7 @@ import { Ghost, Skull, UserPlus } from "lucide-react";
 import type { KoParticipant, KoState } from "@/lib/knockout";
 import { money } from "@/lib/hunt/engine";
 import { Counter, ParticipantRow } from "../parts";
-import { EventLog, HuntPhase, HuntStats, PhaseBar, RevealOverlay, useHuntReveal, type HuntAdmin } from "./HuntBoard";
+import { EventLog, HuntAvatars, HuntPhase, HuntStats, PhaseBar, RevealOverlay, useHuntReveal, type HuntAdmin } from "./HuntBoard";
 
 // Admin control room for "The Reaping · Hunt". Every button is a server call
 // (lib/hunt/store.ts); the dashboard only shows the saved game.
@@ -27,6 +27,7 @@ export function HuntDashboard({ state, act, busy, msg, reader, chat, onDisqualif
   const units = duo ? Math.floor(state.registered / 2) : state.registered;
 
   return (
+    <HuntAvatars participants={state.participants}>
     <div className="space-y-6">
       {s && reveal && <RevealOverlay s={s} reveal={reveal} onClose={dismiss} />}
       <div className="panel flex flex-wrap items-center justify-between gap-4 p-5">
@@ -130,5 +131,6 @@ export function HuntDashboard({ state, act, busy, msg, reader, chat, onDisqualif
         </>
       )}
     </div>
+    </HuntAvatars>
   );
 }

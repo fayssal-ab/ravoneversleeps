@@ -152,10 +152,19 @@ function SpawnSeq({ s, fight, sound, onDone, endboss = false }: { s: HuntState; 
             {m.secret ? "Secret boss · 1 in 1,000,000" : endboss ? `Endboss · bounty ×${m.bounty}` : `${tier} · ${RANK[tier]} · tier ${(tierById(tier) as { roman?: string }).roman}`}
           </motion.span>
           <motion.p className="mt-[1vh] font-head text-[3vh] font-bold uppercase tracking-[0.2em]" style={{ color: c }} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: T + 0.35 }}>{head}</motion.p>
-          <h2 className="mt-[0.5vh] font-display leading-[0.9] text-[#f3ede6] [text-shadow:0_0.8vh_0_#000]" style={{ fontSize: m.name.length > 16 ? "10vh" : "13vh" }} aria-label={m.name}>
-            {m.name.split("").map((ch, i) => (
-              <motion.span key={i} className="inline-block" initial={{ y: "-0.6em", opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ delay: T + 0.4 + i * 0.035, type: "spring", stiffness: 500, damping: 20 }}>{ch === " " ? " " : ch}</motion.span>
-            ))}
+          {/* letters drop one by one, words never break in the middle */}
+          <h2 className="mt-[0.5vh] font-display leading-[0.9] text-[#f3ede6] [text-shadow:0_0.8vh_0_#000]" style={{ fontSize: m.name.length > 20 ? "8.5vh" : m.name.length > 14 ? "10vh" : "13vh" }} aria-label={m.name}>
+            {m.name.split(" ").map((word, w, words) => {
+              const start = words.slice(0, w).join(" ").length + (w ? 1 : 0);
+              return (
+                <span key={w} className="inline-block whitespace-nowrap">
+                  {word.split("").map((ch, i) => (
+                    <motion.span key={i} className="inline-block will-change-transform" initial={{ y: "-0.6em", opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ delay: T + 0.4 + (start + i) * 0.035, type: "spring", stiffness: 500, damping: 20 }}>{ch}</motion.span>
+                  ))}
+                  {w < words.length - 1 && "\u00a0"}
+                </span>
+              );
+            })}
           </h2>
           {def?.l && <motion.p className="mt-[1vh] text-[3vh] italic text-[#c9c0b6]" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: T + 1.1 }}>“{def.l}”</motion.p>}
           <motion.p className="mt-[2vh] font-head text-[3.4vh] font-bold uppercase tracking-[0.12em] text-[#f1ece4]" initial={{ opacity: 0, x: -30 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: T + 1.3 }}>
@@ -181,8 +190,8 @@ function SpawnSeq({ s, fight, sound, onDone, endboss = false }: { s: HuntState; 
 }
 
 /** A player (team) or a monster on one side of a fight. */
-function Fighter({ side, name, sub, slot, portrait, tier, color, total, at, lost, max }: {
-  side: "l" | "r"; name: string; sub?: string; slot?: { name: string; image: string | null } | null; portrait?: { name: string; tier: string };
+function Fighter({ side, name, pids, sub, slot, portrait, tier, color, total, at, lost, max }: {
+  side: "l" | "r"; name: string; pids?: number[]; sub?: string; slot?: { name: string; image: string | null } | null; portrait?: { name: string; tier: string };
   tier?: string; color: string; total: number; at: number; lost: boolean; max: number; hit: number;
 }) {
   return (
@@ -191,11 +200,11 @@ function Fighter({ side, name, sub, slot, portrait, tier, color, total, at, lost
       <div className="hud hud-lg hunt-live live" style={css({ "--hc": color })}>
         <div className="grid size-[36vh] place-items-center p-[1vh]">
           {portrait ? <Portrait name={portrait.name} tier={portrait.tier} size="33vh" />
-            : slot ? <SlotArt name={slot.name} src={slot.image} fluid="33vh" rounded="rounded-none" /> : <Avatar e={{ name }} size="24vh" />}
+            : slot ? <SlotArt name={slot.name} src={slot.image} fluid="33vh" rounded="rounded-none" /> : <Avatar e={{ name, pids }} size="24vh" />}
         </div>
       </div>
       <div className="flex max-w-full items-center gap-[1vh]">
-        {tier && <Emblem tier={tier} size={46} />}
+        {tier ? <Emblem tier={tier} size={46} /> : (slot || portrait) && <Avatar e={{ name, pids }} size="6vh" />}
         <p className="truncate font-head text-[5vh] font-bold leading-tight text-[#f1ece4]">{name}</p>
       </div>
       {sub && <p className="-mt-[1vh] max-w-full truncate text-[2.4vh] text-[#b8b0a6]">{sub}</p>}
@@ -236,7 +245,7 @@ function FightSeq({ s, fight, sound, onDone, duel = false }: { s: HuntState; fig
       <p className="absolute inset-x-0 top-[3vh] z-10 text-center"><span className="hud-tab !text-[2.2vh]" style={css({ "--hc": c })}>{duel ? "The Reckoning · final duel" : `The Hunt · wave ${s.wave}`} · buy {money(m.price)}</span></p>
       <div className="absolute inset-0 grid grid-cols-[1fr_auto_1fr] items-center gap-[2vw] px-[5vw] pt-[6vh]">
         <div className="relative">
-          <Fighter side="l" name={e.name} sub={call ? `plays ${call.name}` : undefined} slot={call ?? null} color="#8cff4a" total={v.pf} at={1.2} lost={playerLost} max={max} hit={HIT} />
+          <Fighter side="l" name={e.name} pids={e.pids} sub={call ? `plays ${call.name}` : undefined} slot={call ?? null} color="#8cff4a" total={v.pf} at={1.2} lost={playerLost} max={max} hit={HIT} />
           {playerLost && <Slash at={HIT} color={out.color} />}
         </div>
         <motion.span className="font-display text-[18vh] leading-none" initial={{ scale: 0, rotate: -30 }} animate={{ scale: [0, 1.4, 1], rotate: 0 }} transition={{ delay: 0.8, duration: 0.5 }}>
@@ -308,9 +317,9 @@ function ArenaSeq({ s, round, fight, sound, onDone }: { s: HuntState; round: num
       <Flash color="#f5c95a" at={HIT} />
       <p className="absolute inset-x-0 top-[3vh] z-10 text-center"><span className="hud-tab !text-[2.2vh]" style={css({ "--hc": "#f5c95a" })}>The Arena · both buy {money(m.price)}</span></p>
       <div className="absolute inset-0 grid grid-cols-[1fr_auto_1fr] items-center gap-[2vw] px-[5vw] pt-[6vh]">
-        <div className="relative"><Fighter side="l" name={A.name} color="#8cff4a" total={m.va} at={1} lost={!aWon} max={max} hit={HIT} />{!aWon && <Slash at={HIT} color="#f5c95a" />}</div>
+        <div className="relative"><Fighter side="l" name={A.name} pids={A.pids} color="#8cff4a" total={m.va} at={1} lost={!aWon} max={max} hit={HIT} />{!aWon && <Slash at={HIT} color="#f5c95a" />}</div>
         <span className="font-display text-[18vh] leading-none"><span className="chrome">V</span><span className="neon-text">S</span></span>
-        <div className="relative"><Fighter side="r" name={B.name} color="#d9e1dc" total={m.vb} at={1} lost={aWon} max={max} hit={HIT} />{aWon && <Slash at={HIT} color="#f5c95a" />}</div>
+        <div className="relative"><Fighter side="r" name={B.name} pids={B.pids} color="#d9e1dc" total={m.vb} at={1} lost={aWon} max={max} hit={HIT} />{aWon && <Slash at={HIT} color="#f5c95a" />}</div>
       </div>
       <Stamp text="K.O." color="#f5c95a" at={HIT} sub={`${(aWon ? A : B).name} goes through${m.tie ? " · coin flip" : ""}`} />
     </Shake>
