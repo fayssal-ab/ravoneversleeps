@@ -7,9 +7,11 @@ import { useEffect, useRef, useState } from "react";
 // recent join log for the dashboard; the dashboard can be closed without
 // losing registrations.
 
-export type ReaderStatus = "off" | "connecting" | "live" | "error";
+export type ReaderStatus = "off" | "connecting" | "live" | "quiet" | "error";
 /** A signed webhook delivery this recent proves chat reaches the site. */
 const FRESH_MS = 10 * 60_000;
+/** Deliveries within this window prove the subscription exists even when chat is quiet now. */
+const KNOWN_MS = 48 * 3600_000;
 
 export interface JoinEvent { at: number; username: string; outcome: string; slot?: string }
 
@@ -42,8 +44,12 @@ export function useJoinReader(enabled: boolean, onJoin?: () => void) {
         // user token is invisible to the app token.
         const lastAt = d.last ? Date.parse(d.last.at) : NaN;
         const delivering = Date.now() - lastAt < FRESH_MS;
-        setStatus(d.ok && (d.subscribed || delivering) ? "live" : "error");
-        setDetail(d.subscribed || delivering ? null : d.error);
+        // Kick answers "Bad request" when asked to subscribe again while the
+        // subscription (made with another token) already exists, so recent
+        // deliveries mean it works and chat is just quiet
+        const known = Date.now() - lastAt < KNOWN_MS;
+        setStatus(!d.ok ? "error" : d.subscribed || delivering ? "live" : known ? "quiet" : "error");
+        setDetail(d.subscribed || known ? null : d.error);
         setLastSeen(d.last ? { at: lastAt, username: d.last.username } : null);
         setEvents(d.joins.map((j) => ({ at: Date.parse(j.at), username: j.username, outcome: j.outcome ?? "", slot: j.slot ?? undefined })));
         const top = d.joins[0] ? `${d.joins[0].at}|${d.joins[0].username}` : "";

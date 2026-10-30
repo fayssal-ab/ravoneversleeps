@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, useSyncExternalStore } from "react";
 import { useRouter } from "next/navigation";
 import { Search, Trash2 } from "lucide-react";
 import { confirmDialog } from "@/components/ui/confirm";
@@ -14,8 +14,12 @@ export interface ArchiveRow { id: number; title: string; status: string; mode: s
 const MODE: Record<string, string> = { classic: "Classic", reaping: "Reaping · Wheel", hunt: "Reaping · Hunt" };
 const TONE: Record<string, string> = { finished: "text-neon border-neon/40", cancelled: "text-dim border-line-hot", open: "text-gold border-gold/50", closed: "text-gold border-gold/50" };
 
+const noop = () => () => {};
+
 export function KoArchiveAdmin({ rows }: { rows: ArchiveRow[] }) {
   const router = useRouter();
+  // dates use the viewer's timezone, so they're only written in the browser (no hydration mismatch)
+  const mounted = useSyncExternalStore(noop, () => true, () => false);
   const [list, setList] = useState(rows);
   const [q, setQ] = useState("");
   const [busy, setBusy] = useState<number | null>(null);
@@ -71,7 +75,7 @@ export function KoArchiveAdmin({ rows }: { rows: ArchiveRow[] }) {
                   <td className="pr-3"><span className={`rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider ${TONE[r.status] ?? "text-dim"}`}>{running ? "running" : r.status}</span></td>
                   <td className="pr-3 font-mono text-muted">{r.players}</td>
                   <td className="max-w-[160px] truncate pr-3 text-gold">{r.champion ?? "—"}</td>
-                  <td className="pr-3 text-xs text-dim">{new Date(r.created).toLocaleDateString(undefined, { month: "short", day: "numeric" })} {new Date(r.created).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })}</td>
+                  <td className="pr-3 text-xs text-dim">{mounted ? `${new Date(r.created).toLocaleDateString(undefined, { month: "short", day: "numeric" })} ${new Date(r.created).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })}` : r.created.slice(0, 10)}</td>
                   <td className="text-right">
                     <button type="button" disabled={running || busy !== null} onClick={() => remove(r)} title={running ? "Reset it first" : "Delete for good"}
                       className="inline-flex items-center gap-1 rounded-lg border border-danger/40 px-2.5 py-1 text-xs font-bold text-danger transition hover:bg-danger/10 disabled:opacity-30">

@@ -18,6 +18,7 @@ const READER: Record<ReaderStatus, { label: string; tone: string }> = {
   off: { label: "Chat webhook off", tone: "text-dim" },
   connecting: { label: "Checking Kick chat webhook…", tone: "text-gold" },
   live: { label: "Kick chat webhook connected", tone: "text-neon" },
+  quiet: { label: "Kick chat webhook OK · chat is quiet right now", tone: "text-gold" },
   error: { label: "Kick webhook not subscribed, retrying", tone: "text-danger" },
 };
 
