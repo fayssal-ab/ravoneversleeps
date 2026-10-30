@@ -461,7 +461,7 @@ export function KoDashboard({ initial, overlayUrl }: { initial: KoState | null; 
       </section>
 
       <p className="text-xs text-dim">
-        OBS: add a Browser Source <b>480×860</b> (tall card, resize freely) with <code className="text-neon">{overlayUrl}</code>. For the wide 1920×1080 layout add <code className="text-neon">?wide</code>. It updates by itself.
+        OBS: add a Browser Source <b>1280×720</b> with <code className="text-neon">{overlayUrl}</code> and scale it down on the canvas for a small window (keep it landscape: a tall source cuts the text off). For the wide 1920×1080 layout add <code className="text-neon">?wide</code>. It updates by itself.
       </p>
     </div>
   );
