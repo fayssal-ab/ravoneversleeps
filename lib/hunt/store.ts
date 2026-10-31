@@ -5,8 +5,10 @@ import { getPool } from "../db";
 import { closeRegistration, ensureKoSchema, getKoById, makeTeams, type HuntSetup } from "../knockout";
 import { AppError, withTx } from "../tx";
 import {
-  arenaFight, bossFight, callSlot, createHunt, fight, HuntError, rerollMonster, revealFate, spawnAll, spawnNext, summonEndboss, type HuntState, type SlotCall,
+  arenaFight, bossFight, callSlot, createHunt, fight, HuntError, monsterDef, rerollMonster, revealFate, spawnAll, spawnNext, summonEndboss, type HuntState, type SlotCall,
 } from "./engine";
+import { findSlotByName, randomPoolSlot } from "../slots";
+import { normalizeName } from "../slotFeed";
 
 // Persistence of "The Reaping · Hunt": the game is one JSON document on its
 // tournament row, changed only here, under the row lock, with crypto
@@ -29,6 +31,24 @@ async function lockHunt(conn: PoolConnection, id: number): Promise<{ t: RowDataP
   if (t.status === "finished") throw new AppError("ko_finished");
   if (t.status === "cancelled") throw new AppError("ko_cancelled");
   return { t, raw: t.hunt ? JSON.parse(String(t.hunt)) : null };
+}
+
+/**
+ * Every new monster plays a slot the site offers (the catalogue without the
+ * Stake-only ones, i.e. what Ravo can open on Qzino): its bestiary slot when
+ * the catalogue has it, else a popular one from the pool.
+ */
+async function placeSlots(conn: PoolConnection, s: HuntState) {
+  for (const m of [...s.fights.map((f) => f.monster), s.reckon?.boss ?? null]) {
+    if (!m || m.secret || m.slot) continue;
+    const want = monsterDef(m)?.s ?? "";
+    const hit = want ? await findSlotByName(want) : null;
+    if (hit?.matched && normalizeName(hit.name) === normalizeName(want)) m.slot = { name: hit.name, provider: hit.provider, image: hit.imageUrl || null };
+    else {
+      const r = await randomPoolSlot(conn).catch(() => null); // empty catalogue: keep the bestiary slot
+      if (r) m.slot = { name: r.name, provider: r.provider, image: r.imageUrl || null };
+    }
+  }
 }
 
 /** Final result → tournament row and players (champion, reaped). */
@@ -102,6 +122,7 @@ export async function huntAction(id: number, a: HuntOp): Promise<{ seq: number; 
           }
         }
       }
+      await placeSlots(conn, s);
       await conn.query("UPDATE ko_tournaments SET hunt = ? WHERE id = ?", [JSON.stringify(s), id]);
       if (s.phase === "done") await settle(conn, id, s);
       return { seq: s.seq, secretNext: s.secretNext };

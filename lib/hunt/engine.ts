@@ -27,7 +27,11 @@ export interface HuntConfig { title: string; prize: number; duo: boolean; waves:
 /** The slot a player called with `!call <slot>` for the fight in front of them. */
 export interface SlotCall { name: string; provider: string; image: string | null; by: string }
 export interface Entrant { id: number; name: string; pids: number[]; alive: boolean; best: number; slain: number; byes: number; fate: string; bounty: number }
-export interface Monster { tier: string; name: string; price: number; abOn: boolean; curse: string | null; revived: boolean; prebuy: boolean; secret: boolean; bounty: number }
+export interface Monster {
+  tier: string; name: string; price: number; abOn: boolean; curse: string | null; revived: boolean; prebuy: boolean; secret: boolean; bounty: number;
+  /** the slot it plays, checked against the site's catalogue when it spawns (see store.ts) */
+  slot?: { name: string; provider: string; image: string | null };
+}
 export type Outcome = "p" | "b" | "rematch" | "revive" | "prebuy";
 /** A random moment inside a fight, replayed on stream as an animation before the result: a coin flip or a rolled %. */
 export type Roll = { kind: "coin"; title: string; faces: [string, string]; pick: 0 | 1; good: boolean } | { kind: "pct"; title: string; max: number; value: number; good: boolean };

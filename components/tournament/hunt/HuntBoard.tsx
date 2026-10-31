@@ -100,7 +100,7 @@ export function MonsterCard({ m, line, big = false }: { m: Monster; line?: strin
         {def?.t && <p className="-mt-1 font-head text-[11px] uppercase tracking-[0.18em] text-dim">{def.t}</p>}
         {def?.l && <p className="text-sm italic text-muted">“{def.l}”</p>}
         <dl className="grid w-full grid-cols-3 gap-1.5">
-          {[["Bonus buy", money(m.price), "text-gold"], ["Slot", m.secret ? "∞" : chatPicks(m) ? "Chat picks" : def?.s ?? "", "text-text"], ["Bounty", m.bounty > 1 ? `×${m.bounty}` : "none", "text-gold"]].map(([l, v, tone]) => (
+          {[["Bonus buy", money(m.price), "text-gold"], ["Slot", m.secret ? "∞" : chatPicks(m) ? "Chat picks" : m.slot?.name ?? def?.s ?? "", "text-text"], ["Bounty", m.bounty > 1 ? `×${m.bounty}` : "none", "text-gold"]].map(([l, v, tone]) => (
             <div key={l} className="hud hud-sm p-2" style={css({ "--hc": "rgb(255 255 255 / 0.12)" })}>
               <dt className="font-head text-[9px] uppercase tracking-[0.18em] text-dim">{l}</dt>
               <dd className={`truncate font-semibold ${l === "Slot" ? "text-sm" : "hud-num text-base"} ${tone}`}>{v}</dd>
@@ -267,7 +267,7 @@ export function HuntGrid({ s, admin, compact = false }: { s: HuntState; admin?: 
                     <Portrait name={m.name} tier={m.tier} size={compact ? 54 : 64} />
                     <div className="min-w-0 flex-1 text-sm">
                       <span className="flex items-center gap-1.5"><Emblem tier={m.secret ? "Secret" : m.tier} size={18} /><b className="truncate">{m.name}</b></span>
-                      <span className="block truncate text-[11px] text-dim">{m.secret ? "∞" : chatPicks(m) ? "Chat picks the slot" : `plays ${def?.s}`}</span>
+                      <span className="block truncate text-[11px] text-dim">{m.secret ? "∞" : chatPicks(m) ? "Chat picks the slot" : `plays ${m.slot?.name ?? def?.s}`}</span>
                       <span className="text-xs">Buy <b className="hud-num text-gold">{money(m.price)}</b></span>
                       {(m.abOn || m.curse) && !m.secret && (
                         <span className="mt-1 flex flex-wrap gap-1">

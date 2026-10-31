@@ -341,7 +341,7 @@ function SpawnSeq({ s, ev, sound, onDone, endboss = false }: { s: HuntState; ev:
             hunts <span className="text-neon">{target.name}</span>
           </motion.p>
           <div className="mt-[2vh] grid max-w-[70vh] grid-cols-3 gap-[1vh]">
-            {[["Bonus buy", money(m.price)], ["Slot", m.secret ? "∞" : chatPicks(m) ? "Chat picks" : def?.s ?? ""], ["Bounty", m.bounty > 1 ? `×${m.bounty}` : "none"]].map(([l, v], i) => (
+            {[["Bonus buy", money(m.price)], ["Slot", m.secret ? "∞" : chatPicks(m) ? "Chat picks" : m.slot?.name ?? def?.s ?? ""], ["Bounty", m.bounty > 1 ? `×${m.bounty}` : "none"]].map(([l, v], i) => (
               <motion.div key={l} className="hud hud-sm" style={css({ "--hc": "rgb(255 255 255 / 0.18)" })} initial={{ y: 30, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ delay: T + 1.5 + i * 0.12 }}>
                 <div className="p-[1.2vh]"><p className="font-head text-[1.6vh] uppercase tracking-[0.2em] text-dim">{l}</p><p className={`truncate font-bold ${l === "Slot" ? "text-[2.6vh]" : "hud-num text-[3.6vh] text-gold"}`}>{v}</p></div>
               </motion.div>
@@ -477,7 +477,7 @@ function FightSeq({ s, ev, sound, onDone, duel = false }: { s: HuntState; ev: Re
         <motion.span className="font-display text-[18vh] leading-none" initial={{ scale: 0, rotate: -30 }} animate={{ scale: [0, 1.4, 1], rotate: 0, opacity: [1, 1, 0] }} transition={{ delay: 0.8, duration: 0.5, opacity: { delay: HIT - 0.15, duration: 0.2, times: [0, 0.1, 1] } }}>
           <span className="chrome">V</span><span className="neon-text">S</span>
         </motion.span>
-        <Fighter side="r" name={m.name} sub={m.secret ? "∞" : `plays ${look(m.name)?.s ?? ""}`} portrait={{ name: m.name, tier }} tier={tier} color={c} total={v.bf} raw={rawB} rawUntil={settle} at={1.2}
+        <Fighter side="r" name={m.name} sub={m.secret ? "∞" : `plays ${m.slot?.name ?? look(m.name)?.s ?? ""}`} portrait={{ name: m.name, tier }} tier={tier} color={c} total={v.bf} raw={rawB} rawUntil={settle} at={1.2}
           lost={v.out === "p"} max={max} move={win.move} hit={HIT} />
       </div>
       <div className="absolute inset-x-0 bottom-[5vh] z-30 flex flex-col items-center gap-[0.8vh]">
