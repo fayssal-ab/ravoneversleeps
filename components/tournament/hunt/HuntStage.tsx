@@ -5,7 +5,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Skull } from "lucide-react";
 import { SlotArt } from "@/components/ui/SlotArt";
 import { AB, findMonster, tierById } from "@/lib/hunt/bestiary.js";
-import { chatPicks, money, type HuntState, type Monster, type Reveal } from "@/lib/hunt/engine";
+import { chatPicks, money, type HuntState, type Monster, type Reveal, type Roll } from "@/lib/hunt/engine";
 import { play, type Sfx } from "../fight/sfx";
 import { sting, type Stinger } from "./horror";
 import { scoreHit, scoreMood, scoreResume, startScore, type Mood } from "./score";
@@ -84,15 +84,19 @@ function Shake({ at, strong = false, children }: { at: number; strong?: boolean;
     </motion.div>
   );
 }
-function Count({ to, at, dur = 1.8, className = "" }: { to: number; at: number; dur?: number; className?: string }) {
+/** Counts up to `to`; with `then`, moves on to a second value later (an ability changed the win). */
+function Count({ to, at, dur = 1.8, then, className = "" }: { to: number; at: number; dur?: number; then?: { to: number; at: number }; className?: string }) {
   const ref = useRef<HTMLSpanElement>(null);
+  const next = then && then.to !== to ? then : null;
+  const nTo = next?.to, nAt = next?.at;
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
     if (to === Infinity) { el.textContent = "$∞"; return; }
     const c = animate(0, to, { delay: at, duration: dur, ease: [0.15, 0.7, 0.2, 1], onUpdate: (v) => { el.textContent = money(v); } });
-    return () => c.stop();
-  }, [to, at, dur]);
+    const c2 = nTo != null && nAt != null ? animate(to, nTo, { delay: nAt, duration: 1, ease: "easeInOut", onUpdate: (v) => { el.textContent = money(v); } }) : null;
+    return () => { c.stop(); c2?.stop(); };
+  }, [to, at, dur, nTo, nAt]);
   return <span ref={ref} className={`hud-num ${className}`}>$0</span>;
 }
 function Stamp({ text, color, at, sub, tilt = -6 }: { text: string; color: string; at: number; sub?: string; tilt?: number }) {
@@ -200,10 +204,15 @@ function Card({ color, at, move, toward, children }: { color: string; at: number
   );
 }
 
-function Fighter({ side, name, pids, sub, slot, portrait, tier, color, total, at, lost, max, move, hit }: {
+function Fighter({ side, name, pids, sub, slot, portrait, tier, color, total, raw, rawUntil, at, lost, max, move, hit }: {
   side: "l" | "r"; name: string; pids?: number[]; sub?: string; slot?: { name: string; image: string | null } | null; portrait?: { name: string; tier: string };
   tier?: string; color: string; total: number; at: number; lost: boolean; max: number; move: Move; hit: number;
+  /** the win before the abilities and rolls, shown until `rawUntil` */
+  raw?: number; rawUntil?: number;
 }) {
+  const first = raw ?? total;
+  const pct = (v: number) => `${v === Infinity ? 100 : Math.max(4, (v / max) * 100)}%`;
+  const two = raw != null && rawUntil != null && raw !== total;
   return (
     <motion.div className="flex min-w-0 flex-col items-center gap-[1.4vh] text-center"
       initial={{ x: side === "l" ? "-60vw" : "60vw" }} animate={{ x: 0, opacity: lost ? [1, 1, 0.45] : 1 }} transition={{ x: { type: "spring", stiffness: 140, damping: 18, delay: 0.1 }, opacity: { delay: hit + 0.8, duration: 0.6 } }}>
@@ -216,9 +225,14 @@ function Fighter({ side, name, pids, sub, slot, portrait, tier, color, total, at
         <p className="truncate font-head text-[5vh] font-bold leading-tight text-[#f1ece4]">{name}</p>
       </div>
       {sub && <p className="-mt-[1vh] max-w-full truncate text-[2.4vh] text-[#b8b0a6]">{sub}</p>}
-      <Count to={total} at={at} className="text-[8vh] font-bold leading-none" />
+      <Count to={first} at={at} then={two ? { to: total, at: rawUntil! } : undefined} className="text-[8vh] font-bold leading-none" />
       <div className="hud-bar w-[36vh] !h-[1.4vh]" style={css({ "--hc": color })}>
-        <motion.i initial={{ width: "0%" }} animate={{ width: `${total === Infinity ? 100 : Math.max(4, (total / max) * 100)}%` }} transition={{ delay: at, duration: 1.8, ease: [0.15, 0.7, 0.2, 1] }} />
+        {two ? (
+          <motion.i initial={{ width: "0%" }} animate={{ width: ["0%", pct(first), pct(first), pct(total)] }}
+            transition={{ delay: at, duration: rawUntil! + 1 - at, times: [0, 1.8 / (rawUntil! + 1 - at), (rawUntil! - at) / (rawUntil! + 1 - at), 1] }} />
+        ) : (
+          <motion.i initial={{ width: "0%" }} animate={{ width: pct(total) }} transition={{ delay: at, duration: 1.8, ease: [0.15, 0.7, 0.2, 1] }} />
+        )}
       </div>
     </motion.div>
   );
@@ -345,6 +359,68 @@ function SpawnSeq({ s, ev, sound, onDone, endboss = false }: { s: HuntState; ev:
   );
 }
 
+// ── random moments: coin flips and rolled % play out on stream ──
+
+const ROLL_S = 3.2; // seconds each roll is on screen
+const ARENA_ROLL = 3;
+function rollCues(r: Roll, at: number): Cue[] {
+  return r.kind === "coin"
+    ? [[at, "whoosh"], [at + 300, "riser"], [at + 1900, r.good ? "impact" : "slam"], [at + 2000, r.good ? "choir" : "toll"]]
+    : [[at, "whoosh"], [at + 200, "riser"], [at + 2100, r.good ? "impact" : "slam"]];
+}
+
+/** A coin that spins and lands on a face, or a % that rolls and stops: then the outcome. */
+function RollShow({ roll, at }: { roll: Roll; at: number }) {
+  const tone = roll.good ? "#8cff4a" : "#ff5a5a";
+  const LAND = 1.9;
+  return (
+    <motion.div className="pointer-events-none absolute inset-0 z-[45] grid place-items-center bg-black/55" initial={{ opacity: 0 }}
+      animate={{ opacity: [0, 1, 1, 0] }} transition={{ delay: at, duration: ROLL_S, times: [0, 0.08, 0.9, 1] }}>
+      <div className="flex flex-col items-center gap-[2.4vh]">
+        <span className="hud-tab !text-[2.6vh]" style={css({ "--hc": "#f5c95a" })}>{roll.title}</span>
+        {roll.kind === "coin" ? <Coin roll={roll} at={at} land={LAND} /> : <Roller roll={roll} at={at} land={LAND} />}
+        <motion.p className="font-display text-[8vh] leading-none [text-shadow:0_0.6vh_0_#000]" style={{ color: tone }} initial={{ scale: 0, opacity: 0 }}
+          animate={{ scale: [0, 1.3, 1], opacity: 1 }} transition={{ delay: at + LAND, duration: 0.45 }}>
+          {roll.kind === "coin" ? roll.faces[roll.pick] : `−${roll.value}%`}
+        </motion.p>
+      </div>
+    </motion.div>
+  );
+}
+function Coin({ roll, at, land }: { roll: Extract<Roll, { kind: "coin" }>; at: number; land: number }) {
+  const face = (i: 0 | 1) => (
+    <span className="absolute inset-0 grid place-items-center rounded-full border-[0.8vh] p-[2vh] text-center font-head text-[3vh] font-bold uppercase leading-tight [backface-visibility:hidden]"
+      style={{ transform: i ? "rotateY(180deg)" : undefined, borderColor: "#c99a2e", color: "#2a1d05", background: i ? "radial-gradient(circle at 35% 30%, #e8e2d6, #9d968a)" : "radial-gradient(circle at 35% 30%, #ffe7a0, #c99a2e)" }}>
+      {roll.faces[i]}
+    </span>
+  );
+  return (
+    <div className="[perspective:120vh]">
+      <motion.div className="relative size-[30vh] [transform-style:preserve-3d]" initial={{ rotateY: 0, y: 0 }}
+        animate={{ rotateY: 360 * 6 + (roll.pick ? 180 : 0), y: ["0vh", "-14vh", "0vh"] }}
+        transition={{ delay: at + 0.2, duration: land - 0.2, ease: [0.2, 0.6, 0.3, 1], y: { delay: at + 0.2, duration: land - 0.2, times: [0, 0.4, 1] } }}>
+        {face(0)}{face(1)}
+      </motion.div>
+    </div>
+  );
+}
+function Roller({ roll, at, land }: { roll: Extract<Roll, { kind: "pct" }>; at: number; land: number }) {
+  const ref = useRef<HTMLSpanElement>(null);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    // spins through 0..max a few times and slows down onto the rolled value
+    const span = (roll.max + 1) * 4 + roll.value;
+    const c = animate(0, span, { delay: at + 0.2, duration: land - 0.2, ease: [0.1, 0.7, 0.25, 1], onUpdate: (v) => { el.textContent = `${Math.floor(v) % (roll.max + 1)}%`; } });
+    return () => c.stop();
+  }, [roll.max, roll.value, at, land]);
+  return (
+    <div className="hud hud-lg" style={css({ "--hc": "#f5c95a" })}>
+      <span ref={ref} className="hud-num block min-w-[30vh] px-[4vh] py-[2vh] text-center text-[16vh] font-bold leading-none text-[#f1ece4]">0%</span>
+    </div>
+  );
+}
+
 // ── fights ──
 
 const WIN_MOVES: { move: Move; text: string; cue: Sfx | Stinger }[] = [
@@ -364,18 +440,24 @@ function FightSeq({ s, ev, sound, onDone, duel = false }: { s: HuntState; ev: Re
   const v = duel ? s.reckon?.verdict ?? null : f?.verdict ?? null;
   const e = duel ? (s.reckon ? s.ents[s.reckon.champ] : null) : f ? s.ents[f.eid] : null;
   const call = duel ? s.reckon?.call : f?.call;
-  const HIT = 4.4;
+  // every random moment (coin flip, rolled %) plays out before the result
+  const rolls = v?.rolls ?? [];
+  const ROLL0 = 3.2;
+  const settle = ROLL0 + rolls.length * ROLL_S; // the wins move to their final values here
+  const HIT = rolls.length ? settle + 1.6 : 4.4;
+  const extra = (HIT - 4.4) * 1000;
   const finale = Boolean(duel && s.result && v && v.out !== "rematch" && v.out !== "revive");
   const win = WIN_MOVES[pick(ev.seq, 3, 1)], loss = LOSS_MOVES[pick(ev.seq, 3, 2)];
-  const cues: Cue[] = [[300, "whoosh"], [900, "clash"], [HIT * 1000 - 1600, "heartbeat"]];
+  const cues: Cue[] = [[300, "whoosh"], [900, "clash"], [HIT * 1000 - 1600, "heartbeat"], ...rolls.flatMap((x, i) => rollCues(x, (ROLL0 + i * ROLL_S) * 1000))];
   if (v?.out === "p") cues.push([HIT * 1000, win.cue], [HIT * 1000 + 50, "impact"], [HIT * 1000 + 100, "m:win"]);
   else if (v?.out === "b") { for (const [d, n] of loss.cues) cues.push([HIT * 1000 + d, n]); cues.push([HIT * 1000 + 100, "m:loss"]); }
   else cues.push([HIT * 1000, "impact"], [HIT * 1000 + 200, "riser"]);
   if (finale) cues.push([HIT * 1000 + 3000, "m:end"], [HIT * 1000 + 3600, s.result!.type === "legend" || s.result!.type === "champion" ? "fanfare" : "doom"]);
   // the finale holds longer when 2nd / 3rd are paid too (their prizes follow the winner)
-  useTimeline(onDone, finale ? ((s.result?.podium?.length ?? 0) > 1 ? 20000 : 13800) : 8600);
+  useTimeline(onDone, extra + (finale ? ((s.result?.podium?.length ?? 0) > 1 ? 20000 : 13800) : 8600));
   useSound(sound, cues);
   if (!m || !v || !e) { onDone(); return null; }
+  const rawB = v.b === Infinity ? Infinity : v.b * (s.cfg.duo ? 2 : 1);
   const tier = m.secret ? "Secret" : m.tier;
   const c = m.secret ? "#fff6d6" : tierColor(tier);
   const max = Math.max(v.pf, v.bf === Infinity ? v.pf : v.bf, 1);
@@ -390,21 +472,22 @@ function FightSeq({ s, ev, sound, onDone, duel = false }: { s: HuntState; ev: Re
       <Flash color={out.color} at={HIT} peak={settled ? 0.85 : 0.5} />
       <p className="absolute inset-x-0 top-[3vh] z-10 text-center"><span className="hud-tab !text-[2.2vh]" style={css({ "--hc": c })}>{duel ? "The Reckoning · final duel" : `The Hunt · wave ${s.wave}`} · buy {money(m.price)}</span></p>
       <div className="absolute inset-0 grid grid-cols-[1fr_auto_1fr] items-center gap-[2vw] px-[5vw] pt-[6vh]">
-        <Fighter side="l" name={e.name} pids={e.pids} sub={call ? `plays ${call.name}` : undefined} slot={call ?? null} color="#8cff4a" total={v.pf} at={1.2}
+        <Fighter side="l" name={e.name} pids={e.pids} sub={call ? `plays ${call.name}` : undefined} slot={call ?? null} color="#8cff4a" total={v.pf} raw={v.p} rawUntil={settle} at={1.2}
           lost={v.out === "b"} max={max} move={m.secret ? "drain" : loss.move} hit={HIT} />
         <motion.span className="font-display text-[18vh] leading-none" initial={{ scale: 0, rotate: -30 }} animate={{ scale: [0, 1.4, 1], rotate: 0, opacity: [1, 1, 0] }} transition={{ delay: 0.8, duration: 0.5, opacity: { delay: HIT - 0.15, duration: 0.2, times: [0, 0.1, 1] } }}>
           <span className="chrome">V</span><span className="neon-text">S</span>
         </motion.span>
-        <Fighter side="r" name={m.name} sub={m.secret ? "∞" : `plays ${look(m.name)?.s ?? ""}`} portrait={{ name: m.name, tier }} tier={tier} color={c} total={v.bf} at={1.2}
+        <Fighter side="r" name={m.name} sub={m.secret ? "∞" : `plays ${look(m.name)?.s ?? ""}`} portrait={{ name: m.name, tier }} tier={tier} color={c} total={v.bf} raw={rawB} rawUntil={settle} at={1.2}
           lost={v.out === "p"} max={max} move={win.move} hit={HIT} />
       </div>
       <div className="absolute inset-x-0 bottom-[5vh] z-30 flex flex-col items-center gap-[0.8vh]">
         {v.notes.filter((n) => !n.startsWith("Duo:")).slice(0, 3).map((n, i) => (
-          <motion.p key={i} className="hud hud-sm" style={css({ "--hc": "#f5c95a" })} initial={{ scale: 0.6, opacity: 0, y: 20 }} animate={{ scale: 1, opacity: [0, 1, 1, 0.85], y: 0 }} transition={{ delay: 3 + i * 0.45, duration: 0.4 }}>
+          <motion.p key={i} className="hud hud-sm" style={css({ "--hc": "#f5c95a" })} initial={{ scale: 0.6, opacity: 0, y: 20 }} animate={{ scale: 1, opacity: [0, 1, 1, 0.85], y: 0 }} transition={{ delay: (rolls.length ? settle : 3) + i * 0.45, duration: 0.4 }}>
             <span className="block px-[2vh] py-[0.8vh] font-head text-[2.6vh] font-bold text-gold">⚡ {n}</span>
           </motion.p>
         ))}
       </div>
+      {rolls.map((x, i) => <RollShow key={i} roll={x} at={ROLL0 + i * ROLL_S} />)}
       <Stamp text={out.text} color={out.color} at={HIT + (v.out === "b" ? 0.25 : 0)} tilt={pick(ev.seq, 2, 3) ? -6 : 5}
         sub={v.out === "p" ? `${e.name} survives` : v.out === "b" ? (duel ? "The Cult takes the crown" : `${e.name} is out`) : v.out === "rematch" ? "Both buy again" : v.out === "revive" ? `${m.name} buys again` : `${e.name} gets a free second try`} />
       {bountyUp && !duel && (
@@ -471,11 +554,12 @@ function Delayed({ at, children }: { at: number; children: React.ReactNode }) {
 
 function ArenaSeq({ s, ev, sound, onDone }: { s: HuntState; ev: Reveal; sound: boolean; onDone: () => void }) {
   const m = ev.round != null && ev.fight != null ? s.arena?.rounds[ev.round]?.ms[ev.fight] : undefined;
-  const HIT = 3.8;
+  const HIT = m?.tie ? ARENA_ROLL + ROLL_S + 0.6 : 3.8; // a tie: the coin flip plays first
   const big = m?.va != null && m.vb != null && Math.max(m.va, m.vb) >= 3 * Math.max(1, Math.min(m.va, m.vb));
   const kind: { text: string; move: Move } = m?.tie ? { text: "Photo finish", move: "slash" } : big ? { text: "Overkill", move: "shatter" } : { text: "K.O.", move: (["slash", "burn"] as Move[])[pick(ev.seq, 2, 4)] };
-  useTimeline(onDone, 7400);
-  useSound(sound, [[300, "whoosh"], [800, "clash"], [HIT * 1000 - 1500, "heartbeat"], [HIT * 1000, kind.move === "shatter" ? "shatter" : kind.move === "burn" ? "burn" : "ko"], [HIT * 1000 + 60, "impact"], [HIT * 1000 + 100, "m:win"]]);
+  const tieRoll: Roll | null = m?.tie ? { kind: "coin", title: "", faces: ["", ""], pick: 0, good: true } : null;
+  useTimeline(onDone, 7400 + (HIT - 3.8) * 1000);
+  useSound(sound, [...(tieRoll ? rollCues(tieRoll, ARENA_ROLL * 1000) : []), [300, "whoosh"], [800, "clash"], [HIT * 1000 - 1500, "heartbeat"], [HIT * 1000, kind.move === "shatter" ? "shatter" : kind.move === "burn" ? "burn" : "ko"], [HIT * 1000 + 60, "impact"], [HIT * 1000 + 100, "m:win"]]);
   if (!m?.done || m.va == null || m.vb == null) { onDone(); return null; }
   const A = s.ents[m.a], B = s.ents[m.b];
   const max = Math.max(m.va, m.vb, 1);
@@ -490,6 +574,7 @@ function ArenaSeq({ s, ev, sound, onDone }: { s: HuntState; ev: Reveal; sound: b
         <motion.span className="font-display text-[18vh] leading-none" animate={{ opacity: [1, 1, 0] }} transition={{ delay: HIT - 0.15, duration: 0.2 }}><span className="chrome">V</span><span className="neon-text">S</span></motion.span>
         <Fighter side="r" name={B.name} pids={B.pids} color="#d9e1dc" total={m.vb} at={1} lost={aWon} max={max} move={kind.move} hit={HIT} />
       </div>
+      {m.tie && <RollShow roll={{ kind: "coin", title: "Photo finish · coin flip", faces: [A.name, B.name], pick: aWon ? 0 : 1, good: true }} at={ARENA_ROLL} />}
       <Stamp text={kind.text} color="#f5c95a" at={HIT} sub={`${(aWon ? A : B).name} goes through${m.tie ? " · coin flip" : ""}`} />
     </Shake>
   );

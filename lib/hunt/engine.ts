@@ -29,7 +29,9 @@ export interface SlotCall { name: string; provider: string; image: string | null
 export interface Entrant { id: number; name: string; pids: number[]; alive: boolean; best: number; slain: number; byes: number; fate: string; bounty: number }
 export interface Monster { tier: string; name: string; price: number; abOn: boolean; curse: string | null; revived: boolean; prebuy: boolean; secret: boolean; bounty: number }
 export type Outcome = "p" | "b" | "rematch" | "revive" | "prebuy";
-export interface Verdict { p: number; b: number; pf: number; bf: number; notes: string[]; out: Outcome }
+/** A random moment inside a fight, replayed on stream as an animation before the result: a coin flip or a rolled %. */
+export type Roll = { kind: "coin"; title: string; faces: [string, string]; pick: 0 | 1; good: boolean } | { kind: "pct"; title: string; max: number; value: number; good: boolean };
+export interface Verdict { p: number; b: number; pf: number; bf: number; notes: string[]; out: Outcome; rolls?: Roll[] }
 export interface Fight { eid: number; monster: Monster | null; done: boolean; won: boolean | null; verdict: Verdict | null; keep: number | null; call?: SlotCall | null }
 export interface ArenaMatch { a: number; b: number; price: number; va: number | null; vb: number | null; done: boolean; winner: number | null; tie: boolean }
 export interface ArenaRound { ms: ArenaMatch[]; bye: number | null }
@@ -115,19 +117,23 @@ function makeMonster(s: HuntState, tier: { id: string; prices: number[]; abChanc
 }
 
 // ── abilities: the prototype's math, with server randomness ──
-interface Ctx { p: number; b: number; price: number; pf: number; bf: number; notes: string[]; force: "p" | "b" | null; bossTies: boolean }
+interface Ctx { p: number; b: number; price: number; pf: number; bf: number; notes: string[]; force: "p" | "b" | null; bossTies: boolean; rolls: Roll[] }
 const EFFECTS: Record<string, (x: Ctx, rand: Rand) => void> = {
   gnaw: (x) => { x.pf *= 0.85; x.notes.push("Gnaw: your win −15%"); },
   snuff: (x) => { if (x.p < x.price) { x.force = "b"; x.notes.push("Snuff Out: you won less than the buy"); } },
   prank: (x) => { [x.pf, x.bf] = [x.bf, x.pf]; x.notes.push("Prank: the Imp swapped both wins!"); },
-  trick: (x, r) => { const t = chance(0.5, r); x.pf *= t ? 1.25 : 0.75; x.notes.push(t ? "Treat: your win +25%" : "Trick: your win −25%"); },
+  trick: (x, r) => { const t = chance(0.5, r); x.pf *= t ? 1.25 : 0.75; x.notes.push(t ? "Treat: your win +25%" : "Trick: your win −25%"); x.rolls.push({ kind: "coin", title: "Trick or Treat", faces: ["Treat · +25%", "Trick · −25%"], pick: t ? 0 : 1, good: t }); },
   infection: (x) => { x.pf *= 0.7; x.notes.push("Infection: your win −30%"); },
   interest: (x) => { x.bf += x.price; x.notes.push(`Interest: +${money(x.price)} for the Banker`); },
   shackles: (x) => { if (x.pf > x.price * 10) { x.pf = x.price * 10; x.notes.push(`Shackles: your win capped at ${money(x.price * 10)}`); } },
-  cleave: (x, r) => { const c = r(51); x.pf *= 1 - c / 100; x.notes.push(`Cleave: your win −${c}%`); },
+  cleave: (x, r) => { const c = r(51); x.pf *= 1 - c / 100; x.notes.push(`Cleave: your win −${c}%`); x.rolls.push({ kind: "pct", title: "Cleave · 0–50% off your win", max: 50, value: c, good: c < 25 }); },
   sacrifice: (x) => { x.bf += x.pf * 0.4; x.notes.push(`Sacrifice: ${money(x.pf * 0.4)} moved to the Priest`); x.pf *= 0.6; },
   scorch: (x) => { if (x.pf < x.price * 2) { x.pf = 0; x.notes.push("Scorched Earth: your win burned to $0"); } },
-  zero: (x, r) => { if (chance(0.5, r)) { x.pf = 0; x.notes.push("Absolute Zero hit YOU: $0"); } else { x.bf = 0; x.notes.push("Absolute Zero hit the Saint himself: $0"); } },
+  zero: (x, r) => {
+    const you = chance(0.5, r);
+    if (you) { x.pf = 0; x.notes.push("Absolute Zero hit YOU: $0"); } else { x.bf = 0; x.notes.push("Absolute Zero hit the Saint himself: $0"); }
+    x.rolls.push({ kind: "coin", title: "Absolute Zero · who drops to $0?", faces: ["The Saint", "You"], pick: you ? 1 : 0, good: !you });
+  },
   ninefold: (x) => { x.bf *= 3; x.notes.push("Ninefold Grip: his win ×3"); },
   doom: (x) => { x.bf *= 2; x.bossTies = true; x.notes.push("Doom Clock: his win ×2"); },
   pull: (x) => { x.pf *= 0.6; x.notes.push("Pull Under: your win −40%"); },
@@ -136,13 +142,18 @@ const EFFECTS: Record<string, (x: Ctx, rand: Rand) => void> = {
   fallsapart: (x) => { if (x.p > x.price) { x.force = "p"; x.notes.push("Falls Apart: you won more than the buy, the skeleton collapses"); } },
   squishy: (x) => { x.pf *= 2; x.notes.push("Squishy: your win ×2"); },
   weakbite: (x) => { x.bf *= 0.5; x.notes.push("Weak Bite: its win ×0.5"); },
-  stacked: (x, r) => { if (x.pf > x.bf) { if (chance(0.5, r)) { [x.pf, x.bf] = [x.bf, x.pf]; x.notes.push("Stacked Deck: he swapped the wins!"); } else x.notes.push("Stacked Deck: he tried to swap and failed"); } },
+  stacked: (x, r) => {
+    if (x.pf <= x.bf) return;
+    const swap = chance(0.5, r);
+    if (swap) { [x.pf, x.bf] = [x.bf, x.pf]; x.notes.push("Stacked Deck: he swapped the wins!"); } else x.notes.push("Stacked Deck: he tried to swap and failed");
+    x.rolls.push({ kind: "coin", title: "Stacked Deck · swap the wins?", faces: ["No swap", "Swapped"], pick: swap ? 1 : 0, good: !swap });
+  },
 };
 
 /** One fight: p = the player's (team's) win, b = the monster's win. */
 export function judge(p: number, b: number, m: Monster, duo: boolean, rand: Rand): Verdict {
   if (m.secret) return { p: 0, b: Infinity, pf: 0, bf: Infinity, notes: ["Judgment: the Seraph cannot be beaten"], out: "b" };
-  const x: Ctx = { p, b, price: m.price, pf: p, bf: b * (duo ? 2 : 1), notes: [], force: null, bossTies: false };
+  const x: Ctx = { p, b, price: m.price, pf: p, bf: b * (duo ? 2 : 1), notes: [], force: null, bossTies: false, rolls: [] };
   if (duo) x.notes.push("Duo: monster win ×2");
   const def = monsterDef(m);
   const ab = def?.ab ?? "";
@@ -156,16 +167,25 @@ export function judge(p: number, b: number, m: Monster, duo: boolean, rand: Rand
   if (m.curse && CURSE[m.curse].clutch) clutches.push({ name: CURSE[m.curse].name, clutch: CURSE[m.curse].clutch!, act: CURSE[m.curse].act });
   if (!x.force) for (const c of clutches) {
     if (!close(c.clutch)) continue;
-    if (c.act === "coin") { out = chance(0.5, rand) ? "p" : "b"; x.notes.push(`${c.name}: it was close, the coin flip says ${out === "p" ? "YOU survive" : "the monster wins"}`); }
+    if (c.act === "coin") {
+      out = chance(0.5, rand) ? "p" : "b";
+      x.notes.push(`${c.name}: it was close, the coin flip says ${out === "p" ? "YOU survive" : "the monster wins"}`);
+      x.rolls.push({ kind: "coin", title: `${c.name} · too close, coin flip`, faces: ["You survive", "Monster wins"], pick: out === "p" ? 0 : 1, good: out === "p" });
+    }
     if (c.act === "boss") { out = "b"; x.notes.push(`${c.name}: it was close, the monster takes it`); }
     if (c.act === "rematch") { out = "rematch"; x.notes.push(`${c.name}: too close, both buy again`); }
     if (c.act === "player") { if (out === "b") x.notes.push(`${c.name}: it was close, you take it`); out = "p"; }
     break;
   }
-  if (out === "b" && m.abOn && a?.lucky && x.force !== "b") { const save = chance(0.5, rand); x.notes.push(save ? "Lucky Coin: heads, you are saved!" : "Lucky Coin: tails, no luck"); if (save) out = "p"; }
+  if (out === "b" && m.abOn && a?.lucky && x.force !== "b") {
+    const save = chance(0.5, rand);
+    x.notes.push(save ? "Lucky Coin: heads, you are saved!" : "Lucky Coin: tails, no luck");
+    x.rolls.push({ kind: "coin", title: "Lucky Coin · last chance", faces: ["Heads · saved", "Tails · no luck"], pick: save ? 0 : 1, good: save });
+    if (save) out = "p";
+  }
   if (out === "b" && m.abOn && a?.playerRebuy && !m.prebuy && x.force !== "b") out = "prebuy";
   if (out === "p" && m.abOn && a?.revive && !m.revived) out = "revive";
-  return { p, b, pf: cents(x.pf), bf: cents(x.bf), notes: x.notes, out };
+  return { p, b, pf: cents(x.pf), bf: cents(x.bf), notes: x.notes, out, ...(x.rolls.length ? { rolls: x.rolls } : {}) };
 }
 
 // ── setup ──
