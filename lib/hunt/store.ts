@@ -7,7 +7,7 @@ import { AppError, withTx } from "../tx";
 import {
   arenaFight, bossFight, callSlot, createHunt, fight, HuntError, monsterDef, rerollMonster, revealFate, spawnAll, spawnNext, summonEndboss, type HuntState, type SlotCall,
 } from "./engine";
-import { findSlotByName, randomPoolSlot } from "../slots";
+import { findSlotByName } from "../slots";
 import { normalizeName } from "../slotFeed";
 
 // Persistence of "The Reaping · Hunt": the game is one JSON document on its
@@ -34,20 +34,20 @@ async function lockHunt(conn: PoolConnection, id: number): Promise<{ t: RowDataP
 }
 
 /**
- * Every new monster plays a slot the site offers (the catalogue without the
- * Stake-only ones, i.e. what Ravo can open on Qzino): its bestiary slot when
- * the catalogue has it, else a popular one from the pool.
+ * Every bestiary slot is one Ravo can open on Qzino (checked against
+ * qzino.com/casino/<provider>/<slot>); each new monster gets the catalogue
+ * name and art for it. Not in the catalogue: the bestiary name stays (never a
+ * random catalogue slot: those aren't all on Qzino).
  */
-async function placeSlots(conn: PoolConnection, s: HuntState) {
+async function placeSlots(s: HuntState) {
   for (const m of [...s.fights.map((f) => f.monster), s.reckon?.boss ?? null]) {
     if (!m || m.secret || m.slot) continue;
     const want = monsterDef(m)?.s ?? "";
-    const hit = want ? await findSlotByName(want) : null;
-    if (hit?.matched && normalizeName(hit.name) === normalizeName(want)) m.slot = { name: hit.name, provider: hit.provider, image: hit.imageUrl || null };
-    else {
-      const r = await randomPoolSlot(conn).catch(() => null); // empty catalogue: keep the bestiary slot
-      if (r) m.slot = { name: r.name, provider: r.provider, image: r.imageUrl || null };
-    }
+    if (!want) continue;
+    const hit = await findSlotByName(want);
+    m.slot = hit?.matched && normalizeName(hit.name) === normalizeName(want)
+      ? { name: hit.name, provider: hit.provider, image: hit.imageUrl || null }
+      : { name: want, provider: "", image: null };
   }
 }
 
@@ -122,7 +122,7 @@ export async function huntAction(id: number, a: HuntOp): Promise<{ seq: number; 
           }
         }
       }
-      await placeSlots(conn, s);
+      await placeSlots(s);
       await conn.query("UPDATE ko_tournaments SET hunt = ? WHERE id = ?", [JSON.stringify(s), id]);
       if (s.phase === "done") await settle(conn, id, s);
       return { seq: s.seq, secretNext: s.secretNext };
