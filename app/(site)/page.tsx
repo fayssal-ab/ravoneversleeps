@@ -3,6 +3,7 @@ import Link from "next/link";
 import { ArrowRight, Timer } from "lucide-react";
 import { ClipStrip } from "@/components/home/ClipStrip";
 import { Hero } from "@/components/home/Hero";
+import { Partners } from "@/components/home/Partners";
 import { Podium3D } from "@/components/home/Podium3D";
 import { PromoSteps } from "@/components/promo/PromoSteps";
 import { StreamBox } from "@/components/stream/StreamBox";
@@ -50,6 +51,8 @@ export default async function HomePage() {
           </div>
         </Reveal>
       </section>
+
+      <Partners />
 
       </div>
 
