@@ -3,7 +3,7 @@
 export const SITE_NAME = "RAVONEVERSLEEPS";
 export const SITE_SHORT = "RAVO";
 export const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
-export const SITE_TAGLINE = "Play on Qzino with code RAVO50. Climb the monthly leaderboard, take on slot challenges, transfer your VIP status.";
+export const SITE_TAGLINE = "Ravo never sleeps: streams, clips, slot challenges, bonus hunts, tournaments and VIP transfers.";
 
 export const QZINO_CODE = process.env.NEXT_PUBLIC_QZINO_CODE || "RAVO50";
 export const QZINO_URL = process.env.NEXT_PUBLIC_QZINO_URL || "https://qzino-partners.com/trdj40jfb";

@@ -1,16 +1,12 @@
 "use client";
 
 import Image from "next/image";
-import Link from "next/link";
 import { motion, useReducedMotion, useScroll, useTransform } from "motion/react";
 import { useRef } from "react";
-import { ArrowRight, Trophy } from "lucide-react";
 import { Paw } from "@/components/decor/shapes";
-import { CopyCode } from "@/components/ui/CopyCode";
 import { useSiteReady } from "@/components/shell/siteReady";
 import { HeroBackdrop } from "./HeroBackdrop";
 import { SlotReels } from "./SlotReels";
-import { QzinoLogo } from "@/components/ui/QzinoLogo";
 
 const TITLE = "NEVERSLEEPS".split("");
 /** Seconds after the preloader: the reels have landed on RAVO by then. */
@@ -18,8 +14,8 @@ const CLIMB_AT = 2.55;
 
 // Toastyy-style mascot band in RAVO's world: the dancing pug over a chrome
 // spike wallpaper with spinning card suits, the name in metal chrome, and the
-// band dripping slime into the page.
-export function Hero({ code, qzinoUrl, pool }: { code: string; qzinoUrl: string; pool: string | null }) {
+// band dripping slime into the page. Just RAVO up top, nothing else.
+export function Hero() {
   const ref = useRef<HTMLElement>(null);
   const reduce = useReducedMotion();
   const ready = useSiteReady();
@@ -83,36 +79,6 @@ export function Hero({ code, qzinoUrl, pool }: { code: string; qzinoUrl: string;
               </span>
             ))}
           </span>
-        </div>
-
-        <p style={{ "--d": "0.35s" } as React.CSSProperties} className="hero-intro mx-auto mt-6 max-w-xl text-base text-text/80 sm:text-lg">
-          Play on Qzino with code <span className="font-mono font-bold text-neon">{code}</span> for a <b>$50 bonus</b>, a monthly leaderboard,
-          slot challenges and VIP transfers.
-        </p>
-
-        <div style={{ "--d": "0.5s" } as React.CSSProperties} className="hero-intro mt-8 flex flex-col items-center gap-4 sm:flex-row">
-          <a href={qzinoUrl} target="_blank" rel="noopener noreferrer sponsored" className="btn btn-neon px-7 py-4 text-base">
-            Play on Qzino <ArrowRight className="size-5" />
-          </a>
-          <CopyCode code={code} size="lg" />
-        </div>
-
-        <a
-          href={qzinoUrl}
-          target="_blank"
-          rel="noopener noreferrer sponsored"
-          style={{ "--d": "0.65s" } as React.CSSProperties}
-          className="hero-intro mt-6 inline-flex items-center gap-3 rounded-full border border-line-hot bg-black/40 px-4 py-2 backdrop-blur transition hover:border-neon"
-        >
-          <span className="font-pixel text-[0.65rem] uppercase tracking-[0.2em] text-muted">Official partner</span>
-          <QzinoLogo className="h-6 w-auto" />
-        </a>
-
-        <div style={{ "--d": "0.75s" } as React.CSSProperties} className="hero-intro mt-6">
-          <Link href="/leaderboard" className="inline-flex items-center gap-2 font-head text-sm font-semibold uppercase tracking-[0.2em] text-text/70 transition hover:text-neon">
-            <Trophy className="size-4 text-gold" />
-            {pool ? <>{pool} monthly leaderboard · view</> : <>View the leaderboard</>}
-          </Link>
         </div>
       </div>
 

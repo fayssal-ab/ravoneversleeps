@@ -2,10 +2,9 @@ import "server-only";
 import type { RowDataPacket } from "mysql2/promise";
 import { getPool } from "./db";
 import { getLiveStatus } from "./stream";
-import { getQboardsBoard } from "./qboards";
 
 // Bell feed: what's happening on the site right now (live stream, open
-// tournament registration, running hunt, open challenges, live leaderboard) plus,
+// tournament registration, running hunt, open challenges) plus,
 // for a signed-in viewer, updates on their own redemptions and claims.
 
 export interface Note { id: string; kind: "live" | "event" | "personal"; title: string; body: string; href: string; at: string }
@@ -16,11 +15,10 @@ export async function getNotifications(accountId: number | null): Promise<Note[]
   const now = new Date().toISOString().slice(0, 19).replace("T", " ");
   const safe = async <T,>(fn: () => Promise<T>, fallback: T) => { try { return await fn(); } catch { return fallback; } };
 
-  const [live, ko, hunt, period] = await Promise.all([
+  const [live, ko, hunt] = await Promise.all([
     getLiveStatus(),
     safe(async () => (await pool.query<RowDataPacket[]>("SELECT id, title, status, max_players, COALESCE(opened_at, created_at) AS at FROM ko_tournaments WHERE status IN ('open','closed') ORDER BY id DESC LIMIT 1"))[0][0], undefined),
     safe(async () => (await pool.query<RowDataPacket[]>("SELECT id, title, status, created_at FROM bonus_hunts WHERE status <> 'finished' ORDER BY id DESC LIMIT 1"))[0][0], undefined),
-    safe(async () => { const b = await getQboardsBoard(1); return b?.period?.state === "live" ? { ...b.period, id: b.eventId } : undefined; }, undefined),
   ]);
   const challenges = await safe(async () => (await pool.query<RowDataPacket[]>("SELECT id, slot_name, target_multi, reward, created_at FROM challenges WHERE status = 'open' ORDER BY id DESC LIMIT 2"))[0], [] as RowDataPacket[]);
 
@@ -32,7 +30,6 @@ export async function getNotifications(accountId: number | null): Promise<Note[]
     href: "/tournaments", at: String(ko.at),
   });
   if (hunt) notes.push({ id: `hunt-${hunt.id}-${hunt.status}`, kind: "event", title: `Bonus hunt ${hunt.status === "opening" ? "opening now" : "collecting"}`, body: String(hunt.title), href: "/bonus-hunts", at: String(hunt.created_at) });
-  if (period) notes.push({ id: `period-${period.id}`, kind: "event", title: period.title, body: `$${Number(period.prize_pool).toLocaleString("en-US")} on the line this month.`, href: "/leaderboard", at: String(period.starts_at) });
   for (const c of challenges) notes.push({ id: `challenge-${c.id}`, kind: "event", title: `Challenge: ${c.slot_name}`, body: `First to hit ${Number(c.target_multi).toLocaleString("en-US")}x wins $${Number(c.reward).toLocaleString("en-US")}.`, href: "/challenges", at: String(c.created_at) });
 
   if (accountId != null) {

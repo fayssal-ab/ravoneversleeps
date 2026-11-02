@@ -4,111 +4,49 @@ import { ArrowRight, Timer } from "lucide-react";
 import { ClipStrip } from "@/components/home/ClipStrip";
 import { Hero } from "@/components/home/Hero";
 import { Podium3D } from "@/components/home/Podium3D";
-import { BonusCard } from "@/components/promo/BonusCard";
 import { PromoSteps } from "@/components/promo/PromoSteps";
 import { StreamBox } from "@/components/stream/StreamBox";
 import { SectionTitle } from "@/components/ui/bits";
-import { CopyCode } from "@/components/ui/CopyCode";
 import { Reveal, Stagger } from "@/components/ui/motion";
 import { PugVideo } from "@/components/ui/PugVideo";
-import { QzinoLogo } from "@/components/ui/QzinoLogo";
 import { SocialIcon } from "@/components/ui/SocialIcon";
 import { getClips } from "@/lib/clips";
-import { DISCORD_URL, KICK_URL, QZINO_CODE, QZINO_PERKS, QZINO_URL, X_URL } from "@/lib/constants";
-import { getBoard } from "@/lib/leaderboard";
-import { getTopPrizes, prizeView } from "@/lib/leaderboardPrizes";
-import { formatMoney } from "@/lib/money";
+import { DISCORD_URL, KICK_URL, QZINO_CODE, X_URL } from "@/lib/constants";
 import { getLiveStatus } from "@/lib/stream";
 import { VIP_BENEFITS } from "@/lib/vipBenefits";
 
 export const dynamic = "force-dynamic";
 
-function daysLeft(end: string): number {
-  return Math.max(0, Math.ceil((new Date(end.replace(" ", "T") + "Z").getTime() - Date.now()) / 86_400_000));
-}
-
 export default async function HomePage() {
-  const [board, topPrizes, live, clips] = await Promise.all([
-    getBoard(undefined, 3).catch(() => null),
-    getTopPrizes().catch(() => null),
-    getLiveStatus(),
-    getClips("date").catch(() => []),
-  ]);
-  const period = board?.period ?? null;
-  const pv = board ? prizeView(board, period?.state === "ended" ? null : topPrizes) : null;
-  const top = board?.rows ?? [];
-  const left = period ? daysLeft(period.state === "upcoming" ? period.starts_at : period.ends_at) : 0;
-  const [cash, ...extra] = (pv?.pool || (period ? formatMoney(period.prize_pool, { cents: false }) : "Soon")).split(" + ");
+  const [live, clips] = await Promise.all([getLiveStatus(), getClips("date").catch(() => [])]);
 
   return (
     <div className="relative">
-      <Hero code={QZINO_CODE} qzinoUrl={QZINO_URL} pool={pv?.pool || (period ? formatMoney(period.prize_pool, { cents: false }) : null)} />
+      <Hero />
 
       {/* clips right under RAVO */}
       <ClipStrip clips={clips} />
 
-      {/* board + Qzino on the chrome-claw wallpaper */}
+      {/* leaderboard (paused: the new one is on its way) on the chrome-claw wallpaper */}
       <div className="claws-band mt-8 py-12">
         <div aria-hidden className="claws-band-bg">
           <Image src="/media/claws-bg.webp" alt="" fill sizes="100vw" className="object-cover object-center" />
         </div>
 
-      {/* leaderboard */}
       <section className="mx-auto max-w-6xl px-4 sm:px-6">
         <Reveal>
           <div className="grid items-center gap-10 lg:grid-cols-[1fr_1.4fr]">
             <div>
-              <p className="font-head text-xs font-bold uppercase tracking-[0.25em] text-neon">This month</p>
+              <p className="font-head text-xs font-bold uppercase tracking-[0.25em] text-neon">Leaderboard</p>
               <h2 className="mt-3 font-display text-6xl leading-[0.9] sm:text-7xl"><span className="chrome">The board</span></h2>
-              <p className="mt-5 font-mono text-5xl font-bold text-gold sm:text-6xl">{cash}</p>
-              {extra.length > 0 && <p className="font-head text-lg font-bold text-gold/90">+ {extra.join(" + ")}</p>}
+              <p className="mt-5 font-display text-6xl leading-none text-gold sm:text-7xl">Soon</p>
               <p className="mt-3 flex items-center gap-2 text-sm text-muted">
                 <Timer className="size-4 text-neon" />
-                {period ? (period.state === "ended" ? "Final results" : `${left} day${left === 1 ? "" : "s"} ${period.state === "upcoming" ? "to start" : "left"}`) : "First month coming"}
+                A new leaderboard is on the way. Watch Discord for the start.
               </p>
-              <Link href="/leaderboard" className="btn btn-neon mt-6">Open the leaderboard <ArrowRight className="size-4" /></Link>
+              <a href={DISCORD_URL} target="_blank" rel="noopener noreferrer" className="btn btn-neon mt-6">Join the Discord <ArrowRight className="size-4" /></a>
             </div>
-            <Podium3D
-              entries={[0, 1, 2].map((i) => {
-                const r = top[i];
-                return {
-                  name: r ? r.name : null,
-                  score: r ? `${Number(r.wagered).toLocaleString("en-US", { maximumFractionDigits: 2 })} pts` : null,
-                  prize: pv?.byPlace[i + 1] ?? null,
-                };
-              })}
-            />
-          </div>
-        </Reveal>
-      </section>
-
-      {/* Qzino */}
-      <section className="mx-auto mt-20 max-w-6xl px-4 sm:px-6">
-        <Reveal>
-          <div className="relative rounded-3xl border border-white/[0.08] bg-surface/80 p-6 backdrop-blur-md sm:p-10">
-            <div className="relative grid items-center gap-8 lg:grid-cols-[1.4fr_1fr]">
-              <div>
-                <a href={QZINO_URL} target="_blank" rel="noopener noreferrer sponsored" className="inline-block" aria-label="Qzino">
-                  <QzinoLogo className="h-9 w-auto sm:h-11" />
-                </a>
-                <h2 className="mt-3 font-head text-2xl font-bold leading-snug sm:text-3xl">
-                  Play under code <span className="font-mono text-neon">{QZINO_CODE}</span> for the monthly leaderboard, challenges and a <span className="text-neon">$50 welcome bonus</span>.
-                </h2>
-                <div className="mt-6 grid grid-cols-3 gap-2">
-                  {QZINO_PERKS.map((p) => (
-                    <div key={p.label} className="rounded-2xl border border-white/[0.06] bg-bg px-3 py-3 text-center">
-                      <p className="font-mono text-lg font-bold text-neon">{p.value}</p>
-                      <p className="text-[0.68rem] uppercase tracking-widest text-dim">{p.label}</p>
-                    </div>
-                  ))}
-                </div>
-                <div className="mt-7 flex flex-col gap-3 sm:flex-row">
-                  <a href={QZINO_URL} target="_blank" rel="noopener noreferrer sponsored" className="btn btn-neon">Play on Qzino <ArrowRight className="size-4" /></a>
-                  <CopyCode code={QZINO_CODE} />
-                </div>
-              </div>
-              <BonusCard href={QZINO_URL} code={QZINO_CODE} />
-            </div>
+            <Podium3D entries={[0, 1, 2].map(() => ({ name: null, score: null, prize: null }))} />
           </div>
         </Reveal>
       </section>
@@ -130,7 +68,7 @@ export default async function HomePage() {
 
       {/* VIP transfer teaser */}
       <section className="mx-auto mt-20 max-w-6xl px-4 sm:px-6">
-        <SectionTitle eyebrow="Qzino VIP Transfer" title="Already VIP?" accent="Bring it over." right={<Link href="/vip-transfer" className="btn btn-ghost btn-sm">VIP Transfer <ArrowRight className="size-4" /></Link>} />
+        <SectionTitle eyebrow="VIP Transfer" title="Already VIP?" accent="Bring it over." right={<Link href="/vip-transfer" className="btn btn-ghost btn-sm">VIP Transfer <ArrowRight className="size-4" /></Link>} />
         <Stagger className="grid grid-cols-2 gap-3 md:grid-cols-4">
           {VIP_BENEFITS.slice(0, 4).map((b) => (
             <div key={b.title} className="h-full rounded-2xl border border-white/[0.06] bg-surface p-5">
@@ -152,7 +90,7 @@ export default async function HomePage() {
             <div className="flex flex-col gap-3 p-5 sm:absolute sm:inset-y-0 sm:left-0 sm:max-w-md sm:justify-center sm:p-10">
               <p className="font-head text-xs font-bold uppercase tracking-[0.25em] text-neon">Ravo never sleeps</p>
               <p className="font-display text-4xl leading-[0.9] sm:text-6xl"><span className="chrome">$5,000+ in giveaways</span></p>
-              <Link href="/leaderboard" className="btn btn-neon btn-sm w-fit">See the prizes <ArrowRight className="size-4" /></Link>
+              <Link href="/challenges" className="btn btn-neon btn-sm w-fit">See the challenges <ArrowRight className="size-4" /></Link>
             </div>
           </div>
         </Reveal>
