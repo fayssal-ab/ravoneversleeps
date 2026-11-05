@@ -30,6 +30,7 @@ export function Hero({ newYear = null }: { newYear?: number | null }) {
 
   return (
     <section
+      id="hero"
       ref={ref}
       className="relative isolate -mt-[calc(var(--nav-h)+1.5rem)] pt-[calc(var(--nav-h)+2rem)]"
     >

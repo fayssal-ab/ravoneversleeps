@@ -62,17 +62,57 @@ function Suit({ kind, size = 1 }: { kind: "spade" | "heart" | "club" | "diamond"
   );
 }
 
-/** Slow tumble on its own axis (each prop has its own speed). */
+/** Slow tumble on its own axis; tap it and it jumps, spins fast, bounces
+ *  back down and settles into its slow tumble again. */
 function Tumble({ speed, children }: { speed: [number, number, number]; children: React.ReactNode }) {
   const ref = useRef<THREE.Group>(null);
+  const kick = useRef({ y: 0, vy: 0, spin: 0, pop: 0, dir: 1 });
+
   useFrame((_, dt) => {
     const g = ref.current;
     if (!g) return;
-    g.rotation.x += dt * speed[0];
-    g.rotation.y += dt * speed[1];
-    g.rotation.z += dt * speed[2];
+    const k = kick.current;
+    const step = Math.min(dt, 1 / 30);
+    // jump: gravity + bouncy landing
+    if (k.y > 0 || k.vy !== 0) {
+      k.vy -= 30 * step;
+      k.y += k.vy * step;
+      if (k.y <= 0) { k.y = 0; k.vy = Math.abs(k.vy) > 2 ? -k.vy * 0.42 : 0; }
+    }
+    k.spin = THREE.MathUtils.damp(k.spin, 0, 1.6, step);
+    k.pop = THREE.MathUtils.damp(k.pop, 0, 5, step);
+    g.position.y = k.y;
+    g.scale.setScalar(1 + k.pop * 0.25);
+    g.rotation.x += step * (speed[0] + k.spin * 0.8 * k.dir);
+    g.rotation.y += step * (speed[1] + k.spin * k.dir);
+    g.rotation.z += step * (speed[2] + k.spin * 0.4);
   });
-  return <group ref={ref}>{children}</group>;
+
+  const setCursor = (on: boolean) => {
+    const hero = document.getElementById("hero");
+    if (hero) hero.style.cursor = on ? "pointer" : "";
+  };
+
+  return (
+    <group
+      ref={ref}
+      onClick={(e) => {
+        // the lever, links and buttons over the scene keep their own click
+        if ((e.nativeEvent.target as HTMLElement | null)?.closest("a,button")) return;
+        e.stopPropagation();
+        const k = kick.current;
+        k.vy = 6.5 + Math.random() * 1.5;
+        if (k.y === 0) k.y = 0.001;
+        k.spin = 14 + Math.random() * 8;
+        k.dir = Math.random() < 0.5 ? -1 : 1;
+        k.pop = 1;
+      }}
+      onPointerOver={(e) => { e.stopPropagation(); setCursor(true); }}
+      onPointerOut={() => setCursor(false)}
+    >
+      {children}
+    </group>
+  );
 }
 
 type Prop = { el: React.ReactNode; at: [number, number, number]; speed: [number, number, number]; mobile?: boolean };
@@ -117,13 +157,17 @@ function Props() {
 }
 
 export default function Hero3D() {
+  // the hero's content sits on top of the canvas, so the scene listens on
+  // the whole hero section instead (taps on dice behind the copy still land)
+  // (this component only ever renders in the browser: ssr is off)
+  const source = useMemo(() => ({ current: document.getElementById("hero") }), []);
   useEffect(() => {
     const move = (e: PointerEvent) => { pointer.x = (e.clientX / window.innerWidth) * 2 - 1; pointer.y = (e.clientY / window.innerHeight) * 2 - 1; };
     window.addEventListener("pointermove", move, { passive: true });
     return () => window.removeEventListener("pointermove", move);
   }, []);
   return (
-    <LazyCanvas className="pointer-events-none absolute inset-0" camera={{ position: [0, 0, 10], fov: 40 }}>
+    <LazyCanvas className="pointer-events-none absolute inset-0" camera={{ position: [0, 0, 10], fov: 40 }} eventSource={source} eventPrefix="client">
       <StudioLights />
       <Props />
       <Sparkles count={50} scale={[16, 8, 4]} size={2} speed={0.3} color="#8dff4a" opacity={0.55} />
