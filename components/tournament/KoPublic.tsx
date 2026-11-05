@@ -1,6 +1,7 @@
 "use client";
 
 import { Crown, Skull, Swords, Users } from "lucide-react";
+import dynamic from "next/dynamic";
 import { SocialIcon } from "@/components/ui/SocialIcon";
 import { KICK_URL } from "@/lib/constants";
 import type { KoParticipant, KoState } from "@/lib/knockout";
@@ -8,6 +9,9 @@ import { FinisherStage, useFinishers } from "./fight/Finishers";
 import { Bracket, ChampionCard, ParticipantRow, VsScreen, teamName } from "./parts";
 import { ChampionShowcase } from "./champion/ChampionShowcase";
 import { useKoState } from "./useKoState";
+
+// 3D crown (three.js) beside the title; browser only, loads after the page
+const Crown3DScene = dynamic(() => import("@/components/three/Crown3DScene"), { ssr: false });
 import { BossReveal, useBossReveal } from "./reaping/Boss";
 import { Bestiary, EventLog, HuntAvatars, HuntPhase, HuntStats, PhaseBar, RevealOverlay, useHuntReveal } from "./hunt/HuntBoard";
 
@@ -45,8 +49,17 @@ export function KoPublic({ initial, id }: { initial: KoState; id?: number }) {
     <div className="space-y-6">
       <FinisherStage show={fin.current} skippable onDone={fin.next} />
       {/* header */}
-      <section className="panel p-5 sm:p-7">
-        <div className="flex flex-wrap items-start justify-between gap-4">
+      <section className="panel relative overflow-hidden p-5 sm:p-7">
+        {/* gold glow + crown on the right (classic knockouts only) */}
+        {t.mode !== "reaping" && t.mode !== "hunt" && (
+          <>
+            <div aria-hidden className="pointer-events-none absolute -right-16 -top-20 size-80 rounded-full bg-[radial-gradient(circle,rgb(245_201_90/0.16),transparent_65%)]" />
+            <div aria-hidden className="pointer-events-none absolute right-0 top-1/2 hidden h-52 w-52 -translate-y-1/2 md:block lg:right-6">
+              <Crown3DScene />
+            </div>
+          </>
+        )}
+        <div className={`relative flex flex-wrap items-start justify-between gap-4 ${t.mode !== "reaping" && t.mode !== "hunt" ? "md:pr-52 lg:pr-60" : ""}`}>
           <div className="min-w-0">
             <span className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 font-head text-xs font-bold uppercase tracking-wider ${st.tone}`}>
               <span className={`size-2 rounded-full ${st.dot}`} />{st.label}

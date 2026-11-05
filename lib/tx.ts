@@ -44,7 +44,7 @@ export const zUtcDateTime = z
     const iso = v.length === 16 ? `${v}:00` : v;
     const date = new Date(`${iso}Z`);
     if (Number.isNaN(date.getTime()) || date.toISOString().slice(0, 19) !== iso) {
-      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "invalid_datetime" });
+      ctx.addIssue({ code: "custom", message: "invalid_datetime" });
       return z.NEVER;
     }
     return iso.replace("T", " ");
