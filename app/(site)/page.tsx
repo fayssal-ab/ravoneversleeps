@@ -7,14 +7,12 @@ import { Partners } from "@/components/home/Partners";
 import { Podium3D } from "@/components/home/Podium3D";
 import { PromoSteps } from "@/components/promo/PromoSteps";
 import { StreamBox } from "@/components/stream/StreamBox";
-import { SectionTitle } from "@/components/ui/bits";
-import { Reveal, Stagger } from "@/components/ui/motion";
+import { Reveal } from "@/components/ui/motion";
 import { PugVideo } from "@/components/ui/PugVideo";
 import { SocialIcon } from "@/components/ui/SocialIcon";
 import { getClips } from "@/lib/clips";
 import { DISCORD_URL, KICK_URL, QZINO_CODE, X_URL } from "@/lib/constants";
 import { getLiveStatus } from "@/lib/stream";
-import { VIP_BENEFITS } from "@/lib/vipBenefits";
 
 export const dynamic = "force-dynamic";
 
@@ -67,20 +65,6 @@ export default async function HomePage() {
       {/* stream */}
       <section className="mx-auto mt-20 max-w-6xl px-4 sm:px-6">
         <Reveal><StreamBox live={live} /></Reveal>
-      </section>
-
-      {/* VIP transfer teaser */}
-      <section className="mx-auto mt-20 max-w-6xl px-4 sm:px-6">
-        <SectionTitle eyebrow="VIP Transfer" title="Already VIP?" accent="Bring it over." right={<Link href="/vip-transfer" className="btn btn-ghost btn-sm">VIP Transfer <ArrowRight className="size-4" /></Link>} />
-        <Stagger className="grid grid-cols-2 gap-3 md:grid-cols-4">
-          {VIP_BENEFITS.slice(0, 4).map((b) => (
-            <div key={b.title} className="h-full rounded-2xl border border-white/[0.06] bg-surface p-5">
-              <p className="font-head text-lg font-bold">{b.title}</p>
-              {b.value && <p className="font-mono text-xl font-bold text-neon">{b.value}</p>}
-              <p className="mt-1 text-sm text-muted">{b.body}</p>
-            </div>
-          ))}
-        </Stagger>
       </section>
 
       {/* Ravo's film */}

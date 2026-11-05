@@ -1,8 +1,7 @@
 import Image from "next/image";
-import { QzinoLogo } from "@/components/ui/QzinoLogo";
 import Link from "next/link";
 import { GooWave, Paw } from "@/components/decor/shapes";
-import { DISCORD_URL, KICK_URL, NAV_FLAT, QZINO_CODE, QZINO_URL, X_URL } from "@/lib/constants";
+import { DISCORD_URL, KICK_URL, NAV_FLAT, X_URL } from "@/lib/constants";
 import { SocialIcon } from "@/components/ui/SocialIcon";
 
 // Slime band: the drip edge from the logo letters, a neon rim behind it, the
@@ -38,17 +37,6 @@ export function Footer() {
         <div className="pointer-events-none absolute -left-20 top-10 size-80 rounded-full bg-neon/10 blur-3xl" />
 
         <div className="relative mx-auto max-w-6xl px-4 pb-8 pt-10 sm:px-6">
-          {/* code strip */}
-          <div className="mb-12 flex flex-col items-center justify-between gap-5 rounded-3xl border border-neon/30 bg-black/30 p-6 backdrop-blur sm:flex-row">
-            <div>
-              <p className="flex items-center gap-2"><QzinoLogo className="h-6 w-auto" /><span className="eyebrow">exclusive</span></p>
-              <p className="mt-1 font-head text-xl font-bold">
-                Use code <span className="font-mono text-neon">{QZINO_CODE}</span> for a $50 bonus. 18+, terms apply on Qzino.
-              </p>
-            </div>
-            <a href={QZINO_URL} target="_blank" rel="noopener noreferrer sponsored" className="btn btn-neon shrink-0">Claim on Qzino</a>
-          </div>
-
           <div className="flex flex-col items-center justify-between gap-8 lg:flex-row">
             <Link href="/" className="flex shrink-0 items-center gap-3">
               <Image src="/media/ravo-avatar.webp" alt="" width={52} height={52} className="rounded-full ring-2 ring-neon/50" />
