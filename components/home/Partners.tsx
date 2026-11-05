@@ -1,5 +1,6 @@
 import { ArrowRight } from "lucide-react";
 import { CopyCode } from "@/components/ui/CopyCode";
+import { FlushLogo } from "@/components/ui/FlushLogo";
 import { Stagger } from "@/components/ui/motion";
 import { QzinoLogo } from "@/components/ui/QzinoLogo";
 import { FLUSH_URL, QZINO_CODE, QZINO_URL } from "@/lib/constants";
@@ -16,10 +17,10 @@ export function Partners() {
 
       <Stagger className="grid gap-4 md:grid-cols-2">
         {[
-        <div key="flush" className="flex h-full min-h-72 flex-col rounded-3xl border border-white/15 bg-surface/80 p-6 backdrop-blur-md">
+        <div key="flush" className="flush-card relative flex h-full min-h-72 flex-col overflow-hidden rounded-[1.7rem] p-6 backdrop-blur-md">
           <div className="flex items-center justify-between">
             <a href={FLUSH_URL} target="_blank" rel="noopener noreferrer sponsored" aria-label="Flush">
-              <span className="font-display text-3xl font-bold tracking-tight text-text">FLUSH</span>
+              <FlushLogo className="h-9 w-auto" />
             </a>
             <span className="rounded-full bg-white/10 px-3 py-1 font-head text-[0.65rem] font-bold uppercase tracking-[0.2em] text-text">Live</span>
           </div>

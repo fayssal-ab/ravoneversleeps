@@ -138,6 +138,46 @@ body {
   border-radius: 1.25rem;
 }
 
+.flush-card {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  border: 1px solid rgb(141 255 74 / 0.18);
+  border-radius: 1.7rem;
+  background:
+    radial-gradient(120% 120% at 100% 0%, rgb(141 255 74 / 0.12), transparent 40%),
+    linear-gradient(180deg, rgb(12 18 14 / 0.92), rgb(6 9 7 / 0.98));
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.05), 0 28px 60px -36px rgb(141 255 74 / 0.35);
+  animation: flush-card-glow 4.5s ease-in-out infinite;
+}
+.flush-card::after {
+  content: "";
+  position: absolute;
+  z-index: 0;
+  inset: -60% -25%;
+  background: linear-gradient(115deg, transparent 40%, rgb(141 255 74 / 0.045) 48%, rgb(235 255 223 / 0.1) 50%, rgb(141 255 74 / 0.045) 52%, transparent 60%);
+  translate: -70% 0;
+  animation: flush-card-shine 6s ease-in-out infinite;
+  pointer-events: none;
+}
+@keyframes flush-card-glow {
+  0%, 100% {
+    border-color: rgb(141 255 74 / 0.18);
+    box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.05), 0 28px 60px -36px rgb(141 255 74 / 0.35);
+  }
+  50% {
+    border-color: rgb(141 255 74 / 0.38);
+    box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.07), 0 28px 64px -34px rgb(141 255 74 / 0.52);
+  }
+}
+@keyframes flush-card-shine {
+  0%, 18% { translate: -70% 0; }
+  72%, 100% { translate: 70% 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .flush-card, .flush-card::after { animation: none; }
+}
+
 /* Animated neon frame (conic border) — add to a .panel. */
 .neon-frame { isolation: isolate; }
 .neon-frame::before {
