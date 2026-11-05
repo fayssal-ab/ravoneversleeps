@@ -6,13 +6,13 @@ import { addBonus, createHunt, deleteBonus, deleteHunt, finishHunt, moveBonus, r
 import { syncCatalog, upgradeTypedSlots } from "@/lib/slots";
 import { addSlot, deleteSlot } from "@/lib/stream";
 import { createChallenge, deleteChallenge, markChallengeWon, setChallengeStatus } from "@/lib/challenges";
-import { decideVerification, REJECT_REASONS, retryQzinoTicket, type RejectReason } from "@/lib/verification";
+import { decideFlushVerification, decideVerification, FLUSH_REJECT_REASONS, REJECT_REASONS, retryFlushTicket, retryQzinoTicket, type FlushRejectReason, type RejectReason } from "@/lib/verification";
 import { discordErrorText, discordSetup, setInteractionsEndpoint } from "@/lib/discordBot";
 import { SITE_URL } from "@/lib/constants";
 import { saveTopPrizes } from "@/lib/leaderboardPrizes";
 import { decideVipApplication } from "@/lib/vip";
 import { AppError, DECIMAL_20_8, parseForm, zId, zRequiredText, zText } from "@/lib/tx";
-import { adminSetQzino, setBanned } from "@/lib/userAdmin";
+import { adminSetUsernames, setBanned } from "@/lib/userAdmin";
 
 // Admin Server Actions. adminAction re-checks the session, writes the audit
 // log and redirects back with ?ok= / ?error=.
@@ -29,8 +29,10 @@ function usersBack(form: FormData): string {
 
 export async function userFlagsAction(form: FormData) {
   await adminAction({ path: usersBack(form), audit: "user.update" }, async () => {
-    const v = parseForm(z.object({ id: zId, qzino: z.string().trim().max(64), banned: checkbox }), form);
-    await adminSetQzino(v.id, v.qzino);
+    const v = parseForm(z.object({
+      id: zId, qzino: z.string().trim().max(64), flush: z.string().trim().max(64).regex(/^[\w.-]*$/, "letters, numbers, . _ - only"), banned: checkbox,
+    }), form);
+    await adminSetUsernames(v.id, v.qzino, v.flush);
     await setBanned(v.id, v.banned);
     return v;
   });
@@ -162,6 +164,27 @@ export async function retryQzinoTicketAction(form: FormData) {
   });
 }
 
+export async function verifyFlushAction(form: FormData) {
+  await adminAction({ path: "/admin/users?tab=verify", audit: "flush.verify", revalidate: ["/account"] }, async () => {
+    const v = parseForm(z.object({
+      account: zId, decision: z.enum(["verify", "reject"]),
+      reason: z.enum(Object.keys(FLUSH_REJECT_REASONS) as [FlushRejectReason, ...FlushRejectReason[]]).default("other"),
+      c_profile: checkbox, c_cut: checkbox,
+    }), form);
+    if (v.decision === "verify" && !(v.c_profile && v.c_cut)) throw new AppError("invalid_input", "tick every check before verifying");
+    await decideFlushVerification(v.account, v.decision === "verify", v.reason);
+    return v;
+  });
+}
+
+export async function retryFlushTicketAction(form: FormData) {
+  await adminAction({ path: "/admin/users?tab=verify", audit: "flush.ticket" }, async () => {
+    const v = parseForm(z.object({ account: zId }), form);
+    await retryFlushTicket(v.account);
+    return v;
+  });
+}
+
 // ── VIP transfer ───────────────────────────────────────────────────────
 export async function decideVipAction(form: FormData) {
   await adminAction({ path: "/admin/vip", audit: "vip.decide", revalidate: ["/vip-transfer"] }, async () => {
@@ -200,4 +223,3 @@ export async function saveTopPrizesAction(form: FormData) {
     return v;
   });
 }
-

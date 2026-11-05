@@ -3,8 +3,8 @@
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
-import { saveQzinoUsername } from "@/lib/account";
-import { claimChallenge, qzinoStatusOf, requestQzinoVerification, retryQzinoTicket } from "@/lib/verification";
+import { saveFlushUsername, saveQzinoUsername } from "@/lib/account";
+import { claimChallenge, flushStatusOf, qzinoStatusOf, requestFlushVerification, requestQzinoVerification, retryFlushTicket, retryQzinoTicket } from "@/lib/verification";
 import { applyVipTransfer, WAGER_RANGES } from "@/lib/vip";
 import { rateLimit } from "@/lib/ratelimit";
 import { AppError, parseForm, zId } from "@/lib/tx";
@@ -80,9 +80,25 @@ export async function submitVerificationAction(form: FormData) {
   });
 }
 
+export async function submitFlushVerificationAction(form: FormData) {
+  await run("/account", "verify_sent", async (id) => {
+    const v = parseForm(z.object({ flush: z.string().trim().min(1).max(64).regex(/^[\w.-]+$/, "letters, numbers, . _ - only") }), form);
+    const proof = await readProof(form);
+    const before = await flushStatusOf(id);
+    if (before.status === "pending" && before.ticketUrl) throw new AppError("flush_pending");
+    const changed = await saveFlushUsername(id, v.flush);
+    if (before.status === "verified" && !changed) throw new AppError("invalid_input", "this username is already verified");
+    await requestFlushVerification(id, v.flush, proof);
+  });
+}
+
 /** "Open my ticket": the pending verification's ticket failed or never opened. */
 export async function openQzinoTicketAction() {
   await run("/account", "ticket", (id) => retryQzinoTicket(id));
+}
+
+export async function openFlushTicketAction() {
+  await run("/account", "ticket", (id) => retryFlushTicket(id));
 }
 
 
@@ -110,4 +126,3 @@ export async function applyVipAction(form: FormData) {
     return applyVipTransfer(id, v);
   });
 }
-

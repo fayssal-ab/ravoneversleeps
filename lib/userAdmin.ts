@@ -10,6 +10,7 @@ export interface AdminUser {
   id: number;
   display_name: string;
   qzino_username: string;
+  flush_username: string;
   points: number;
   xp: number;
   banned: boolean;
@@ -17,6 +18,7 @@ export interface AdminUser {
   last_login_at: string | null;
   providers: string;
   qzino_status: "none" | "pending" | "verified" | "rejected";
+  flush_status: "none" | "pending" | "verified" | "rejected";
 }
 
 export type UserSort = "name" | "points" | "newest" | "login";
@@ -39,17 +41,18 @@ export async function searchUsers(q: string, opts: { sort?: UserSort; filter?: U
   await ensureVerificationSchema();
   const like = `%${q.replace(/[%_\\]/g, "\\$&")}%`;
   const [rows] = await getPool().query<RowDataPacket[]>(
-    `SELECT a.id, a.display_name, a.qzino_username, a.qzino_status, a.points, a.xp, a.banned, a.created_at, a.last_login_at,
+    `SELECT a.id, a.display_name, a.qzino_username, a.qzino_status, a.flush_username, a.flush_status, a.points, a.xp, a.banned, a.created_at, a.last_login_at,
             COALESCE(GROUP_CONCAT(CONCAT(i.provider, ':', i.username) ORDER BY i.provider SEPARATOR ' · '), '') AS providers
        FROM user_accounts a LEFT JOIN user_identities i ON i.account_id = a.id
-      WHERE (? = '' OR a.display_name LIKE ? OR a.qzino_username LIKE ? OR i.username LIKE ?) AND ${FILTER_SQL[opts.filter ?? "all"]}
+      WHERE (? = '' OR a.display_name LIKE ? OR a.qzino_username LIKE ? OR a.flush_username LIKE ? OR i.username LIKE ?) AND ${FILTER_SQL[opts.filter ?? "all"]}
       GROUP BY a.id ORDER BY ${SORT_SQL[opts.sort ?? "name"]} LIMIT ?`,
-    [q, like, like, like, opts.limit ?? 100]
+    [q, like, like, like, like, opts.limit ?? 100]
   );
   return rows.map((r) => ({
-    id: Number(r.id), display_name: String(r.display_name), qzino_username: String(r.qzino_username), points: Number(r.points),
+    id: Number(r.id), display_name: String(r.display_name), qzino_username: String(r.qzino_username), flush_username: String(r.flush_username), points: Number(r.points),
     xp: Number(r.xp), banned: Boolean(Number(r.banned)), created_at: String(r.created_at), last_login_at: r.last_login_at ? String(r.last_login_at) : null,
     providers: String(r.providers), qzino_status: (r.qzino_status ?? "none") as AdminUser["qzino_status"],
+    flush_status: (r.flush_status ?? "none") as AdminUser["flush_status"],
   }));
 }
 
@@ -80,20 +83,21 @@ export async function adjustPoints(accountId: number, delta: number, note: strin
 }
 
 /**
- * Bulk grant from pasted lines "name,points". The name matches a Qzino
- * username, a Kick/Discord username or a display name (case-insensitive,
+ * Bulk grant from pasted lines "name,points". The name matches a Qzino or
+ * Flush username, a Kick/Discord username or a display name (case-insensitive,
  * first match wins). Unknown names are reported, not created.
  */
 export async function bulkGrant(lines: { name: string; points: number }[], note: string): Promise<{ granted: number; unknown: string[] }> {
+  await ensureVerificationSchema();
   const unknown: string[] = [];
   let granted = 0;
   await withTx(async (conn) => {
     for (const l of lines) {
       const [rows] = await conn.query<RowDataPacket[]>(
         `SELECT a.id FROM user_accounts a LEFT JOIN user_identities i ON i.account_id = a.id
-          WHERE LOWER(a.qzino_username) = LOWER(?) OR LOWER(i.username) = LOWER(?) OR LOWER(a.display_name) = LOWER(?)
-          ORDER BY (LOWER(a.qzino_username) = LOWER(?)) DESC, a.id LIMIT 1`,
-        [l.name, l.name, l.name, l.name]
+          WHERE LOWER(a.qzino_username) = LOWER(?) OR LOWER(a.flush_username) = LOWER(?) OR LOWER(i.username) = LOWER(?) OR LOWER(a.display_name) = LOWER(?)
+          ORDER BY (LOWER(a.qzino_username) = LOWER(?)) DESC, (LOWER(a.flush_username) = LOWER(?)) DESC, a.id LIMIT 1`,
+        [l.name, l.name, l.name, l.name, l.name, l.name]
       );
       if (!rows[0]) { unknown.push(l.name); continue; }
       await applyPoints(conn, Number(rows[0].id), l.points, "grant", note);
@@ -109,16 +113,31 @@ export async function setBanned(accountId: number, banned: boolean): Promise<voi
 }
 
 /** Admin-entered usernames are trusted: a new one is verified straight away. */
-export async function adminSetQzino(accountId: number, username: string): Promise<void> {
+export async function adminSetUsernames(accountId: number, qzino: string, flush: string): Promise<void> {
   await ensureVerificationSchema();
-  if (username) {
-    const [other] = await getPool().query<RowDataPacket[]>(
-      "SELECT id FROM user_accounts WHERE LOWER(qzino_username) = LOWER(?) AND id <> ? AND qzino_status = 'verified' LIMIT 1", [username, accountId]);
-    if (other[0]) throw new AppError("qzino_taken", `already verified on account #${other[0].id}`);
-  }
-  await getPool().query(
-    `UPDATE user_accounts SET qzino_status = IF(? = '', 'none', IF(LOWER(qzino_username) = LOWER(?), qzino_status, 'verified')), qzino_username = ? WHERE id = ?`,
-    [username, username, username, accountId]);
+  await withTx(async (conn) => {
+    if (qzino) {
+      const [other] = await conn.query<RowDataPacket[]>(
+        "SELECT id FROM user_accounts WHERE LOWER(qzino_username) = LOWER(?) AND id <> ? AND qzino_status = 'verified' LIMIT 1", [qzino, accountId]);
+      if (other[0]) throw new AppError("qzino_taken", `already verified on account #${other[0].id}`);
+    }
+    if (flush) {
+      const [other] = await conn.query<RowDataPacket[]>(
+        "SELECT id FROM user_accounts WHERE LOWER(flush_username) = LOWER(?) AND id <> ? AND flush_status = 'verified' LIMIT 1", [flush, accountId]);
+      if (other[0]) throw new AppError("flush_taken", `already verified on account #${other[0].id}`);
+    }
+    await conn.query(
+      `UPDATE user_accounts SET
+         qzino_status = IF(? = '', 'none', IF(LOWER(qzino_username) = LOWER(?), qzino_status, 'verified')),
+         qzino_username = ?,
+         flush_status = IF(? = '', 'none', IF(LOWER(flush_username) = LOWER(?), flush_status, 'verified')),
+         flush_ticket = IF(? = '', NULL, IF(LOWER(flush_username) = LOWER(?), flush_ticket, NULL)),
+         flush_note = IF(? = '', NULL, IF(LOWER(flush_username) = LOWER(?), flush_note, NULL)),
+         flush_username = ?
+       WHERE id = ?`,
+      [qzino, qzino, qzino, flush, flush, flush, flush, flush, flush, flush, accountId]
+    );
+  });
 }
 
 export interface Stats { users: number; points_out: number; pending: number; open_raffles: number; live_period: string | null; board_players: number }

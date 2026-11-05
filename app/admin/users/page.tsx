@@ -3,8 +3,8 @@ import { BadgeCheck, Clock, ExternalLink, Search, ShieldOff, UserX } from "lucid
 import { AdminTitle, Card, Empty, Tabs } from "@/components/admin/ui";
 import { Flash } from "@/components/ui/bits";
 import { searchUsers, userCounts, type AdminUser, type UserFilter, type UserSort } from "@/lib/userAdmin";
-import { pendingVerifications } from "@/lib/verification";
-import { retryQzinoTicketAction, userFlagsAction, verifyQzinoAction } from "../actions";
+import { pendingFlushVerifications, pendingVerifications } from "@/lib/verification";
+import { retryFlushTicketAction, retryQzinoTicketAction, userFlagsAction, verifyFlushAction, verifyQzinoAction } from "../actions";
 
 type Tab = "verify" | "accounts";
 const SORTS: { key: UserSort; label: string }[] = [
@@ -26,13 +26,29 @@ function QzinoBadge({ u }: { u: Pick<AdminUser, "qzino_username" | "qzino_status
   );
 }
 
+function FlushBadge({ u }: { u: Pick<AdminUser, "flush_username" | "flush_status"> }) {
+  if (!u.flush_username) return <span className="text-xs text-dim">no Flush username</span>;
+  const tone = { verified: "text-neon", pending: "text-gold", rejected: "text-danger", none: "text-dim" }[u.flush_status];
+  const Icon = u.flush_status === "verified" ? BadgeCheck : u.flush_status === "pending" ? Clock : u.flush_status === "rejected" ? UserX : ShieldOff;
+  return (
+    <span className="inline-flex items-center gap-1.5 text-xs">
+      <span className="font-mono text-text">{u.flush_username}</span>
+      <span className={`inline-flex items-center gap-1 ${tone}`}><Icon className="size-3.5" />{u.flush_status === "none" ? "unverified" : u.flush_status}</span>
+    </span>
+  );
+}
+
 export default async function AdminUsers({ searchParams }: { searchParams: Promise<Record<string, string | undefined>> }) {
   const sp = await searchParams;
   const q = (sp.q ?? "").slice(0, 64);
   const sort = (SORTS.some((s) => s.key === sp.sort) ? sp.sort : "name") as UserSort;
   const filter = (FILTERS.some((f) => f.key === sp.filter) ? sp.filter : "all") as UserFilter;
-  const pending = await pendingVerifications().catch(() => []);
-  const tab = (["verify", "accounts"].includes(sp.tab ?? "") ? sp.tab : pending.length ? "verify" : "accounts") as Tab;
+  const [pending, pendingFlush] = await Promise.all([
+    pendingVerifications().catch(() => []),
+    pendingFlushVerifications().catch(() => []),
+  ]);
+  const pendingCount = pending.length + pendingFlush.length;
+  const tab = (["verify", "accounts"].includes(sp.tab ?? "") ? sp.tab : pendingCount ? "verify" : "accounts") as Tab;
   const [users, counts] = await Promise.all([
     tab === "accounts" ? searchUsers(q, { sort, filter }) : Promise.resolve([]),
     userCounts().catch(() => null),
@@ -46,14 +62,14 @@ export default async function AdminUsers({ searchParams }: { searchParams: Promi
   return (
     <>
       <AdminTitle title="Users">
-        Accounts are created by signing in with Discord; Kick is linked from the player&apos;s account page. Verify Qzino usernames here; a username saved by an admin counts as verified.
+        Accounts are created by signing in with Discord; Kick is linked from the player&apos;s account page. Review Qzino and Flush username proof here.
       </AdminTitle>
       <Flash ok={sp.ok} error={sp.error} detail={sp.detail} okText="Saved." />
 
       <Tabs
         current={tab}
         items={[
-          { key: "verify", label: "Verification", href: "/admin/users?tab=verify", count: pending.length, hot: pending.length > 0 },
+          { key: "verify", label: "Verification", href: "/admin/users?tab=verify", count: pendingCount, hot: pendingCount > 0 },
           { key: "accounts", label: "Accounts", href: "/admin/users?tab=accounts", count: counts?.all },
         ]}
       />
@@ -69,7 +85,7 @@ export default async function AdminUsers({ searchParams }: { searchParams: Promi
             </ol>
             <p className="mt-2">Big leaderboard names and usernames claimed by several accounts are flagged: be extra careful there (ask for a voice call if unsure).</p>
           </div>
-          {pending.length === 0 ? (
+          {pendingCount === 0 ? (
             <Empty>Nothing to verify right now.</Empty>
           ) : pending.map((p) => {
             const risky = (p.standing && p.standing.rank <= 10) || p.rivals.length > 0 || p.age_days < 1;
@@ -143,6 +159,71 @@ export default async function AdminUsers({ searchParams }: { searchParams: Promi
               </article>
             );
           })}
+          {pendingFlush.length > 0 && (
+            <section className="space-y-4">
+              <h2 className="eyebrow">Flush username verification</h2>
+              {pendingFlush.map((p) => {
+                const risky = p.rivals.length > 0 || p.age_days < 1;
+                return (
+                  <article key={`flush-${p.account_id}`} className={`admin-card p-5 ${risky ? "!border-gold/50" : ""}`}>
+                    <div className="flex flex-wrap items-start justify-between gap-4">
+                      <div className="flex items-center gap-3">
+                        {p.avatar
+                          // eslint-disable-next-line @next/next/no-img-element
+                          ? <img src={p.avatar} alt="" className="size-11 rounded-full" />
+                          : <span className="grid size-11 place-items-center rounded-full bg-surface-3 font-bold">{p.display_name.slice(0, 1)}</span>}
+                        <div>
+                          <p className="font-semibold">{p.display_name} <span className="text-xs text-dim">#{p.account_id} · joined {p.age_days === 0 ? "today" : `${p.age_days} d ago`}</span></p>
+                          <p className="mt-0.5 flex flex-wrap gap-1.5 text-xs">
+                            <span className={`rounded-md px-2 py-0.5 ${p.discord ? "bg-discord/20 text-text" : "bg-danger/15 text-danger"}`}>Discord: {p.discord ?? "not linked"}</span>
+                            <span className={`rounded-md px-2 py-0.5 ${p.kick ? "bg-neon/15 text-neon" : "bg-surface-3 text-dim"}`}>Kick: {p.kick ?? "not linked"}</span>
+                          </p>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-[11px] uppercase tracking-wider text-dim">Claims Flush username</p>
+                        <p className="font-mono text-xl font-bold text-neon">{p.flush_username}</p>
+                      </div>
+                    </div>
+
+                    {p.rivals.map((r) => (
+                      <p key={r.account_id} className="mt-3 rounded-lg bg-danger/10 px-3 py-2 text-sm text-danger">
+                        ⚠ Also claimed by <b>{r.display_name}</b> #{r.account_id} ({r.status}). Only one account can own it.
+                      </p>
+                    ))}
+
+                    <div className="mt-4 grid gap-3 border-t border-line pt-4 lg:grid-cols-[1fr_auto]">
+                      <form action={verifyFlushAction} className="space-y-2">
+                        <input type="hidden" name="account" value={p.account_id} />
+                        <input type="hidden" name="decision" value="verify" />
+                        <div className="flex flex-wrap gap-x-5 gap-y-1.5 text-sm">
+                          <label className="flex items-center gap-2"><input type="checkbox" name="c_profile" required /> Logged in as <span className="font-mono text-neon">{p.flush_username}</span></label>
+                          <label className="flex items-center gap-2"><input type="checkbox" name="c_cut" required /> Proof looks genuine (not edited)</label>
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          {p.ticket_url
+                            ? <a href={p.ticket_url} target="_blank" rel="noopener noreferrer" className="btn btn-ghost btn-sm"><ExternalLink className="size-3.5" /> Open ticket</a>
+                            : <button formAction={retryFlushTicketAction} formNoValidate className="btn btn-ghost btn-sm !text-gold">No ticket: open one</button>}
+                          <button className="btn btn-neon btn-sm"><BadgeCheck className="size-4" /> Verify</button>
+                        </div>
+                      </form>
+                      <form action={verifyFlushAction} className="flex flex-wrap items-end gap-2 lg:justify-end">
+                        <input type="hidden" name="account" value={p.account_id} />
+                        <input type="hidden" name="decision" value="reject" />
+                        <select name="reason" className="field !w-auto text-sm" aria-label="Reject reason" defaultValue="unclear">
+                          <option value="unclear">Proof unclear / wrong account</option>
+                          <option value="edited">Edited or someone else&apos;s</option>
+                          <option value="no_proof">No proof sent</option>
+                          <option value="other">Other</option>
+                        </select>
+                        <button className="btn btn-ghost btn-sm !text-danger"><UserX className="size-4" /> Reject</button>
+                      </form>
+                    </div>
+                  </article>
+                );
+              })}
+            </section>
+          )}
         </div>
       )}
 
@@ -153,7 +234,7 @@ export default async function AdminUsers({ searchParams }: { searchParams: Promi
             <input type="hidden" name="filter" value={filter} />
             <label className="relative min-w-56 flex-1">
               <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-dim" />
-              <input name="q" defaultValue={q} placeholder="Name, Discord/Kick or Qzino username" className="field !pl-9" />
+              <input name="q" defaultValue={q} placeholder="Name, Discord/Kick, Qzino or Flush username" className="field !pl-9" />
             </label>
             <select name="sort" defaultValue={sort} className="field !w-auto" aria-label="Sort">
               {SORTS.map((s) => <option key={s.key} value={s.key}>{s.label}</option>)}
@@ -173,7 +254,7 @@ export default async function AdminUsers({ searchParams }: { searchParams: Promi
           ) : (
             <div className="mt-4 overflow-x-auto lg:overflow-visible">
               <table className="admin-table">
-                <thead><tr><th>Player</th><th>Qzino</th><th>Last login</th><th /></tr></thead>
+                <thead><tr><th>Player</th><th>Qzino</th><th>Flush</th><th>Last login</th><th /></tr></thead>
                 <tbody>
                   {users.map((u) => {
                     return (
@@ -183,6 +264,7 @@ export default async function AdminUsers({ searchParams }: { searchParams: Promi
                           <p className="text-xs text-dim">{u.providers || "no identity"} · #{u.id}</p>
                         </td>
                         <td><QzinoBadge u={u} /></td>
+                        <td><FlushBadge u={u} /></td>
                         <td className="whitespace-nowrap text-xs text-dim">{u.last_login_at ? u.last_login_at.slice(0, 16) : "—"}</td>
                         <td className="w-0">
                           <details className="admin-details">
@@ -193,6 +275,8 @@ export default async function AdminUsers({ searchParams }: { searchParams: Promi
                                 <input type="hidden" name="back" value={back} />
                                 <p className="label">Qzino username (saved by an admin = verified)</p>
                                 <input name="qzino" defaultValue={u.qzino_username} maxLength={64} placeholder="Qzino username" className="field font-mono" />
+                                <p className="label">Flush username (saved by an admin = verified)</p>
+                                <input name="flush" defaultValue={u.flush_username} maxLength={64} pattern="[\w.\-]*" placeholder="Flush username" className="field font-mono" />
                                 <label className="flex items-center gap-2 text-sm text-muted"><input type="checkbox" name="banned" defaultChecked={u.banned} /> Banned</label>
                                 <button className="btn btn-ghost btn-sm">Save</button>
                               </form>

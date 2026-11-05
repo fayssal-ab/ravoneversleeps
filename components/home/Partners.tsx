@@ -2,12 +2,12 @@ import { ArrowRight, Plus } from "lucide-react";
 import { CopyCode } from "@/components/ui/CopyCode";
 import { Stagger } from "@/components/ui/motion";
 import { QzinoLogo } from "@/components/ui/QzinoLogo";
-import { QZINO_CODE, QZINO_URL } from "@/lib/constants";
+import { FLUSH_URL, QZINO_CODE, QZINO_URL } from "@/lib/constants";
 
-/** Empty partner spots shown as "Soon" next to Qzino. Lower it as partners join. */
-const OPEN_SLOTS = 2;
+/** Empty partner spot shown as "Soon" until another partner joins. */
+const OPEN_SLOTS = 1;
 
-// Home partners row: Qzino live, plus open "Soon" spots for the next sites.
+// Home partners row: Qzino and Flush live, plus an open "Soon" spot.
 export function Partners() {
   return (
     <section className="mx-auto mt-20 max-w-6xl px-4 sm:px-6">
@@ -31,6 +31,20 @@ export function Partners() {
           <div className="mt-auto flex flex-wrap items-center gap-3 pt-6">
             <a href={QZINO_URL} target="_blank" rel="noopener noreferrer sponsored" className="btn btn-neon btn-sm">Play <ArrowRight className="size-4" /></a>
             <CopyCode code={QZINO_CODE} />
+          </div>
+        </div>,
+
+        <div key="flush" className="flex h-full min-h-72 flex-col rounded-3xl border border-white/15 bg-surface/80 p-6 backdrop-blur-md">
+          <div className="flex items-center justify-between">
+            <a href={FLUSH_URL} target="_blank" rel="noopener noreferrer sponsored" aria-label="Flush">
+              <span className="font-display text-3xl font-bold tracking-tight text-text">FLUSH</span>
+            </a>
+            <span className="rounded-full bg-white/10 px-3 py-1 font-head text-[0.65rem] font-bold uppercase tracking-[0.2em] text-text">Live</span>
+          </div>
+          <p className="mt-6 font-head text-xl font-bold text-text">Casino &amp; sportsbook</p>
+          <p className="text-sm text-muted">Explore Flush directly. Availability and terms depend on your location.</p>
+          <div className="mt-auto flex flex-wrap items-center gap-3 pt-6">
+            <a href={FLUSH_URL} target="_blank" rel="noopener noreferrer sponsored" className="btn btn-ghost btn-sm">Visit Flush <ArrowRight className="size-4" /></a>
           </div>
         </div>,
 

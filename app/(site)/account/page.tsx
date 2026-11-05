@@ -8,9 +8,10 @@ import { Flash } from "@/components/ui/bits";
 import { getViewer } from "@/lib/account";
 import { isOwner } from "@/lib/admin";
 import { AUTH_MESSAGES, enabledProviders } from "@/lib/userAuth";
-import { qzinoStatusOf, type QzinoState } from "@/lib/verification";
-import { openQzinoTicketAction } from "../actions";
+import { flushStatusOf, qzinoStatusOf, type QzinoState } from "@/lib/verification";
+import { openFlushTicketAction, openQzinoTicketAction } from "../actions";
 import { VerifyForm } from "@/components/account/VerifyForm";
+import { FlushVerifyForm } from "@/components/account/FlushVerifyForm";
 
 export const metadata: Metadata = { title: "Account" };
 export const dynamic = "force-dynamic";
@@ -72,6 +73,7 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
   }
 
   const qz: QzinoState = await qzinoStatusOf(viewer.id).catch(() => ({ status: "none" as const, ticketUrl: null, code: null, note: null }));
+  const flush = await flushStatusOf(viewer.id);
   const discord = viewer.identities.find((i) => i.provider === "discord");
   const kick = viewer.identities.find((i) => i.provider === "kick");
   const step = qz.status === "verified" ? 4 : qz.status === "pending" ? 2 : 1;
@@ -96,6 +98,7 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
               {discord && <span className="inline-flex items-center gap-1.5 rounded-full bg-discord/25 px-2.5 py-1 font-semibold"><DiscordIcon className="size-3.5" /> {discord.username}</span>}
               {kick && <span className="inline-flex items-center gap-1.5 rounded-full bg-neon/15 px-2.5 py-1 font-semibold text-neon"><KickIcon className="size-3.5" /> {kick.username}</span>}
               {qz.status === "verified" && <span className="inline-flex items-center gap-1.5 rounded-full bg-neon px-2.5 py-1 font-bold text-neon-ink"><BadgeCheck className="size-3.5" /> Qzino verified</span>}
+              {flush.status === "verified" && <span className="inline-flex items-center gap-1.5 rounded-full bg-white/15 px-2.5 py-1 font-bold"><BadgeCheck className="size-3.5" /> Flush verified</span>}
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
@@ -191,6 +194,56 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
           </ul>
         </section>
       </div>
+
+      <section className="panel mt-6 p-6">
+        <div className="flex items-center justify-between gap-3">
+          <p className="eyebrow">Flush username</p>
+          {flush.status === "verified" && <span className="flex items-center gap-1.5 text-sm font-bold text-neon"><BadgeCheck className="size-4" /> Verified</span>}
+        </div>
+        <ol className="mt-5 grid grid-cols-3 gap-2 text-center text-[11px] font-semibold uppercase tracking-wider">
+          {["Send proof", "Team checks", "Verified"].map((label, i) => {
+            const step = flush.status === "verified" ? 4 : flush.status === "pending" ? 2 : 1;
+            const n = i + 1, done = step > n, now = step === n;
+            return (
+              <li key={label} className={`rounded-xl border px-2 py-2.5 ${done ? "border-neon/50 bg-neon/10 text-neon" : now ? "border-gold/60 bg-gold/10 text-gold" : "border-line text-dim"}`}>
+                <span className="mx-auto mb-1 grid size-6 place-items-center rounded-full border border-current">{done ? <Check className="size-3.5" /> : n}</span>
+                {label}
+              </li>
+            );
+          })}
+        </ol>
+        {viewer.flush_username && <p className="mt-5 text-sm text-muted">Username: <span className="font-mono font-bold text-text">{viewer.flush_username}</span></p>}
+
+        {flush.status === "pending" ? (
+          <div className="mt-4 rounded-2xl border border-gold/50 bg-gold/[0.07] p-4 text-sm">
+            <p className="flex items-center gap-1.5 font-bold text-gold"><Clock className="size-4" /> The team is checking your proof</p>
+            <p className="mt-1 text-muted">You&apos;ll get an answer in your private Discord ticket and here.</p>
+            {flush.ticketUrl
+              ? <a href={flush.ticketUrl} target="_blank" rel="noopener noreferrer" className="btn btn-discord btn-sm mt-4"><DiscordIcon className="size-4" /> Open my ticket <ExternalLink className="size-3.5" /></a>
+              : discord
+                ? <form action={openFlushTicketAction} className="mt-4"><button className="btn btn-discord btn-sm"><DiscordIcon className="size-4" /> Open my ticket</button><span className="ml-3 text-xs text-dim">No ticket yet: this opens your private channel.</span></form>
+                : <p className="mt-3 text-xs text-dim">Link your Discord above so the team can open your private ticket.</p>}
+          </div>
+        ) : (
+          <div className="mt-5">
+            {flush.status === "rejected" && (
+              <div className="mb-4 rounded-2xl border border-danger/50 bg-danger/10 p-4 text-sm">
+                <p className="flex items-center gap-1.5 font-bold text-danger"><XCircle className="size-4" /> Not verified</p>
+                <p className="mt-1 text-muted">{flush.note ?? "We couldn't verify this username."} Send new proof to try again.</p>
+              </div>
+            )}
+            {discord ? (
+              <>
+                {flush.status !== "verified" && <p className="mb-4 text-sm text-muted">Send a genuine screenshot or short recording of your Flush account while logged in, with your username visible. Never include a password, wallet recovery phrase, or login code.</p>}
+                <FlushVerifyForm username={viewer.flush_username} label={flush.status === "verified" ? "Change username" : flush.status === "rejected" ? "Send new proof" : "Verify my Flush account"} />
+              </>
+            ) : (
+              <p className="text-sm text-muted">Link your Discord above first: verification happens in a private Discord ticket.</p>
+            )}
+          </div>
+        )}
+        <p className="mt-4 text-xs text-dim">This is separate from Qzino verification and does not unlock challenges. Flush is a gambling service: 18+ only where permitted; play responsibly and never wager more than you can afford to lose.</p>
+      </section>
     </div>
   );
 }

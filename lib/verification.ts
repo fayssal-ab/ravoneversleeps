@@ -20,7 +20,7 @@ import { AppError } from "./tx";
 export type QzinoStatus = "none" | "pending" | "verified" | "rejected";
 
 let ready: Promise<void> | null = null;
-/** Migration 0013 on first use (DDL: never inside a transaction). */
+/** Verification schema setup on first use (DDL: never inside a transaction). */
 export function ensureVerificationSchema(): Promise<void> {
   ready ??= (async () => {
     const pool = getPool();
@@ -33,6 +33,16 @@ export function ensureVerificationSchema(): Promise<void> {
     const [code] = await pool.query<RowDataPacket[]>(
       "SELECT 1 FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'user_accounts' AND COLUMN_NAME = 'qzino_code'");
     if (!code[0]) await pool.query("ALTER TABLE user_accounts ADD COLUMN qzino_code VARCHAR(16) NULL, ADD COLUMN qzino_note VARCHAR(255) NULL");
+    const [flush] = await pool.query<RowDataPacket[]>(
+      "SELECT 1 FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'user_accounts' AND COLUMN_NAME = 'flush_status'");
+    if (!flush[0]) {
+      await pool.query(`ALTER TABLE user_accounts
+        ADD COLUMN flush_username VARCHAR(64) NOT NULL DEFAULT '',
+        ADD COLUMN flush_status ENUM('none','pending','verified','rejected') NOT NULL DEFAULT 'none',
+        ADD COLUMN flush_ticket VARCHAR(32) NULL,
+        ADD COLUMN flush_note VARCHAR(255) NULL,
+        ADD INDEX idx_accounts_flush (flush_username)`);
+    }
     await pool.query(`CREATE TABLE IF NOT EXISTS challenge_claims (
       id BIGINT AUTO_INCREMENT PRIMARY KEY,
       challenge_id BIGINT NOT NULL,
@@ -103,6 +113,149 @@ export async function retryQzinoTicket(accountId: number): Promise<void> {
   if (rows[0].qzino_ticket) return;
   if (!rows[0].qzino_code) await getPool().query("UPDATE user_accounts SET qzino_code = ? WHERE id = ?", [newCode(), accountId]);
   await openQzinoTicket(accountId, []);
+}
+
+export type FlushStatus = "none" | "pending" | "verified" | "rejected";
+export interface FlushState { status: FlushStatus; ticketUrl: string | null; note: string | null }
+
+export async function flushStatusOf(accountId: number): Promise<FlushState> {
+  await ensureVerificationSchema();
+  const [rows] = await getPool().query<RowDataPacket[]>("SELECT flush_status, flush_ticket, flush_note FROM user_accounts WHERE id = ?", [accountId]);
+  return {
+    status: (rows[0]?.flush_status ?? "none") as FlushStatus,
+    ticketUrl: ticketUrl(rows[0]?.flush_ticket ?? null),
+    note: rows[0]?.flush_note ? String(rows[0].flush_note) : null,
+  };
+}
+
+/** Save a Flush username and open a private staff-verification ticket. */
+export async function requestFlushVerification(accountId: number, username: string, proof: TicketFile[] = []): Promise<void> {
+  await ensureVerificationSchema();
+  const pool = getPool();
+  if (!username) {
+    await pool.query("UPDATE user_accounts SET flush_status = 'none', flush_ticket = NULL, flush_note = NULL WHERE id = ?", [accountId]);
+    return;
+  }
+  await pool.query("UPDATE user_accounts SET flush_status = 'pending', flush_ticket = NULL, flush_note = NULL WHERE id = ?", [accountId]);
+  await openFlushTicket(accountId, proof);
+}
+
+export async function retryFlushTicket(accountId: number): Promise<void> {
+  await ensureVerificationSchema();
+  const [rows] = await getPool().query<RowDataPacket[]>("SELECT flush_status, flush_ticket FROM user_accounts WHERE id = ?", [accountId]);
+  if (rows[0]?.flush_status !== "pending") throw new AppError("invalid_input", "no Flush verification waiting");
+  if (rows[0].flush_ticket) return;
+  await openFlushTicket(accountId, []);
+}
+
+async function openFlushTicket(accountId: number, proof: TicketFile[]): Promise<void> {
+  const pool = getPool();
+  const discordId = await discordIdOf(accountId);
+  if (!discordId) throw new AppError("discord_required");
+  const [acc] = await pool.query<RowDataPacket[]>(
+    `SELECT a.display_name, a.flush_username, DATEDIFF(CURRENT_TIMESTAMP, a.created_at) AS age_days,
+            (SELECT username FROM user_identities WHERE account_id = a.id AND provider = 'kick' LIMIT 1) AS kick
+       FROM user_accounts a WHERE a.id = ?`, [accountId]);
+  const r = acc[0] ?? {};
+  const username = String(r.flush_username ?? "");
+  const ageDays = Number(r.age_days ?? 0);
+  let ticket;
+  try {
+    ticket = await openTicket({
+      kind: "verify", label: String(r.display_name ?? username),
+      discordUserId: discordId,
+      message: proof.length
+        ? `**Flush username verification**: proof sent from the site is attached below. A staff member will check it.`
+        : `**Flush username verification**: please post here a screenshot or short screen recording of your Flush account, logged in, with the username **${username}** visible.`,
+      embed: {
+        title: `Verify Flush username ${username}`,
+        color: 0x8dff4a,
+        fields: [
+          { name: "Player", value: String(r.display_name ?? "—"), inline: true },
+          { name: "Discord", value: `<@${discordId}>`, inline: true },
+          { name: "Kick", value: r.kick ? String(r.kick) : "not linked", inline: true },
+          { name: "Flush username", value: `\`${username}\``, inline: true },
+          { name: "Account age", value: ageDays === 0 ? "created today" : `${ageDays} days`, inline: true },
+          { name: "Proof", value: proof.length ? proof.map((f) => f.name).join(", ") : "not sent yet", inline: false },
+        ],
+        footer: "Staff: check the proof, then Verify or Reject in Admin → Users → Verification",
+      },
+      files: proof,
+    });
+  } catch (e) {
+    console.error("Flush verification ticket failed", discordErrorText(e));
+    throw new AppError("ticket_failed", discordErrorText(e));
+  }
+  if (!ticket) throw new AppError("ticket_failed", "Discord bot not configured");
+  await pool.query("UPDATE user_accounts SET flush_ticket = ? WHERE id = ?", [ticket.channelId, accountId]);
+  await registerTicket(ticket.channelId, "verify").catch(() => {});
+}
+
+export interface PendingFlushVerification {
+  account_id: number; display_name: string; avatar: string; flush_username: string; ticket_url: string | null;
+  discord: string | null; kick: string | null; age_days: number;
+  rivals: { account_id: number; display_name: string; status: FlushStatus }[];
+}
+
+export async function pendingFlushVerifications(): Promise<PendingFlushVerification[]> {
+  await ensureVerificationSchema();
+  const [rows] = await getPool().query<RowDataPacket[]>(
+    `SELECT a.id, a.display_name, a.avatar, a.flush_username, a.flush_ticket, a.created_at,
+            DATEDIFF(CURRENT_TIMESTAMP, a.created_at) AS age_days,
+            (SELECT username FROM user_identities WHERE account_id = a.id AND provider = 'discord' LIMIT 1) AS discord,
+            (SELECT username FROM user_identities WHERE account_id = a.id AND provider = 'kick' LIMIT 1) AS kick
+       FROM user_accounts a WHERE a.flush_status = 'pending' ORDER BY a.id LIMIT 200`);
+  const names = [...new Set(rows.map((r) => String(r.flush_username).toLowerCase()))];
+  const [others] = names.length
+    ? await getPool().query<RowDataPacket[]>(
+      "SELECT id, display_name, flush_username, flush_status FROM user_accounts WHERE LOWER(flush_username) IN (?) AND flush_status IN ('pending', 'verified')", [names])
+    : [[] as RowDataPacket[]];
+  return rows.map((r) => {
+    const name = String(r.flush_username).toLowerCase();
+    return {
+      account_id: Number(r.id), display_name: String(r.display_name), avatar: String(r.avatar ?? ""), flush_username: String(r.flush_username),
+      ticket_url: ticketUrl(r.flush_ticket ?? null), discord: r.discord ? String(r.discord) : null, kick: r.kick ? String(r.kick) : null,
+      age_days: Number(r.age_days ?? 0),
+      rivals: others.filter((o) => String(o.flush_username).toLowerCase() === name && Number(o.id) !== Number(r.id))
+        .map((o) => ({ account_id: Number(o.id), display_name: String(o.display_name), status: o.flush_status as FlushStatus })),
+    };
+  });
+}
+
+export const FLUSH_REJECT_REASONS = {
+  unclear: "The proof doesn't clearly show this Flush account logged in with the claimed username.",
+  edited: "The proof looks edited or belongs to someone else.",
+  no_proof: "No proof was sent.",
+  other: "We couldn't confirm this username belongs to you.",
+} as const;
+export type FlushRejectReason = keyof typeof FLUSH_REJECT_REASONS;
+
+export async function decideFlushVerification(accountId: number, verified: boolean, reason: FlushRejectReason = "other"): Promise<void> {
+  await ensureVerificationSchema();
+  const pool = getPool();
+  const [me] = await pool.query<RowDataPacket[]>("SELECT flush_username, flush_ticket FROM user_accounts WHERE id = ? AND flush_status = 'pending'", [accountId]);
+  if (!me[0]) throw new AppError("invalid_input", "not pending");
+  const username = String(me[0].flush_username);
+  if (verified) {
+    const [owner] = await pool.query<RowDataPacket[]>(
+      "SELECT id FROM user_accounts WHERE LOWER(flush_username) = LOWER(?) AND id <> ? AND flush_status = 'verified' LIMIT 1", [username, accountId]);
+    if (owner[0]) throw new AppError("flush_taken", `already verified on account #${owner[0].id}`);
+  }
+  const note = verified ? null : FLUSH_REJECT_REASONS[reason];
+  const [res] = await pool.query<ResultSetHeader>(
+    "UPDATE user_accounts SET flush_status = ?, flush_note = ? WHERE id = ? AND flush_status = 'pending'", [verified ? "verified" : "rejected", note, accountId]);
+  if (!res.affectedRows) throw new AppError("invalid_input", "not pending");
+  await scheduleClose(me[0].flush_ticket ? String(me[0].flush_ticket) : null, verified
+    ? "✅ Your Flush username is verified."
+    : `❌ We couldn't verify this Flush username: ${note} Update it on your account page to try again.`, verified ? "approved" : "rejected");
+  if (verified) {
+    const [rivals] = await pool.query<RowDataPacket[]>(
+      "SELECT id, flush_ticket FROM user_accounts WHERE LOWER(flush_username) = LOWER(?) AND id <> ? AND flush_status = 'pending'", [username, accountId]);
+    for (const r of rivals) {
+      await pool.query("UPDATE user_accounts SET flush_status = 'rejected', flush_note = ? WHERE id = ?", ["This Flush username was verified for another account.", r.id]);
+      await scheduleClose(r.flush_ticket ? String(r.flush_ticket) : null, "❌ This Flush username was verified for another account. If it's really yours, tell the team here before the ticket closes.", "rejected").catch(() => {});
+    }
+  }
 }
 
 /** The verification ticket: a data card for staff, plus the proof uploaded on the site. */
@@ -325,4 +478,3 @@ export async function openChallengeClaimCount(): Promise<number> {
     "SELECT COUNT(*) AS n FROM challenge_claims c JOIN challenges ch ON ch.id = c.challenge_id WHERE ch.status = 'open'");
   return Number(rows[0].n);
 }
-

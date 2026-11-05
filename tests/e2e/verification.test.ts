@@ -1,13 +1,15 @@
-// E2E for Qzino verification + challenge claims (+ the Discord bot calls,
+// E2E for Qzino/Flush verification + challenge claims (+ the Discord bot calls,
 // against a fake Discord) on a throwaway database:
 //   DB_NAME=ravo_test node --env-file-if-exists=.env.local --conditions=react-server --import tsx --test tests/e2e/verification.test.ts
 import assert from "node:assert/strict";
 import { after, test } from "node:test";
+import { randomUUID } from "node:crypto";
 import type { ResultSetHeader } from "mysql2/promise";
 import { getPool } from "../../lib/db";
+import { saveFlushUsername } from "../../lib/account";
 import { createChallenge, markChallengeWon } from "../../lib/challenges";
 import { cleanupTickets } from "../../lib/tickets";
-import { claimChallenge, decideVerification, myChallengeClaims, pendingVerifications, qzinoStatusOf, requestQzinoVerification, requireVerifiedQzino } from "../../lib/verification";
+import { claimChallenge, decideFlushVerification, decideVerification, flushStatusOf, myChallengeClaims, pendingFlushVerifications, pendingVerifications, qzinoStatusOf, requestFlushVerification, requestQzinoVerification, requireVerifiedQzino } from "../../lib/verification";
 
 if (process.env.DB_NAME !== "ravo_test") throw new Error("refusing to run outside ravo_test");
 after(() => getPool().end());
@@ -23,18 +25,22 @@ globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
   const url = String(input);
   if (!url.startsWith("https://discord.com/api/")) return realFetch(input, init);
   const path = url.replace("https://discord.com/api/v10", "");
-  calls.push({ method: init?.method ?? "GET", path, body: init?.body ? JSON.parse(String(init.body)) : null });
+  const body = init?.body instanceof FormData
+    ? JSON.parse(String(init.body.get("payload_json"))) as Record<string, unknown>
+    : typeof init?.body === "string" ? JSON.parse(init.body) as Record<string, unknown> : null;
+  calls.push({ method: init?.method ?? "GET", path, body });
   if (path === "/users/@me") return Response.json({ id: "444", username: "bot" });
   if (path === "/guilds/111") return Response.json({ id: "111", name: "Ravo" });
   if (path === "/guilds/111/roles" && (init?.method ?? "GET") === "GET") return Response.json([{ id: "333", name: "Staff" }]);
   if (path === "/guilds/111/channels" && (init?.method ?? "GET") === "GET") return Response.json([{ id: "222", name: "Tickets", type: 4 }]);
+  if (/^\/channels\/\d+$/.test(path) && (init?.method ?? "GET") === "GET") return Response.json({ id: path.split("/").pop(), name: "🟡-verify-test" });
   return Response.json(path.endsWith("/channels") ? { id: String(900000 + calls.length) } : {});
 }) as typeof fetch;
 
 test("username → pending + ticket → verified unlocks claims; one claim per challenge with its own ticket", async () => {
   Object.assign(process.env, { DISCORD_BOT_TOKEN: "t", DISCORD_GUILD_ID: "111", DISCORD_TICKET_CATEGORY_ID: "222", DISCORD_STAFF_ROLE_ID: "333", DISCORD_CLIENT_ID: "444" });
   const pool = getPool();
-  const tag = `v${Date.now()}`;
+  const tag = `v${randomUUID().replaceAll("-", "")}`;
   const [acc] = await pool.query<ResultSetHeader>("INSERT INTO user_accounts (display_name, qzino_username) VALUES (?, ?)", [tag, tag]);
   const id = acc.insertId;
   await pool.query("INSERT INTO user_identities (provider, provider_user_id, account_id, username, avatar) VALUES ('discord', ?, ?, ?, '')", [`d${tag}`.slice(0, 20), id, tag]);
@@ -50,7 +56,7 @@ test("username → pending + ticket → verified unlocks claims; one claim per c
   assert.ok(ow.some((o) => o.id === `d${tag}`.slice(0, 20) && o.allow), "viewer allowed");
   assert.ok(ow.some((o) => o.id === "333" && o.allow), "staff allowed");
   assert.ok(ow.some((o) => o.id === "444" && o.allow), "bot allowed");
-  assert.ok(pendingVerifications().then((l) => l.some((p) => p.account_id === id)));
+  assert.ok((await pendingVerifications()).some((p) => p.account_id === id));
   await assert.rejects(requireVerifiedQzino(id), /qzino_pending/);
 
   const challenge = await createChallenge({ slot_id: "", slot: "Test Slot", provider: "Test", target_multi: "1000", reward: "50", min_bet: "0.40" });
@@ -60,6 +66,18 @@ test("username → pending + ticket → verified unlocks claims; one claim per c
   st = await qzinoStatusOf(id);
   assert.equal(st.status, "verified");
   assert.ok(calls.some((c) => c.method === "POST" && /\/channels\/9000\d+\/messages/.test(c.path) && String(c.body?.content).includes("verified")));
+
+  const flushUsername = `${tag}flush`;
+  await saveFlushUsername(id, flushUsername);
+  await requestFlushVerification(id, flushUsername, PROOF);
+  let flush = await flushStatusOf(id);
+  assert.equal(flush.status, "pending");
+  assert.ok((await pendingFlushVerifications()).some((p) => p.account_id === id));
+  const flushProofMessage = calls.find((c) => c.method === "POST" && c.path.endsWith("/messages") && Array.isArray(c.body?.attachments));
+  assert.equal((flushProofMessage?.body?.attachments as unknown[] | undefined)?.length, 1);
+  await decideFlushVerification(id, true);
+  flush = await flushStatusOf(id);
+  assert.equal(flush.status, "verified");
 
   const url = await claimChallenge(id, challenge, HIT, PROOF);
   assert.match(url ?? "", /^\/api\/discord\/ticket\/\d+$/);

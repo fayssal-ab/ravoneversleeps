@@ -62,7 +62,7 @@ export async function cleanupTickets(): Promise<{ closed: number; failed: number
 
 /**
  * A ticket was deleted: remove its case from the database. Open or rejected
- * cases go (Qzino claim reset, VIP application and challenge claim rows
+ * cases go (Qzino/Flush username reset, VIP application and challenge claim rows
  * deleted); decided-in-favour ones stay on record (a verified player stays
  * verified, an approved VIP application stays) and only lose the link.
  */
@@ -76,6 +76,9 @@ export async function forgetTicket(channelId: string): Promise<void> {
       WHERE qzino_ticket = ? AND qzino_status IN ('pending', 'rejected')`,
     "UPDATE user_accounts SET qzino_code = NULL, qzino_note = NULL WHERE qzino_ticket = ? AND qzino_status = 'none'",
     "UPDATE user_accounts SET qzino_ticket = NULL WHERE qzino_ticket = ?",
+    `UPDATE user_accounts SET flush_username = '', flush_status = 'none', flush_note = NULL
+      WHERE flush_ticket = ? AND flush_status IN ('pending', 'rejected')`,
+    "UPDATE user_accounts SET flush_ticket = NULL WHERE flush_ticket = ?",
     "DELETE FROM vip_applications WHERE ticket = ? AND status IN ('pending', 'rejected')",
     "UPDATE vip_applications SET ticket = NULL WHERE ticket = ?",
     "DELETE FROM challenge_claims WHERE ticket = ?",
@@ -95,6 +98,7 @@ export async function forgetDeletedTickets(limit = 40): Promise<number> {
   for (const sql of [
     "SELECT channel_id AS id FROM discord_tickets",
     "SELECT qzino_ticket AS id FROM user_accounts WHERE qzino_ticket IS NOT NULL",
+    "SELECT flush_ticket AS id FROM user_accounts WHERE flush_ticket IS NOT NULL",
     "SELECT ticket AS id FROM vip_applications WHERE ticket IS NOT NULL",
     "SELECT ticket AS id FROM challenge_claims WHERE ticket IS NOT NULL",
   ]) {
