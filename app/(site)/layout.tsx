@@ -1,6 +1,7 @@
 import { PartnerMarquee } from "@/components/home/PartnerMarquee";
 import { Snow } from "@/components/season/Snow";
 import { isHolidaySeason } from "@/lib/season";
+import { SmoothScroll } from "@/components/shell/SmoothScroll";
 import { AutoUpdate } from "@/components/shell/AutoUpdate";
 import { Backdrop } from "@/components/shell/Backdrop";
 import { CookieBanner } from "@/components/shell/CookieBanner";
@@ -28,6 +29,7 @@ export default async function SiteLayout({ children }: { children: React.ReactNo
       </div>
       <CookieBanner />
       <AutoUpdate />
+      <SmoothScroll />
     </>
   );
 }

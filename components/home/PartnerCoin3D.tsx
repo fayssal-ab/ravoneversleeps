@@ -1,10 +1,12 @@
 "use client";
 
-import { Environment, Float, Lightformer, Sparkles } from "@react-three/drei";
-import { Canvas, useFrame } from "@react-three/fiber";
+import { Float, Sparkles } from "@react-three/drei";
+import { useFrame } from "@react-three/fiber";
 import { useReducedMotion } from "motion/react";
 import { useEffect, useRef, useState } from "react";
 import * as THREE from "three";
+import { LazyCanvas } from "@/components/three/LazyCanvas";
+import { StudioLights } from "@/components/three/StudioLights";
 
 // A chrome coin: Flush on the front, Qzino on the back, flipping between them and
 // leaning toward the pointer. Faces are canvas textures drawn from the real
@@ -109,23 +111,10 @@ export default function PartnerCoin3D() {
 
   if (!faces) return null;
   return (
-    <Canvas
-      camera={{ position: [0, 0, 5.2], fov: 40 }}
-      dpr={[1, 2]}
-      gl={{ antialias: true, alpha: true }}
-      frameloop={reduce ? "demand" : "always"}
-      aria-hidden
-    >
-      <ambientLight intensity={0.35} />
-      <directionalLight position={[3, 4, 5]} intensity={1.6} />
-      <pointLight position={[-3, -2, 3]} intensity={8} color="#8dff4a" />
-      <Environment resolution={256}>
-        <Lightformer form="rect" intensity={3} position={[0, 3, 4]} scale={[8, 2, 1]} />
-        <Lightformer form="rect" intensity={1.5} color="#8dff4a" position={[-4, 0, 2]} rotation-y={Math.PI / 3} scale={[3, 6, 1]} />
-        <Lightformer form="ring" intensity={2} position={[4, -1, 3]} scale={2} />
-      </Environment>
+    <LazyCanvas className="absolute inset-0" camera={{ position: [0, 0, 5.2], fov: 40 }}>
+      <StudioLights />
       <Coin front={faces[0]} back={faces[1]} />
       {!reduce && <Sparkles count={40} scale={[5, 4, 2]} size={2.2} speed={0.4} color="#8dff4a" opacity={0.7} />}
-    </Canvas>
+    </LazyCanvas>
   );
 }

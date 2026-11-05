@@ -2,7 +2,10 @@
 
 import Image from "next/image";
 import { motion, useReducedMotion, type MotionValue } from "motion/react";
-import { Float3D } from "./Float3D";
+import dynamic from "next/dynamic";
+
+// three.js props load after the page, in the browser only
+const Hero3D = dynamic(() => import("@/components/three/Hero3D"), { ssr: false });
 
 // Hero background: one sharp still (public/media/hero/bg-3d.webp, 3D dice,
 // cards and green chips under a soft light beam) with a very slow zoom so it
@@ -24,8 +27,8 @@ export function HeroBackdrop({ y }: { y: MotionValue<string> }) {
         {/* the light beam continues across the left */}
         <div className="absolute inset-0 bg-[linear-gradient(160deg,rgb(141_255_74/0.06)_0%,transparent_35%)]" />
       </motion.div>
-      {/* real 3D dice and chips floating over the art */}
-      <Float3D />
+      {/* real 3D dice, chips and chrome suits floating over the art */}
+      <Hero3D />
       {/* calm the centre for the reels + copy, fade into the page */}
       <div className="absolute inset-0 bg-[radial-gradient(ellipse_40%_55%_at_50%_50%,rgb(5_8_6/0.55),transparent_75%)]" />
       <div className="absolute inset-x-0 bottom-0 h-40 bg-gradient-to-b from-transparent to-[var(--color-bg)]" />

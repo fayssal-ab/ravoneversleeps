@@ -104,10 +104,10 @@ export function SlotReels({ start }: { start: boolean }) {
               <div className="pointer-events-none absolute inset-x-0 bottom-0 z-20 h-[0.18em] bg-gradient-to-t from-black/80 to-transparent" />
               <motion.div
                 key={spin}
-                className="flex flex-col items-center"
-                initial={{ y: 0, filter: "blur(0px)" }}
-                animate={start ? (reduce ? { y: travel } : { y: [0, travel], filter: ["blur(0px)", "blur(3px)", "blur(3px)", "blur(0px)"] }) : { y: 0 }}
-                transition={{ duration: reduce ? 0 : (spin === 0 ? 1.1 : 1.0) + r * 0.38, delay: reduce ? 0 : spin === 0 ? 0.15 : 0.25, ease: [0.2, 0.8, 0.25, 1.06] }}
+                className="flex flex-col items-center will-change-transform [backface-visibility:hidden]"
+                initial={{ y: 0 }}
+                animate={start ? (reduce ? { y: travel } : { y: [0, travel] }) : { y: 0 }}
+                transition={{ duration: reduce ? 0 : (spin === 0 ? 1.1 : 1.0) + r * 0.38, delay: reduce ? 0 : spin === 0 ? 0.15 : 0.25, ease: [0.16, 0.84, 0.24, 1.04] }}
                 onAnimationComplete={() => start && setStopped((n) => n + 1)}
               >
                 {strip.map((s, i) => <Cell key={i} s={s} letter={letter} r={r} />)}
