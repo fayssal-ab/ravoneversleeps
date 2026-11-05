@@ -9,7 +9,7 @@ export const metadata: Metadata = { title: "Leaderboard", description: "Ravo's l
 export default function LeaderboardPage() {
   return (
     <div className="mx-auto max-w-6xl px-4 sm:px-6">
-      <PageHeader eyebrow="Coming soon" title="Leader" accent="board">
+      <PageHeader eyebrow="Coming soon" title="The" accent="leaderboard">
         The next race is being set up with our partners. Stay close.
       </PageHeader>
       <EmptyState
