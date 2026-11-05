@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
-import { BadgeCheck, Check, Clock, ExternalLink, LayoutDashboard, ShieldCheck, Trophy, Target, Crown, XCircle } from "lucide-react";
+import { BadgeCheck, Check, Clock, ExternalLink, LayoutDashboard, ShieldCheck, Trophy, Target, XCircle } from "lucide-react";
 import { LogoutButton } from "@/components/account/LogoutButton";
 import { DiscordIcon, KickIcon, LinkKickButton, SignInButtons } from "@/components/account/SignInPanel";
 import { Flash } from "@/components/ui/bits";
@@ -18,8 +18,8 @@ export const dynamic = "force-dynamic";
 
 const PERKS = [
   { icon: Target, text: "Claim slot challenges" },
-  { icon: Crown, text: "Apply for a VIP Transfer" },
   { icon: Trophy, text: "Get your Qzino username verified" },
+  { icon: BadgeCheck, text: "Link your Flush account" },
 ];
 
 export default async function AccountPage({ searchParams }: { searchParams: Promise<Record<string, string | undefined>> }) {
@@ -31,9 +31,9 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
   if (!viewer) {
     return (
       <div className="mx-auto max-w-5xl px-4 pt-8 sm:px-6">
-        <div className="signin-card relative overflow-hidden rounded-3xl border border-white/[0.08] lg:grid lg:grid-cols-[1fr_1.1fr]">
+        <div className="panel-soft relative overflow-hidden lg:grid lg:grid-cols-[1fr_1.1fr]">
           {/* art side */}
-          <div className="relative flex min-h-64 items-end justify-center overflow-hidden bg-black lg:min-h-[34rem]">
+          <div className="relative flex min-h-64 items-end justify-center overflow-hidden bg-black lg:min-h-[34rem] lg:border-r lg:border-white/[0.06]">
             <Image src="/media/claws-bg.webp" alt="" fill sizes="(min-width: 1024px) 480px, 100vw" className="object-cover opacity-70" />
             <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_50%_60%,rgb(141_255_74/0.25),transparent_60%)]" />
             <div className="absolute inset-x-0 bottom-0 h-1/3 bg-gradient-to-t from-[#060a07] to-transparent lg:hidden" />
@@ -43,13 +43,13 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
           </div>
 
           {/* form side */}
-          <div className="relative flex flex-col justify-center bg-[#060a07] p-6 sm:p-10">
+          <div className="relative flex flex-col justify-center bg-[#060a07]/80 p-6 sm:p-10">
             <p className="font-head text-xs font-bold uppercase tracking-[0.25em] text-neon">Join the pack</p>
             <h1 className="mt-2 font-display text-5xl leading-[0.9] sm:text-6xl"><span className="chrome">Sign in</span></h1>
             <p className="mt-3 max-w-sm text-sm text-muted">One click with Discord. Your account unlocks everything on RAVO:</p>
             <ul className="mt-5 grid gap-2">
               {PERKS.map((p) => (
-                <li key={p.text} className="flex items-center gap-2.5 rounded-xl border border-white/[0.06] bg-white/[0.02] px-3 py-2.5 text-sm">
+                <li key={p.text} className="flex items-center gap-2.5 rounded-xl border border-white/[0.06] bg-white/[0.02] px-3 py-2.5 text-sm text-text">
                   <span className="grid size-7 shrink-0 place-items-center rounded-lg bg-neon/10 text-neon"><p.icon className="size-4" /></span>
                   {p.text}
                 </li>
@@ -84,7 +84,7 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
       {authError ? <Flash error="unexpected" detail={authError} /> : <Flash ok={sp.ok ?? (sp.signed_in || sp.linked ? "1" : undefined)} error={sp.error} detail={sp.detail} okText={sp.linked ? "Account linked." : sp.signed_in ? "Welcome in." : sp.ok === "ticket" ? "Your ticket is open on Discord." : sp.ok === "verify_sent" ? "Proof sent: your ticket is open on Discord." : "Saved."} />}
 
       {/* profile */}
-      <div className="relative overflow-hidden rounded-3xl border border-white/[0.08] bg-[#060a07] p-6 sm:p-8">
+      <div className="panel-soft relative overflow-hidden p-6 sm:p-8">
         <Image src="/media/claws-bg.webp" alt="" fill sizes="100vw" className="object-cover opacity-25" />
         <div className="relative flex flex-wrap items-center gap-5">
           {viewer.avatar

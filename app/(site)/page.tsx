@@ -13,6 +13,7 @@ import { SocialIcon } from "@/components/ui/SocialIcon";
 import { getClips } from "@/lib/clips";
 import { DISCORD_URL, KICK_URL, QZINO_CODE, X_URL } from "@/lib/constants";
 import { getLiveStatus } from "@/lib/stream";
+import { isHolidaySeason, nextNewYear } from "@/lib/season";
 
 export const dynamic = "force-dynamic";
 
@@ -21,21 +22,24 @@ export default async function HomePage() {
 
   return (
     <div className="relative">
-      <Hero />
+      <Hero newYear={isHolidaySeason() ? nextNewYear() : null} />
 
-      {/* clips right under RAVO */}
-      <ClipStrip clips={clips} />
-
-      {/* leaderboard (paused: the new one is on its way) on the chrome-claw wallpaper */}
-      <div className="claws-band mt-8 py-12">
+      {/* both partners right under RAVO, on the chrome-claw wallpaper */}
+      <div className="claws-band -mt-6 pb-16 pt-2">
         <div aria-hidden className="claws-band-bg">
           <Image src="/media/claws-bg.webp" alt="" fill sizes="100vw" className="object-cover object-center" />
         </div>
+        <Partners />
+      </div>
 
-      <section className="mx-auto max-w-6xl px-4 sm:px-6">
+      {/* clips */}
+      <ClipStrip clips={clips} />
+
+      {/* leaderboard (paused: the new one is on its way) */}
+      <section className="mx-auto mt-20 max-w-6xl px-4 sm:px-6">
         <Reveal>
           <div className="grid items-center gap-10 lg:grid-cols-[1fr_1.4fr]">
-            <div>
+            <div className="panel-soft p-6 sm:p-8">
               <p className="font-head text-xs font-bold uppercase tracking-[0.25em] text-neon">Leaderboard</p>
               <h2 className="mt-3 font-display text-6xl leading-[0.9] sm:text-7xl"><span className="chrome">The board</span></h2>
               <p className="mt-5 font-display text-6xl leading-none text-gold sm:text-7xl">Soon</p>
@@ -49,10 +53,6 @@ export default async function HomePage() {
           </div>
         </Reveal>
       </section>
-
-      <Partners />
-
-      </div>
 
       {/* how to claim the code */}
       <section className="mx-auto mt-14 max-w-6xl px-4 sm:px-6">

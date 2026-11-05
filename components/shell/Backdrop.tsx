@@ -1,5 +1,7 @@
-// Fixed atmosphere behind every page: drifting smoke, pixel grid, grain and a
-// few twinkling sparks (positions fixed so server and client render the same).
+// Fixed atmosphere behind every page: drifting smoke, pixel grid, grain, a
+// few twinkling sparks and the two partners (Flush, Qzino) as huge faint
+// marks drifting through the dark (positions fixed so server and client
+// render the same).
 const SPARKS = [
   { top: "12%", left: "8%", delay: "0s", size: 12 },
   { top: "22%", left: "88%", delay: "1.1s", size: 16 },
@@ -17,6 +19,11 @@ export function Backdrop() {
       <div className="smoke smoke-b" />
       <div className="smoke smoke-c" />
       <div className="pixel-grid" />
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img src="/media/flush-logo.svg" alt="" className="ghost-logo ghost-flush" draggable={false} />
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img src="/media/qzino-logo.svg" alt="" className="ghost-logo ghost-qzino" draggable={false} />
+      <div className="flush-beam" />
       {SPARKS.map((s, i) => (
         <span key={i} className="spark" style={{ top: s.top, left: s.left, animationDelay: s.delay, width: s.size, height: s.size }} />
       ))}

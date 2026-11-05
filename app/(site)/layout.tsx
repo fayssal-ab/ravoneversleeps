@@ -1,3 +1,6 @@
+import { PartnerMarquee } from "@/components/home/PartnerMarquee";
+import { Snow } from "@/components/season/Snow";
+import { isHolidaySeason } from "@/lib/season";
 import { AutoUpdate } from "@/components/shell/AutoUpdate";
 import { Backdrop } from "@/components/shell/Backdrop";
 import { CookieBanner } from "@/components/shell/CookieBanner";
@@ -13,12 +16,14 @@ export default async function SiteLayout({ children }: { children: React.ReactNo
     <>
       <Preloader />
       <Backdrop />
+      {isHolidaySeason() && <Snow />}
       <TopBar
         live={live.live}
         viewer={viewer && { name: viewer.display_name, avatar: viewer.avatar, points: viewer.points, level: viewer.level }}
       />
       <div className="relative isolate overflow-x-clip">
         <main className="pt-[calc(var(--nav-h)+1.5rem)]">{children}</main>
+        <PartnerMarquee className="mt-24" />
         <Footer />
       </div>
       <CookieBanner />

@@ -4,6 +4,11 @@ import Image from "next/image";
 import { motion, useReducedMotion, useScroll, useTransform } from "motion/react";
 import { useRef } from "react";
 import { Paw } from "@/components/decor/shapes";
+import { NewYearChip } from "@/components/season/NewYearChip";
+import { SantaHat } from "@/components/season/SantaHat";
+import { FlushLogo } from "@/components/ui/FlushLogo";
+import { QzinoLogo } from "@/components/ui/QzinoLogo";
+import { FLUSH_URL, QZINO_URL } from "@/lib/constants";
 import { useSiteReady } from "@/components/shell/siteReady";
 import { HeroBackdrop } from "./HeroBackdrop";
 import { SlotReels } from "./SlotReels";
@@ -15,7 +20,7 @@ const CLIMB_AT = 2.55;
 // Toastyy-style mascot band in RAVO's world: the dancing pug over a chrome
 // spike wallpaper with spinning card suits, the name in metal chrome, and the
 // band dripping slime into the page. Just RAVO up top, nothing else.
-export function Hero() {
+export function Hero({ newYear = null }: { newYear?: number | null }) {
   const ref = useRef<HTMLElement>(null);
   const reduce = useReducedMotion();
   const ready = useSiteReady();
@@ -34,6 +39,12 @@ export function Hero() {
       </div>
 
       <div className="relative mx-auto flex max-w-6xl flex-col items-center px-4 pb-16 text-center sm:px-6 sm:pb-20">
+        {newYear && (
+          <div className="hero-intro mb-4" style={{ "--d": "0.3s" } as React.CSSProperties}>
+            <NewYearChip year={newYear} />
+          </div>
+        )}
+
         {/* mascot stage */}
         <motion.div style={{ y: pugY }} className="relative h-56 w-56 sm:h-72 sm:w-72">
           <motion.div aria-hidden className="absolute inset-6 rounded-full bg-neon/30 blur-3xl" animate={{ opacity: [0.5, 0.9, 0.5], scale: [0.95, 1.05, 0.95] }} transition={{ duration: 3.5, repeat: Infinity }} />
@@ -46,7 +57,11 @@ export function Hero() {
               animate={ready ? { y: reduce ? "0%" : ["110%", "62%", "66%", "0%"] } : undefined}
               transition={{ delay: reduce ? 0 : CLIMB_AT, duration: reduce ? 0 : 1.25, times: [0, 0.32, 0.5, 1], ease: [0.3, 0.8, 0.3, 1.1] }}
             >
-              <Image src="/media/ravo-mascot.webp" alt="Ravo the pug" fill priority sizes="288px" className="animate-dance object-contain drop-shadow-[0_20px_40px_rgb(0_0_0/0.6)]" />
+              <div className="animate-dance absolute inset-0">
+                <Image src="/media/ravo-mascot.webp" alt="Ravo the pug" fill priority sizes="288px" className="object-contain drop-shadow-[0_20px_40px_rgb(0_0_0/0.6)]" />
+                {/* holiday season: a little emerald Santa hat on his head */}
+                {newYear && <SantaHat className="absolute left-[46%] top-[-15%] w-[33%] rotate-[18deg] drop-shadow-[0_6px_10px_rgb(0_0_0/0.5)]" />}
+              </div>
             </motion.div>
           </div>
         </motion.div>
@@ -79,6 +94,20 @@ export function Hero() {
               </span>
             ))}
           </span>
+        </div>
+
+        {/* the two partners, sliding in after the title lands */}
+        <div className="hero-intro mt-8 flex flex-col items-center gap-3" style={{ "--d": "1.7s" } as React.CSSProperties}>
+          <p className="font-head text-[0.7rem] font-bold uppercase tracking-[0.35em] text-muted">Official partners</p>
+          <div className="hero-partners">
+            <a href={FLUSH_URL} target="_blank" rel="noopener noreferrer sponsored" aria-label="Flush" className="hero-partner">
+              <FlushLogo className="h-6 w-auto sm:h-7" priority />
+            </a>
+            <span aria-hidden className="hero-partner-x font-display">×</span>
+            <a href={QZINO_URL} target="_blank" rel="noopener noreferrer sponsored" aria-label="Qzino" className="hero-partner">
+              <QzinoLogo className="h-6 w-auto sm:h-7" priority />
+            </a>
+          </div>
         </div>
       </div>
 

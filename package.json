@@ -13,6 +13,8 @@
     "sync:slots": "node --env-file-if-exists=.env.local --import tsx scripts/sync-slots.ts"
   },
   "dependencies": {
+    "@react-three/drei": "^10.7.9",
+    "@react-three/fiber": "^9.8.2",
     "decimal.js": "^10.4.3",
     "hls.js": "^1.5.20",
     "lucide-react": "^0.456.0",
@@ -22,6 +24,7 @@
     "react": "19.2.8",
     "react-dom": "19.2.8",
     "server-only": "^0.0.1",
+    "three": "^0.187.0",
     "zod": "^3.23.8"
   },
   "devDependencies": {
@@ -29,6 +32,7 @@
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "@types/three": "^0.187.0",
     "eslint": "^9.39.5",
     "eslint-config-next": "^16.4.0",
     "tailwindcss": "^4.3.3",

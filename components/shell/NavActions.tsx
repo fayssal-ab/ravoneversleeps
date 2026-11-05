@@ -3,11 +3,14 @@
 import Link from "next/link";
 import { AnimatePresence, motion } from "motion/react";
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
-import { Bell, ChevronDown, Crown, Gift, LogOut, Radio, ShoppingBag, Target, Trophy, User } from "lucide-react";
-import { PromoSteps } from "@/components/promo/PromoSteps";
+import { ArrowRight, Bell, ChevronDown, ExternalLink, LogOut, Radio, ShoppingBag, Target, Trophy, User } from "lucide-react";
+import { CopyCode } from "@/components/ui/CopyCode";
+import { FlushLogo } from "@/components/ui/FlushLogo";
+import { QzinoLogo } from "@/components/ui/QzinoLogo";
+import { FLUSH_URL, QZINO_CODE, QZINO_URL } from "@/lib/constants";
 import { DiscordIcon } from "@/components/account/SignInPanel";
 
-// Navbar actions: gift (how to claim the Qzino code), bell (site events and
+// Navbar actions: partner links, bell (site events and
 // the viewer's own updates; unread = not opened yet on this browser) and the
 // account menu.
 
@@ -15,8 +18,6 @@ export interface NavViewer { name: string; avatar: string; points: number; level
 interface Note { id: string; kind: "live" | "event" | "personal"; title: string; body: string; href: string; at: string }
 
 const SEEN_KEY = "ravo.seenNotes";
-const GIFT_KEY = "ravo.giftSeen";
-
 function useOutside(open: boolean, close: () => void) {
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -50,26 +51,36 @@ function Pop({ open, children, width = "w-[min(92vw,22rem)]" }: { open: boolean;
 
 const iconBtn = "relative grid size-10 place-items-center rounded-xl border border-line-hot bg-bg/50 text-text transition hover:border-neon hover:text-neon";
 
-function GiftButton() {
+function PartnerButton() {
   const [open, setOpen] = useState(false);
-  const [fresh, setFresh] = useState(false);
   const close = useCallback(() => setOpen(false), []);
   const ref = useOutside(open, close);
-  useEffect(() => {
-    // read after hydration (the server can't know what this browser has seen)
-    const t = setTimeout(() => { try { setFresh(!localStorage.getItem(GIFT_KEY)); } catch { /* storage blocked */ } }, 0);
-    return () => clearTimeout(t);
-  }, []);
   return (
     <div ref={ref} className="relative">
-      <button type="button" className={iconBtn} aria-label="Claim your Qzino bonus" aria-expanded={open}
-        onClick={() => { setOpen((v) => !v); setFresh(false); try { localStorage.setItem(GIFT_KEY, "1"); } catch { /* ignore */ } }}>
-        <Gift className="size-5" />
-        {fresh && <span className="absolute -right-0.5 -top-0.5 size-2.5 animate-pulse rounded-full bg-gold shadow-[0_0_8px_var(--color-gold)]" />}
+      <button type="button" className={iconBtn} aria-label="Explore Flush and Qzino partner sites" aria-expanded={open}
+        onClick={() => setOpen((v) => !v)}>
+        <ExternalLink className="size-5" />
       </button>
-      <Pop open={open} width="w-[min(92vw,24rem)]">
-        <p className="px-1 pb-3 font-display text-2xl"><span className="chrome">Claim your</span> <span className="neon-text">$50</span></p>
-        <PromoSteps compact />
+      <Pop open={open} width="w-[min(92vw,25rem)]">
+        <section className="rounded-2xl border border-neon/30 bg-[radial-gradient(ellipse_at_100%_0%,rgb(141_255_74/0.12),transparent_55%),var(--color-bg-2)] p-4">
+          <div className="flex items-center justify-between">
+            <a href={FLUSH_URL} target="_blank" rel="noopener noreferrer sponsored" onClick={close} aria-label="Visit Flush">
+              <FlushLogo className="h-7 w-auto" />
+            </a>
+            <span className="rounded-full border border-neon/25 bg-neon/10 px-2.5 py-1 font-pixel text-[0.6rem] uppercase tracking-wider text-neon">Featured</span>
+          </div>
+          <p className="mt-2 text-sm text-muted">Casino &amp; sportsbook · availability varies by location.</p>
+          <a href={FLUSH_URL} target="_blank" rel="noopener noreferrer sponsored" onClick={close} className="btn btn-neon btn-sm mt-4 w-full">
+            Visit Flush <ArrowRight className="size-4" />
+          </a>
+        </section>
+        <div className="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-line bg-bg-2 px-3 py-2.5">
+          <a href={QZINO_URL} target="_blank" rel="noopener noreferrer sponsored" onClick={close} className="flex items-center gap-2" aria-label="Visit Qzino">
+            <QzinoLogo className="h-5 w-auto" />
+            <span className="text-xs text-muted">Code {QZINO_CODE}</span>
+          </a>
+          <CopyCode code={QZINO_CODE} />
+        </div>
       </Pop>
     </div>
   );
@@ -170,7 +181,6 @@ function UserMenu({ viewer }: { viewer: NavViewer }) {
           {[
             { href: "/account", label: "My account", icon: User },
             { href: "/challenges", label: "Challenges", icon: Target },
-            { href: "/vip-transfer", label: "VIP Transfer", icon: Crown },
           ].map((l) => (
             <Link key={l.href} href={l.href} onClick={close} className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted transition hover:bg-surface-2 hover:text-text">
               <l.icon className="size-4" /> {l.label}
@@ -189,7 +199,7 @@ function UserMenu({ viewer }: { viewer: NavViewer }) {
 export function NavActions({ viewer }: { viewer: NavViewer | null }) {
   return (
     <div className="flex items-center gap-1.5 sm:gap-2">
-      <GiftButton />
+      <PartnerButton />
       <BellButton />
       {viewer ? <UserMenu viewer={viewer} /> : <Link href="/account" className="btn btn-discord btn-sm discord-login" aria-label="Log in with Discord"><DiscordIcon className="size-4" /> Log in</Link>}
     </div>
