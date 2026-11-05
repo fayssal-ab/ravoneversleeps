@@ -83,22 +83,39 @@ export default async function HomePage() {
         </Reveal>
       </section>
 
-      {/* follow */}
-      <section className="mx-auto mt-20 max-w-6xl px-4 text-center sm:px-6">
-        <p className="font-head text-xs font-bold uppercase tracking-[0.25em] text-muted">Follow Ravo</p>
-        <div className="mt-5 flex flex-wrap justify-center gap-3">
-          {[
-            { href: KICK_URL, label: "Kick", icon: "kick" as const },
-            { href: X_URL, label: "X", icon: "x" as const },
-            { href: DISCORD_URL, label: "Discord", icon: "discord" as const },
-          ].map((s) => (
-            <a key={s.label} href={s.href} target="_blank" rel="noopener noreferrer"
-              className="group flex items-center gap-3 rounded-2xl border border-white/[0.06] bg-surface px-5 py-3 transition hover:-translate-y-1 hover:border-neon/50">
-              <span className="grid size-9 place-items-center rounded-xl bg-neon/10 text-neon transition group-hover:bg-neon group-hover:text-neon-ink"><SocialIcon name={s.icon} className="size-5" /></span>
-              <span className="font-head text-sm font-bold uppercase tracking-widest">{s.label}</span>
-            </a>
-          ))}
-        </div>
+      {/* follow: closing card with the three socials */}
+      <section className="mx-auto mt-24 max-w-6xl px-4 sm:px-6">
+        <Reveal>
+          <div className="page-banner relative overflow-hidden rounded-[2rem] px-5 py-12 text-center sm:px-10 sm:py-16">
+            <div aria-hidden className="page-banner-bg">
+              <Image src="/media/claws-bg.webp" alt="" fill sizes="(min-width: 1152px) 1152px, 100vw" className="object-cover object-center" />
+            </div>
+            <div aria-hidden className="page-banner-sweep" />
+            <Image src="/media/ravo-avatar.webp" alt="" width={84} height={84} className="relative mx-auto rounded-full ring-2 ring-neon/50 shadow-[0_0_40px_rgb(141_255_74/0.35)]" />
+            <p className="relative mt-5 font-head text-xs font-bold uppercase tracking-[0.3em] text-neon">Join the pack</p>
+            <h2 className="relative mt-3 font-display text-5xl leading-[0.9] sm:text-6xl"><span className="chrome">Never miss</span> <span className="neon-text">a stream</span></h2>
+            <p className="relative mx-auto mt-4 max-w-md text-sm text-muted">
+              {live.followers > 0 ? `${live.followers.toLocaleString("en-US")} followers on Kick. ` : ""}Giveaways, tournaments and big wins, live.
+            </p>
+            <div className="relative mx-auto mt-9 grid max-w-3xl gap-3 sm:grid-cols-3">
+              {[
+                { href: KICK_URL, label: "Kick", sub: "Watch live", icon: "kick" as const },
+                { href: X_URL, label: "X", sub: "Clips & news", icon: "x" as const },
+                { href: DISCORD_URL, label: "Discord", sub: "Giveaways & chat", icon: "discord" as const },
+              ].map((s) => (
+                <a key={s.label} href={s.href} target="_blank" rel="noopener noreferrer"
+                  className="group flex items-center gap-4 rounded-2xl border border-white/[0.08] bg-black/50 p-4 text-left backdrop-blur transition duration-300 hover:-translate-y-1 hover:border-neon/50">
+                  <span className="grid size-12 shrink-0 place-items-center rounded-xl bg-neon/10 text-neon transition duration-300 group-hover:bg-neon group-hover:text-neon-ink"><SocialIcon name={s.icon} className="size-6" /></span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block font-head text-base font-bold uppercase tracking-widest text-text">{s.label}</span>
+                    <span className="block text-xs text-muted">{s.sub}</span>
+                  </span>
+                  <ArrowRight className="size-4 text-dim transition duration-300 group-hover:translate-x-1 group-hover:text-neon" />
+                </a>
+              ))}
+            </div>
+          </div>
+        </Reveal>
       </section>
     </div>
   );

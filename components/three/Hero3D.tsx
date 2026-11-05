@@ -9,11 +9,9 @@ import { StudioLights } from "./StudioLights";
 import { chipFace, chipSide, DIE_PIPS, suitGeometry } from "./shapes";
 
 // Hero props in real 3D: dice with glowing pips, poker chips and chrome card
-// suits floating around the RAVO reels. They tumble slowly, bob, and the
-// whole set drifts with the pointer for depth. Kept to the sides so the
-// mascot and reels stay clear.
-
-const pointer = { x: 0, y: 0 };
+// suits floating around the RAVO reels. They stay in place (the mouse does
+// not move them), tumble slowly and bob; tap one and it jumps and spins.
+// Kept to the sides so the mascot and reels stay clear.
 
 function Die({ size = 1 }: { size?: number }) {
   return (
@@ -118,7 +116,6 @@ function Tumble({ speed, children }: { speed: [number, number, number]; children
 type Prop = { el: React.ReactNode; at: [number, number, number]; speed: [number, number, number]; mobile?: boolean };
 
 function Props() {
-  const group = useRef<THREE.Group>(null);
   const { viewport } = useThree();
   const w = viewport.width / 2, h = viewport.height / 2;
   const narrow = viewport.width < 7;
@@ -135,16 +132,8 @@ function Props() {
     { el: <Suit kind="diamond" size={0.6} />, at: [-0.35, -0.82, -0.5], speed: [0, 0.9, 0], mobile: true },
   ];
 
-  useFrame((_, dt) => {
-    const g = group.current;
-    if (!g) return;
-    g.position.x = THREE.MathUtils.damp(g.position.x, pointer.x * 0.35, 3, dt);
-    g.position.y = THREE.MathUtils.damp(g.position.y, -pointer.y * 0.22, 3, dt);
-    g.rotation.y = THREE.MathUtils.damp(g.rotation.y, pointer.x * 0.08, 3, dt);
-  });
-
   return (
-    <group ref={group}>
+    <group>
       {props.filter((p) => !narrow || p.mobile).map((p, i) => (
         <Float key={i} speed={1.4 + (i % 3) * 0.3} rotationIntensity={0.4} floatIntensity={0.9}>
           <group position={[p.at[0] * w * (narrow ? 0.92 : 1), p.at[1] * h * (narrow ? 0.62 : 1), p.at[2]]} scale={narrow ? 0.6 : 1}>
@@ -161,11 +150,6 @@ export default function Hero3D() {
   // the whole hero section instead (taps on dice behind the copy still land)
   // (this component only ever renders in the browser: ssr is off)
   const source = useMemo(() => ({ current: document.getElementById("hero") }), []);
-  useEffect(() => {
-    const move = (e: PointerEvent) => { pointer.x = (e.clientX / window.innerWidth) * 2 - 1; pointer.y = (e.clientY / window.innerHeight) * 2 - 1; };
-    window.addEventListener("pointermove", move, { passive: true });
-    return () => window.removeEventListener("pointermove", move);
-  }, []);
   return (
     <LazyCanvas className="pointer-events-none absolute inset-0" camera={{ position: [0, 0, 10], fov: 40 }} eventSource={source} eventPrefix="client">
       <StudioLights />

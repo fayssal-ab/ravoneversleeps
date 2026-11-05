@@ -11,7 +11,7 @@ import { suitGeometry } from "./shapes";
 
 // Three solid podium blocks standing 2 · 1 · 3, each front printed with the
 // place, name, score and prize, and a metal coin with a card suit spinning
-// over it. The stage leans toward the pointer and settles back.
+// over it. The stage sways gently on its own (the mouse does not move it).
 
 const SPOTS = [
   { idx: 1, label: "2nd", suit: "heart", color: "#d9e1dc", h: 1.55, x: -1.85 },
@@ -133,11 +133,10 @@ function Stage({ entries }: { entries: PodiumEntry[] }) {
     return t;
   }, []);
   useEffect(() => () => glow.dispose(), [glow]);
-  useFrame((state, dt) => {
+  useFrame((state) => {
     const g = ref.current;
     if (!g) return;
-    g.rotation.y = THREE.MathUtils.damp(g.rotation.y, state.pointer.x * 0.35 + Math.sin(state.clock.elapsedTime * 0.3) * 0.06, 3, dt);
-    g.rotation.x = THREE.MathUtils.damp(g.rotation.x, state.pointer.y * -0.08, 3, dt);
+    g.rotation.y = Math.sin(state.clock.elapsedTime * 0.3) * 0.12;
   });
   if (!fonts) return null;
   return (

@@ -8,9 +8,9 @@ import * as THREE from "three";
 import { LazyCanvas } from "@/components/three/LazyCanvas";
 import { StudioLights } from "@/components/three/StudioLights";
 
-// A chrome coin: Flush on the front, Qzino on the back, flipping between them and
-// leaning toward the pointer. Faces are canvas textures drawn from the real
-// logo SVGs; lighting is built in (Lightformers), so nothing loads from a CDN.
+// A chrome coin: Flush on the front, Qzino on the back, flipping between
+// them with a gentle tilt of its own (the mouse does not move it). Faces are
+// canvas textures drawn from the real logo SVGs; lighting is built in (Lightformers), so nothing loads from a CDN.
 
 const SIZE = 1024;
 
@@ -60,16 +60,14 @@ async function faceTexture(src: string, label: string): Promise<THREE.CanvasText
 
 function Coin({ front, back }: { front: THREE.Texture; back: THREE.Texture }) {
   const ref = useRef<THREE.Group>(null);
-  useFrame((state, dt) => {
+  useFrame((state) => {
     const g = ref.current;
     if (!g) return;
     // hold a face, then flip: Flush → Qzino → Flush… (3.2 s per face)
     const phase = state.clock.elapsedTime / 3.2;
     const k = THREE.MathUtils.smoothstep(phase % 1, 0.62, 1);
     g.rotation.y = (Math.floor(phase) + k) * Math.PI + Math.sin(state.clock.elapsedTime * 0.8) * 0.18;
-    // lean toward the pointer
-    g.rotation.x = THREE.MathUtils.damp(g.rotation.x, state.pointer.y * -0.35, 4, dt);
-    g.rotation.z = THREE.MathUtils.damp(g.rotation.z, state.pointer.x * -0.2, 4, dt);
+    g.rotation.x = Math.sin(state.clock.elapsedTime * 0.6) * 0.08;
   });
   return (
     <Float speed={2} rotationIntensity={0.25} floatIntensity={0.8}>

@@ -15,7 +15,7 @@ export function Footer() {
   ];
 
   return (
-    <footer className="relative mt-40 text-text">
+    <footer className="relative mt-28 text-text">
       {/* peeking pug: rises out of the slime, body hidden behind it */}
       <div className="pointer-events-none absolute -top-[5rem] left-[8%] z-0 h-[9rem] w-40 overflow-hidden sm:left-[12%] sm:-top-[5.75rem] sm:h-[11rem] sm:w-48" aria-hidden>
         <Image src="/media/ravo-mascot.webp" alt="" width={760} height={834} sizes="192px" className="animate-peek absolute inset-x-0 top-3 h-auto w-full" />

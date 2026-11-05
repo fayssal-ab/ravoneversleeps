@@ -19,7 +19,7 @@ function Crown() {
     const g = ref.current;
     if (!g) return;
     g.rotation.y += dt * 0.55;
-    g.rotation.x = THREE.MathUtils.damp(g.rotation.x, 0.28 + state.pointer.y * -0.15, 3, dt);
+    g.rotation.x = 0.28 + Math.sin(state.clock.elapsedTime * 0.7) * 0.05;
   });
   return (
     <Float speed={1.8} floatIntensity={0.7} rotationIntensity={0.15}>
