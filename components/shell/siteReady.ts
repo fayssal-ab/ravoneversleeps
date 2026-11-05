@@ -28,8 +28,30 @@ export function useSiteReady(): boolean {
       return () => clearTimeout(t);
     }
     window.addEventListener(READY_EVENT, go, { once: true });
-    const t = setTimeout(go, 9000);
+    const t = setTimeout(go, 11000);
     return () => { window.removeEventListener(READY_EVENT, go); clearTimeout(t); };
   }, []);
   return ready;
+}
+
+// 3D scenes on screen at load: each 3D slot is marked in the server HTML
+// with data-scene="<id>", so the preloader knows from the first byte which
+// ones to wait for (only those visible in the first screen); each scene
+// calls sceneReady(id) once it has drawn its first frame (or can't run).
+const ready = new Set<string>();
+const sceneListeners = new Set<() => void>();
+
+export function sceneReady(id: string) {
+  if (ready.has(id)) return;
+  ready.add(id);
+  sceneListeners.forEach((f) => f());
+}
+
+export function isSceneReady(id: string): boolean {
+  return ready.has(id);
+}
+
+export function onSceneChange(f: () => void): () => void {
+  sceneListeners.add(f);
+  return () => { sceneListeners.delete(f); };
 }

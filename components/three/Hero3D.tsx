@@ -88,9 +88,9 @@ function Props() {
   );
 }
 
-export default function Hero3D() {
+export default function Hero3D({ onReady }: { onReady?: () => void }) {
   return (
-    <LazyCanvas className="pointer-events-none absolute inset-0" camera={{ position: [0, 0, 10], fov: 40 }}>
+    <LazyCanvas className="pointer-events-none absolute inset-0" camera={{ position: [0, 0, 10], fov: 40 }} onReady={onReady}>
       <StudioLights />
       <Props />
       <Sparkles count={28} scale={[16, 8, 4]} size={2} speed={0.3} color="#8dff4a" opacity={0.5} />

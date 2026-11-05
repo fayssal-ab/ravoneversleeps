@@ -1,7 +1,7 @@
 "use client";
 
 import { AdaptiveDpr, PerformanceMonitor } from "@react-three/drei";
-import { Canvas, type CanvasProps } from "@react-three/fiber";
+import { Canvas, useFrame, useThree, type CanvasProps } from "@react-three/fiber";
 import { useReducedMotion } from "motion/react";
 import { Component, useEffect, useRef, useState, type ReactNode } from "react";
 
@@ -23,13 +23,28 @@ function hasWebGL() {
   return webgl;
 }
 
-class Guard extends Component<{ children: ReactNode }, { failed: boolean }> {
+class Guard extends Component<{ children: ReactNode; onFail?: () => void }, { failed: boolean }> {
   state = { failed: false };
   static getDerivedStateFromError() { return { failed: true }; }
-  componentDidCatch(e: unknown) { console.warn("3D scene disabled:", e); }
+  componentDidCatch(e: unknown) { console.warn("3D scene disabled:", e); this.props.onFail?.(); }
   render() { return this.state.failed ? null : this.props.children; }
 }
-export function LazyCanvas({ className = "", children, frameloop, ...props }: CanvasProps & { className?: string }) {
+
+/** Reports once a couple of frames have been drawn (textures uploaded,
+ *  lighting baked), nudging on-demand scenes so they get those frames. */
+function FirstFrames({ onReady }: { onReady: () => void }) {
+  const n = useRef(0);
+  const invalidate = useThree((s) => s.invalidate);
+  useEffect(() => { invalidate(); }, [invalidate]);
+  useFrame(() => {
+    if (n.current > 2) return;
+    n.current += 1;
+    if (n.current === 3) onReady();
+    else invalidate();
+  });
+  return null;
+}
+export function LazyCanvas({ className = "", children, frameloop, onReady, ...props }: CanvasProps & { className?: string; onReady?: () => void }) {
   const box = useRef<HTMLDivElement>(null);
   const [mounted, setMounted] = useState(false);
   const [visible, setVisible] = useState(false);
@@ -42,16 +57,19 @@ export function LazyCanvas({ className = "", children, frameloop, ...props }: Ca
     if (!el) return;
     const io = new IntersectionObserver(([e]) => {
       setVisible(e.isIntersecting);
-      if (e.isIntersecting && hasWebGL()) setMounted(true);
+      if (!e.isIntersecting) return;
+      if (hasWebGL()) setMounted(true);
+      else onReady?.(); // nothing to wait for
+
     }, { rootMargin: "200px" });
     io.observe(el);
     return () => io.disconnect();
-  }, []);
+  }, [onReady]);
 
   return (
     <div ref={box} className={className} aria-hidden>
       {mounted && (
-        <Guard>
+        <Guard onFail={onReady}>
         <Canvas
           dpr={dpr}
           gl={{ antialias: true, alpha: true, powerPreference: "high-performance" }}
@@ -61,6 +79,7 @@ export function LazyCanvas({ className = "", children, frameloop, ...props }: Ca
           <PerformanceMonitor onIncline={() => setDpr(Math.min(1.5, window.devicePixelRatio))} onDecline={() => setDpr(1)} />
           <AdaptiveDpr pixelated={false} />
           {children}
+          {onReady && <FirstFrames onReady={onReady} />}
         </Canvas>
         </Guard>
       )}

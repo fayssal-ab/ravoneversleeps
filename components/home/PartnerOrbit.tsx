@@ -2,16 +2,14 @@
 
 import dynamic from "next/dynamic";
 import { motion, useReducedMotion } from "motion/react";
-import { useAfterIdle } from "@/components/three/useAfterIdle";
 
-// three.js only loads in the browser, after the page, so it never slows the
-// first paint.
+// three.js only loads in the browser; the chunk downloads behind the
+// loading screen, the canvas starts when it scrolls near.
 const PartnerCoin3D = dynamic(() => import("./PartnerCoin3D"), { ssr: false });
 
 // Centre of the partners row: the 3D Flush/Qzino coin inside a chrome ring.
 export function PartnerOrbit({ className = "" }: { className?: string }) {
   const reduce = useReducedMotion();
-  const idle = useAfterIdle();
   return (
     <motion.div
       className={`orbit ${className}`}
@@ -24,7 +22,7 @@ export function PartnerOrbit({ className = "" }: { className?: string }) {
       <div className="orbit-ring orbit-ring-outer" />
       <div className="orbit-ring orbit-ring-inner" />
       <div className="absolute inset-[-12%]">
-        {idle && <PartnerCoin3D />}
+        <PartnerCoin3D />
       </div>
     </motion.div>
   );

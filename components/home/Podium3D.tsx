@@ -1,7 +1,6 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { useAfterIdle } from "@/components/three/useAfterIdle";
 
 // Home top 3 as a real 3D podium (three.js, components/three/Podium3DScene).
 // The scene loads in the browser only; the list below is what search engines
@@ -15,10 +14,9 @@ const Scene = dynamic(() => import("@/components/three/Podium3DScene"), {
 });
 
 export function Podium3D({ entries }: { entries: PodiumEntry[] }) {
-  const idle = useAfterIdle();
   return (
     <div className="relative h-[21rem] sm:h-[26rem]">
-      {idle && <Scene entries={entries} />}
+      <Scene entries={entries} />
       <ol className="sr-only">
         {entries.slice(0, 3).map((e, i) => (
           <li key={i}>{i + 1}. {e.name ?? "Open spot"}{e.score ? `, ${e.score}` : ""}{e.prize ? `, prize ${e.prize}` : ""}</li>

@@ -2,7 +2,7 @@
 
 import { ContactShadows, RoundedBox } from "@react-three/drei";
 import { useFrame, useThree } from "@react-three/fiber";
-import { useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
 import { LazyCanvas } from "./LazyCanvas";
 import { StudioLights } from "./StudioLights";
@@ -13,16 +13,19 @@ import { DIE_PIPS } from "./shapes";
 // bounce. The scene only renders while a die is moving (frameloop
 // "demand"), so at rest it costs nothing.
 
-const SIZE = 0.78;
+const SIZE = 0.98;
 const HALF = SIZE / 2;
 const FLIGHT = 0.95; // seconds in the air
+
+// every pip except the single one on face 1 (+z), which shows Ravo instead
+const PIPS_NO_ONE = DIE_PIPS.filter(([x, y, z]) => !(z > 0.49 && Math.abs(x) < 0.01 && Math.abs(y) < 0.01));
 
 /** Rotation that leaves the die flat on the table, showing some face. */
 function restingRotation(seedY: number, faceX: number, faceZ: number) {
   return new THREE.Euler(faceX * (Math.PI / 2), seedY, faceZ * (Math.PI / 2));
 }
 
-function Die({ x, z, rest }: { x: number; z: number; rest: THREE.Euler }) {
+function Die({ x, z, rest, ravo }: { x: number; z: number; rest: THREE.Euler; ravo: THREE.Texture }) {
   const ref = useRef<THREE.Group>(null);
   const invalidate = useThree((s) => s.invalidate);
   const anim = useRef<{ t: number; from: THREE.Quaternion; to: THREE.Quaternion; h: number; axis: THREE.Vector3; turns: number } | null>(null);
@@ -75,10 +78,19 @@ function Die({ x, z, rest }: { x: number; z: number; rest: THREE.Euler }) {
       onPointerOver={(e) => { e.stopPropagation(); const h = document.getElementById("hero"); if (h) h.style.cursor = "pointer"; }}
       onPointerOut={() => { const h = document.getElementById("hero"); if (h) h.style.cursor = ""; }}
     >
-      <RoundedBox args={[SIZE, SIZE, SIZE]} radius={0.12} smoothness={4}>
+      <RoundedBox args={[SIZE, SIZE, SIZE]} radius={0.14} smoothness={4}>
         <meshStandardMaterial color="#111813" roughness={0.3} metalness={0.25} />
       </RoundedBox>
-      {DIE_PIPS.map((p, i) => (
+      {/* the "1" face is Ravo himself, in a neon ring */}
+      <mesh position={[0, 0, SIZE / 2 + 0.003]}>
+        <circleGeometry args={[SIZE * 0.36, 48]} />
+        <meshStandardMaterial map={ravo} roughness={0.5} emissiveMap={ravo} emissive="#ffffff" emissiveIntensity={0.35} />
+      </mesh>
+      <mesh position={[0, 0, SIZE / 2 + 0.004]}>
+        <ringGeometry args={[SIZE * 0.36, SIZE * 0.4, 48]} />
+        <meshStandardMaterial color="#8dff4a" emissive="#8dff4a" emissiveIntensity={1.2} toneMapped={false} />
+      </mesh>
+      {PIPS_NO_ONE.map((p, i) => (
         <mesh key={i} position={[p[0] * SIZE, p[1] * SIZE, p[2] * SIZE]}>
           <sphereGeometry args={[0.068, 12, 12]} />
           <meshStandardMaterial color="#8dff4a" emissive="#8dff4a" emissiveIntensity={1.2} toneMapped={false} />
@@ -88,15 +100,34 @@ function Die({ x, z, rest }: { x: number; z: number; rest: THREE.Euler }) {
   );
 }
 
-export default function TableDice3D() {
+function Dice({ rests }: { rests: THREE.Euler[] }) {
+  const invalidate = useThree((s) => s.invalidate);
+  // Ravo's face for the "1" side (redraw once the image arrives: on-demand scene)
+  const ravo = useMemo(() => {
+    const t = new THREE.TextureLoader().load("/media/ravo-avatar.webp", () => invalidate());
+    t.colorSpace = THREE.SRGBColorSpace;
+    t.anisotropy = 8;
+    return t;
+  }, [invalidate]);
+  useEffect(() => () => ravo.dispose(), [ravo]);
+  return (
+    <>
+      <Die x={-1.0} z={0.2} rest={rests[0]} ravo={ravo} />
+      <Die x={0.9} z={-0.25} rest={rests[1]} ravo={ravo} />
+    </>
+  );
+}
+
+export default function TableDice3D({ onReady }: { onReady?: () => void }) {
   // the hero copy sits above the art, so taps are read on the hero section
   const source = useMemo(() => ({ current: document.getElementById("hero") }), []);
-  const rests = useMemo(() => [restingRotation(0.5, 0, 0), restingRotation(-0.35, 1, 0)], []);
+  const rests = useMemo(() => [restingRotation(0.35, 0, 0), restingRotation(-0.45, 1, 0)], []);
   return (
     <LazyCanvas
       className="absolute inset-0"
       camera={{ position: [0, 2.2, 6], fov: 44 }}
       frameloop="demand"
+      onReady={onReady}
       eventSource={source}
       eventPrefix="client"
       onCreated={(st) => {
@@ -114,8 +145,7 @@ export default function TableDice3D() {
       }}
     >
       <StudioLights green={0.7} />
-      <Die x={-0.85} z={0.2} rest={rests[0]} />
-      <Die x={0.75} z={-0.25} rest={rests[1]} />
+      <Dice rests={rests} />
       <ContactShadows position={[0, 0.001, 0]} scale={6} blur={2.2} opacity={0.85} far={2.5} resolution={256} frames={Infinity} />
     </LazyCanvas>
   );

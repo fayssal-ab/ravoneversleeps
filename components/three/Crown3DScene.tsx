@@ -63,9 +63,9 @@ function Crown() {
   );
 }
 
-export default function Crown3DScene() {
+export default function Crown3DScene({ onReady }: { onReady?: () => void }) {
   return (
-    <LazyCanvas className="absolute inset-0" camera={{ position: [0, 0.8, 5], fov: 38 }} onCreated={({ camera }) => camera.lookAt(0, 0.35, 0)}>
+    <LazyCanvas onReady={onReady} className="absolute inset-0" camera={{ position: [0, 0.8, 5], fov: 38 }} onCreated={({ camera }) => camera.lookAt(0, 0.35, 0)}>
       <StudioLights green={0.6} />
       <pointLight position={[0, 3, 2]} intensity={6} color="#ffd76a" />
       <Crown />
