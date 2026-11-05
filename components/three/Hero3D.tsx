@@ -1,33 +1,17 @@
 "use client";
 
-import { Float, RoundedBox, Sparkles } from "@react-three/drei";
+import { Float, Sparkles } from "@react-three/drei";
 import { useFrame, useThree } from "@react-three/fiber";
 import { useEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
 import { LazyCanvas } from "./LazyCanvas";
 import { StudioLights } from "./StudioLights";
-import { chipFace, chipSide, DIE_PIPS, suitGeometry } from "./shapes";
+import { chipFace, chipSide, suitGeometry } from "./shapes";
 
-// Hero props in real 3D: dice with glowing pips, poker chips and chrome card
-// suits floating around the RAVO reels. They stay in place (the mouse does
-// not move them), tumble slowly and bob; tap one and it jumps and spins.
-// Kept to the sides so the mascot and reels stay clear.
-
-function Die({ size = 1 }: { size?: number }) {
-  return (
-    <group scale={size}>
-      <RoundedBox args={[1, 1, 1]} radius={0.16} smoothness={5}>
-        <meshPhysicalMaterial color="#121a14" roughness={0.25} metalness={0.2} clearcoat={1} clearcoatRoughness={0.15} />
-      </RoundedBox>
-      {DIE_PIPS.map((p, i) => (
-        <mesh key={i} position={p}>
-          <sphereGeometry args={[0.085, 16, 16]} />
-          <meshStandardMaterial color="#8dff4a" emissive="#8dff4a" emissiveIntensity={1.4} toneMapped={false} />
-        </mesh>
-      ))}
-    </group>
-  );
-}
+// Hero ambience in real 3D: poker chips and chrome card suits floating
+// around the RAVO reels. They stay in place (the mouse does not move them),
+// tumble slowly and bob; they are decoration only, not clickable. The two
+// clickable dice sit on the table in the art (TableDice3D).
 
 function Chip({ tone, size = 1 }: { tone: "green" | "black"; size?: number }) {
   const mats = useMemo(() => {
@@ -55,62 +39,22 @@ function Suit({ kind, size = 1 }: { kind: "spade" | "heart" | "club" | "diamond"
   useEffect(() => () => geo.dispose(), [geo]);
   return (
     <mesh geometry={geo} scale={size}>
-      <meshPhysicalMaterial color="#d4f5d8" metalness={1} roughness={0.12} clearcoat={1} emissive="#1d4f12" emissiveIntensity={0.25} />
+      <meshStandardMaterial color="#d4f5d8" metalness={1} roughness={0.14} emissive="#1d4f12" emissiveIntensity={0.25} />
     </mesh>
   );
 }
 
-/** Slow tumble on its own axis; tap it and it jumps, spins fast, bounces
- *  back down and settles into its slow tumble again. */
+/** Slow tumble on its own axis (each prop has its own speed). */
 function Tumble({ speed, children }: { speed: [number, number, number]; children: React.ReactNode }) {
   const ref = useRef<THREE.Group>(null);
-  const kick = useRef({ y: 0, vy: 0, spin: 0, pop: 0, dir: 1 });
-
   useFrame((_, dt) => {
     const g = ref.current;
     if (!g) return;
-    const k = kick.current;
-    const step = Math.min(dt, 1 / 30);
-    // jump: gravity + bouncy landing
-    if (k.y > 0 || k.vy !== 0) {
-      k.vy -= 30 * step;
-      k.y += k.vy * step;
-      if (k.y <= 0) { k.y = 0; k.vy = Math.abs(k.vy) > 2 ? -k.vy * 0.42 : 0; }
-    }
-    k.spin = THREE.MathUtils.damp(k.spin, 0, 1.6, step);
-    k.pop = THREE.MathUtils.damp(k.pop, 0, 5, step);
-    g.position.y = k.y;
-    g.scale.setScalar(1 + k.pop * 0.25);
-    g.rotation.x += step * (speed[0] + k.spin * 0.8 * k.dir);
-    g.rotation.y += step * (speed[1] + k.spin * k.dir);
-    g.rotation.z += step * (speed[2] + k.spin * 0.4);
+    g.rotation.x += dt * speed[0];
+    g.rotation.y += dt * speed[1];
+    g.rotation.z += dt * speed[2];
   });
-
-  const setCursor = (on: boolean) => {
-    const hero = document.getElementById("hero");
-    if (hero) hero.style.cursor = on ? "pointer" : "";
-  };
-
-  return (
-    <group
-      ref={ref}
-      onClick={(e) => {
-        // the lever, links and buttons over the scene keep their own click
-        if ((e.nativeEvent.target as HTMLElement | null)?.closest("a,button")) return;
-        e.stopPropagation();
-        const k = kick.current;
-        k.vy = 6.5 + Math.random() * 1.5;
-        if (k.y === 0) k.y = 0.001;
-        k.spin = 14 + Math.random() * 8;
-        k.dir = Math.random() < 0.5 ? -1 : 1;
-        k.pop = 1;
-      }}
-      onPointerOver={(e) => { e.stopPropagation(); setCursor(true); }}
-      onPointerOut={() => setCursor(false)}
-    >
-      {children}
-    </group>
-  );
+  return <group ref={ref}>{children}</group>;
 }
 
 type Prop = { el: React.ReactNode; at: [number, number, number]; speed: [number, number, number]; mobile?: boolean };
@@ -122,14 +66,13 @@ function Props() {
 
   // positions as fractions of the visible area (x: -1 left … 1 right)
   const props: Prop[] = [
-    { el: <Die size={0.9} />, at: [-0.82, 0.55, 0], speed: [0.35, 0.5, 0.1], mobile: true },
+    { el: <Suit kind="diamond" size={0.75} />, at: [-0.82, 0.55, 0], speed: [0, 0.8, 0], mobile: true },
     { el: <Chip tone="green" size={1.1} />, at: [-0.66, -0.45, 0.5], speed: [0.6, 0.15, 0.35] },
     { el: <Suit kind="spade" size={0.95} />, at: [-0.93, -0.05, -0.6], speed: [0, 0.7, 0] },
-    { el: <Die size={0.6} />, at: [-0.48, 0.78, -1], speed: [0.5, 0.3, 0.25] },
     { el: <Chip tone="black" size={0.8} />, at: [0.62, 0.72, -0.4], speed: [0.45, 0.2, 0.5], mobile: true },
     { el: <Suit kind="heart" size={0.7} />, at: [0.9, -0.1, 0.2], speed: [0, 0.8, 0] },
-    { el: <Suit kind="club" size={0.55} />, at: [0.42, -0.72, -0.8], speed: [0, -0.6, 0] },
-    { el: <Suit kind="diamond" size={0.6} />, at: [-0.35, -0.82, -0.5], speed: [0, 0.9, 0], mobile: true },
+    { el: <Suit kind="club" size={0.55} />, at: [0.3, 0.82, -0.8], speed: [0, -0.6, 0] },
+    { el: <Suit kind="heart" size={0.5} />, at: [-0.35, -0.82, -0.5], speed: [0, 0.9, 0], mobile: true },
   ];
 
   return (
@@ -146,15 +89,11 @@ function Props() {
 }
 
 export default function Hero3D() {
-  // the hero's content sits on top of the canvas, so the scene listens on
-  // the whole hero section instead (taps on dice behind the copy still land)
-  // (this component only ever renders in the browser: ssr is off)
-  const source = useMemo(() => ({ current: document.getElementById("hero") }), []);
   return (
-    <LazyCanvas className="pointer-events-none absolute inset-0" camera={{ position: [0, 0, 10], fov: 40 }} eventSource={source} eventPrefix="client">
+    <LazyCanvas className="pointer-events-none absolute inset-0" camera={{ position: [0, 0, 10], fov: 40 }}>
       <StudioLights />
       <Props />
-      <Sparkles count={50} scale={[16, 8, 4]} size={2} speed={0.3} color="#8dff4a" opacity={0.55} />
+      <Sparkles count={28} scale={[16, 8, 4]} size={2} speed={0.3} color="#8dff4a" opacity={0.5} />
     </LazyCanvas>
   );
 }

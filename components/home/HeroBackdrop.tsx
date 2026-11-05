@@ -3,15 +3,18 @@
 import Image from "next/image";
 import { motion, useReducedMotion, type MotionValue } from "motion/react";
 import dynamic from "next/dynamic";
+import { useAfterIdle } from "@/components/three/useAfterIdle";
 
 // three.js props load after the page, in the browser only
 const Hero3D = dynamic(() => import("@/components/three/Hero3D"), { ssr: false });
+const TableDice3D = dynamic(() => import("@/components/three/TableDice3D"), { ssr: false });
 
 // Hero background: one sharp still (public/media/hero/bg-3d.webp, 3D dice,
 // cards and green chips under a soft light beam) with a very slow zoom so it
 // never feels frozen. Dark centre keeps the reels and copy readable.
 export function HeroBackdrop({ y }: { y: MotionValue<string> }) {
   const reduce = useReducedMotion();
+  const idle = useAfterIdle();
   return (
     <div className="absolute inset-0 overflow-hidden bg-[#050806]">
       <motion.div className="absolute inset-0" style={{ y }}>
@@ -22,13 +25,18 @@ export function HeroBackdrop({ y }: { y: MotionValue<string> }) {
           animate={reduce ? undefined : { scale: [1, 1.04, 1] }}
           transition={{ duration: 24, repeat: Infinity, ease: "easeInOut" }}
         >
-          <Image src="/media/hero/bg-3d.webp" alt="" fill priority quality={90} sizes="(min-width: 640px) 80vw, 150vw" className="object-cover object-right sm:object-contain" />
+          <Image src="/media/hero/bg-3d.webp" alt="" fill priority quality={80} sizes="(min-width: 640px) 80vw, 150vw" className="object-cover object-right sm:object-contain" />
+          {/* two clickable dice resting on the felt, left of the chip stack
+              (placed in the art's own box, so they stay on the table) */}
+          <div className="absolute left-[47%] top-[35%] hidden h-[64%] w-[31%] sm:block">
+            {idle && <TableDice3D />}
+          </div>
         </motion.div>
         {/* the light beam continues across the left */}
         <div className="absolute inset-0 bg-[linear-gradient(160deg,rgb(141_255_74/0.06)_0%,transparent_35%)]" />
       </motion.div>
       {/* real 3D dice, chips and chrome suits floating over the art */}
-      <Hero3D />
+      {idle && <Hero3D />}
       {/* calm the centre for the reels + copy, fade into the page */}
       <div className="absolute inset-0 bg-[radial-gradient(ellipse_40%_55%_at_50%_50%,rgb(5_8_6/0.55),transparent_75%)]" />
       <div className="absolute inset-x-0 bottom-0 h-40 bg-gradient-to-b from-transparent to-[var(--color-bg)]" />

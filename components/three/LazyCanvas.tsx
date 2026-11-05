@@ -29,11 +29,12 @@ class Guard extends Component<{ children: ReactNode }, { failed: boolean }> {
   componentDidCatch(e: unknown) { console.warn("3D scene disabled:", e); }
   render() { return this.state.failed ? null : this.props.children; }
 }
-export function LazyCanvas({ className = "", children, ...props }: CanvasProps & { className?: string }) {
+export function LazyCanvas({ className = "", children, frameloop, ...props }: CanvasProps & { className?: string }) {
   const box = useRef<HTMLDivElement>(null);
   const [mounted, setMounted] = useState(false);
   const [visible, setVisible] = useState(false);
-  const [dpr, setDpr] = useState(1.5);
+  // capped at 1.5×: sharper adds little on these small props, costs a lot
+  const [dpr, setDpr] = useState(1.25);
   const reduce = useReducedMotion();
 
   useEffect(() => {
@@ -54,10 +55,10 @@ export function LazyCanvas({ className = "", children, ...props }: CanvasProps &
         <Canvas
           dpr={dpr}
           gl={{ antialias: true, alpha: true, powerPreference: "high-performance" }}
-          frameloop={!visible ? "never" : reduce ? "demand" : "always"}
           {...props}
+          frameloop={!visible ? "never" : reduce ? "demand" : (frameloop ?? "always")}
         >
-          <PerformanceMonitor onIncline={() => setDpr(Math.min(2, window.devicePixelRatio))} onDecline={() => setDpr(1)} />
+          <PerformanceMonitor onIncline={() => setDpr(Math.min(1.5, window.devicePixelRatio))} onDecline={() => setDpr(1)} />
           <AdaptiveDpr pixelated={false} />
           {children}
         </Canvas>

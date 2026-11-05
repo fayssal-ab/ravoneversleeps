@@ -2,6 +2,7 @@
 
 import { Crown, Skull, Swords, Users } from "lucide-react";
 import dynamic from "next/dynamic";
+import { useAfterIdle } from "@/components/three/useAfterIdle";
 import { SocialIcon } from "@/components/ui/SocialIcon";
 import { KICK_URL } from "@/lib/constants";
 import type { KoParticipant, KoState } from "@/lib/knockout";
@@ -40,6 +41,7 @@ export function KoPublic({ initial, id }: { initial: KoState; id?: number }) {
   const boss = useBossReveal(state);
   const huntReveal = useHuntReveal(state?.hunt ?? initial.hunt, 9000);
   const s = state ?? initial;
+  const idle = useAfterIdle();
   const t = s.tournament;
   const current = s.live ?? s.focus;
   const st = STATUS[t.status];
@@ -55,7 +57,7 @@ export function KoPublic({ initial, id }: { initial: KoState; id?: number }) {
           <>
             <div aria-hidden className="pointer-events-none absolute -right-16 -top-20 size-80 rounded-full bg-[radial-gradient(circle,rgb(245_201_90/0.16),transparent_65%)]" />
             <div aria-hidden className="pointer-events-none absolute right-0 top-1/2 hidden h-52 w-52 -translate-y-1/2 md:block lg:right-6">
-              <Crown3DScene />
+              {idle && <Crown3DScene />}
             </div>
           </>
         )}
