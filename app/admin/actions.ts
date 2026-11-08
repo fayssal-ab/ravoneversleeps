@@ -9,7 +9,6 @@ import { createChallenge, deleteChallenge, markChallengeWon, setChallengeStatus 
 import { decideVerification, REJECT_REASONS, retryQzinoTicket, type RejectReason } from "@/lib/verification";
 import { discordErrorText, discordSetup, setInteractionsEndpoint } from "@/lib/discordBot";
 import { SITE_URL } from "@/lib/constants";
-import { saveTopPrizes } from "@/lib/leaderboardPrizes";
 import { decideVipApplication } from "@/lib/vip";
 import { AppError, DECIMAL_20_8, parseForm, zId, zRequiredText, zText } from "@/lib/tx";
 import { adminSetUsernames, setBanned } from "@/lib/userAdmin";
@@ -30,6 +29,7 @@ export async function saveItemAction(form: FormData) {
       price: z.coerce.number().int().min(1).max(100_000_000),
       stock: z.union([z.literal(""), z.coerce.number().int().min(0).max(1_000_000)]).transform((x) => (x === "" ? null : x)),
       sort: z.coerce.number().int().min(-1000).max(1000), active: checkbox,
+      label: zText(24),
     }), form);
     return { id: await saveStoreItem(v.id, v), name: v.name };
   });
@@ -226,10 +226,3 @@ export async function discordSetupAction() {
 }
 
 // ── leaderboard prizes ─────────────────────────────────────────────────
-export async function saveTopPrizesAction(form: FormData) {
-  await adminAction({ path: "/admin/leaderboard", audit: "leaderboard.prizes", revalidate: ["/leaderboard", "/"] }, async () => {
-    const v = parseForm(z.object({ p1: zText(60), p2: zText(60), p3: zText(60) }), form);
-    await saveTopPrizes([v.p1, v.p2, v.p3]);
-    return v;
-  });
-}

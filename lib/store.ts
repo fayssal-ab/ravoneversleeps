@@ -20,10 +20,12 @@ export const ITEM_KINDS: ItemKind[] = ["cash", "bonus", "game", "merch", "other"
 export interface StoreItem {
   id: number; name: string; description: string; kind: ItemKind; price: number;
   stock: number | null; active: boolean; sort: number;
+  /** big text on the card art; empty = taken from the name ("$100 bonus buy" → "$100") */
+  label: string;
 }
 
 /** Starting items (editable in Admin → Store). Prices in QHub Points. */
-const STARTER: Omit<StoreItem, "id" | "active">[] = [
+const STARTER: Omit<StoreItem, "id" | "active" | "label">[] = [
   { name: "$5 Qzino tip", description: "$5 sent to your Qzino account.", kind: "cash", price: 3000, stock: null, sort: 1 },
   { name: "$10 Qzino tip", description: "$10 sent to your Qzino account.", kind: "cash", price: 6000, stock: null, sort: 2 },
   { name: "Keno: $1 x15", description: "Ravo plays 15 keno rounds at $1 for you live on stream.", kind: "game", price: 8000, stock: null, sort: 3 },
@@ -45,6 +47,7 @@ export function ensureStoreSchema(): Promise<void> {
     };
     if (!(await has("store_redemptions", "qhub_username"))) await pool.query("ALTER TABLE store_redemptions ADD COLUMN qhub_username VARCHAR(64) NOT NULL DEFAULT ''");
     if (!(await has("store_redemptions", "ticket"))) await pool.query("ALTER TABLE store_redemptions ADD COLUMN ticket VARCHAR(32) NULL");
+    if (!(await has("store_items", "card_label"))) await pool.query("ALTER TABLE store_items ADD COLUMN card_label VARCHAR(24) NOT NULL DEFAULT ''");
     if (!(await has("store_items", "kind"))?.includes("'game'")) {
       await pool.query("ALTER TABLE store_items MODIFY COLUMN kind ENUM('cash','bonus','game','merch','other') NOT NULL DEFAULT 'cash'");
     }
@@ -68,12 +71,13 @@ export function ensureStoreSchema(): Promise<void> {
 const toItem = (r: RowDataPacket): StoreItem => ({
   id: Number(r.id), name: String(r.name), description: String(r.description), kind: r.kind as ItemKind,
   price: Number(r.price), stock: r.stock == null ? null : Number(r.stock), active: Boolean(Number(r.active)), sort: Number(r.sort),
+  label: String(r.card_label ?? ""),
 });
 
 export async function listStoreItems(opts: { includeInactive?: boolean } = {}): Promise<StoreItem[]> {
   await ensureStoreSchema();
   const [rows] = await getPool().query<RowDataPacket[]>(
-    `SELECT id, name, description, kind, price, stock, active, sort FROM store_items
+    `SELECT id, name, description, kind, price, stock, active, sort, card_label FROM store_items
       ${opts.includeInactive ? "" : "WHERE active = 1"} ORDER BY active DESC, sort, price, id`);
   return rows.map(toItem);
 }
@@ -100,7 +104,7 @@ export async function redeemItem(accountId: number, itemId: number, qhubUsername
     if (Number(acc[0].banned)) throw new AppError("banned");
     const [open] = await conn.query<RowDataPacket[]>("SELECT COUNT(*) AS n FROM store_redemptions WHERE account_id = ? AND status = 'pending'", [accountId]);
     if (Number(open[0].n) >= MAX_PENDING) throw new AppError("too_many_pending");
-    const [items] = await conn.query<RowDataPacket[]>("SELECT id, name, description, kind, price, stock, active, sort FROM store_items WHERE id = ? FOR UPDATE", [itemId]);
+    const [items] = await conn.query<RowDataPacket[]>("SELECT id, name, description, kind, price, stock, active, sort, card_label FROM store_items WHERE id = ? FOR UPDATE", [itemId]);
     if (!items[0]) throw new AppError("not_found");
     const item = toItem(items[0]);
     if (!item.active) throw new AppError("inactive");
@@ -212,18 +216,18 @@ export async function resolveRedemption(id: number, status: "fulfilled" | "rejec
     : `❌ This redemption was not accepted${note ? `: ${note}` : "."} Ask here if something is unclear.`, status === "fulfilled" ? "approved" : "rejected").catch(() => {});
 }
 
-export interface ItemInput { name: string; description: string; kind: ItemKind; price: number; stock: number | null; active: boolean; sort: number }
+export interface ItemInput { name: string; description: string; kind: ItemKind; price: number; stock: number | null; active: boolean; sort: number; label: string }
 
 export async function saveStoreItem(id: number | null, v: ItemInput): Promise<number> {
   await ensureStoreSchema();
-  const cols = [v.name, v.description, v.kind, v.price, v.stock, v.active ? 1 : 0, v.sort];
+  const cols = [v.name, v.description, v.kind, v.price, v.stock, v.active ? 1 : 0, v.sort, v.label];
   if (id == null) {
     const [res] = await getPool().query<ResultSetHeader>(
-      "INSERT INTO store_items (name, description, kind, price, min_rank, stock, active, sort) VALUES (?, ?, ?, ?, 1, ?, ?, ?)", cols);
+      "INSERT INTO store_items (name, description, kind, price, min_rank, stock, active, sort, card_label) VALUES (?, ?, ?, ?, 1, ?, ?, ?, ?)", cols);
     return res.insertId;
   }
   const [res] = await getPool().query<ResultSetHeader>(
-    "UPDATE store_items SET name = ?, description = ?, kind = ?, price = ?, stock = ?, active = ?, sort = ? WHERE id = ?", [...cols, id]);
+    "UPDATE store_items SET name = ?, description = ?, kind = ?, price = ?, stock = ?, active = ?, sort = ?, card_label = ? WHERE id = ?", [...cols, id]);
   if (!res.affectedRows) throw new AppError("not_found");
   return id;
 }

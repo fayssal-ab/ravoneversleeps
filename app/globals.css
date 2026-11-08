@@ -1049,3 +1049,25 @@ iframe[src*=".netlify/scripts/hud"],
 @media (prefers-reduced-motion: reduce) {
   .store-halo, .store-chip { animation: none; }
 }
+
+/* ── home: partner showcase (Qzino) ──────────────────────────────────── */
+.partner-showcase { isolation: isolate; }
+.partner-showcase-bg {
+  position: absolute; inset: 0; z-index: 0; pointer-events: none;
+  background:
+    radial-gradient(ellipse 45% 70% at 78% 50%, rgb(141 255 74 / 0.16), transparent 70%),
+    radial-gradient(ellipse 40% 60% at 0% 0%, rgb(141 255 74 / 0.07), transparent 70%),
+    linear-gradient(160deg, rgb(10 18 11 / 0.92), rgb(4 6 5 / 0.92));
+}
+.partner-showcase-bg::after {
+  content: ""; position: absolute; inset: 0;
+  background-image: radial-gradient(rgb(255 255 255 / 0.05) 1px, transparent 1px);
+  background-size: 22px 22px;
+  -webkit-mask: radial-gradient(ellipse 50% 80% at 78% 50%, #000, transparent 75%);
+  mask: radial-gradient(ellipse 50% 80% at 78% 50%, #000, transparent 75%);
+}
+.partner-showcase-orbit.orbit { width: 15rem; height: 15rem; }
+@media (min-width: 640px) { .partner-showcase-orbit.orbit { width: 19rem; height: 19rem; } }
+@media (min-width: 1024px) { .partner-showcase-orbit.orbit { width: 23rem; height: 23rem; } }
+.partner-perk { transition: transform 0.35s cubic-bezier(0.2, 0.8, 0.2, 1), border-color 0.35s; }
+.partner-perk:hover { transform: translateY(-4px); border-color: rgb(141 255 74 / 0.55); }

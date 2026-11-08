@@ -58,20 +58,14 @@ app itself on first use (new columns/tables), so a deploy works before
 On Aiven (free tier, low connection cap) every DB session sets a 90 s
 `wait_timeout` so frozen serverless instances can't hold connections.
 
-## Leaderboard (Q-boards)
+## Leaderboard (QHub)
 
-The public leaderboard syncs from Q-boards for **ravoneversleeps** (public read
-endpoints, no casino key; Q-boards **points**, never dollar wagers). Each
-event (month) is stored separately: the running one refreshes on every sync,
-a finished one gets a final sync after its end, and finished months stay
-browsable at `/leaderboard?e=<event>`. The next month shows up automatically
-as soon as Ravo's next event starts on Q-boards (the site can't create it).
-
-On Netlify, `netlify/functions/sync-leaderboard.mjs` calls the protected sync
-route every 8 hours (00:00, 08:00, 16:00 UTC). Set a strong `CRON_SECRET`
-(Functions scope too). Other hosts can call `/api/cron/leaderboard` with
-`Authorization: Bearer <CRON_SECRET>`. Failed syncs keep the last snapshot; the
-page flags a delay after 9 hours.
+`/leaderboard` mirrors the QHub Open Leaderboard (q-hub.tv/leaderboard). QHub
+has no public API: `lib/qhub.ts` reads the board from the page's server
+payload, validates it and caches it 5 minutes (last good board kept if QHub
+is down). Seat prizes are in `QHUB_SEAT_PRIZES`. Nothing is stored in the DB.
+The old Q-boards sync (tables, cron route, Netlify function) is gone;
+migration 0023 drops its tables.
 
 ## Kick (tournament `!join`)
 

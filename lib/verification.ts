@@ -3,7 +3,6 @@ import type { ResultSetHeader, RowDataPacket } from "mysql2/promise";
 import { randomInt } from "node:crypto";
 import { getPool } from "./db";
 import { discordErrorText, openTicket, ticketUrl, type TicketFile } from "./discordBot";
-import { liveStanding } from "./qboards";
 import { registerTicket, scheduleClose } from "./tickets";
 import { AppError } from "./tx";
 
@@ -11,8 +10,8 @@ import { AppError } from "./tx";
 // in private Discord tickets (lib/discordBot.ts). A viewer opens "Verify my
 // Qzino account" on /account, enters the username and uploads a screenshot
 // or short recording of their Qzino account (logged in, under code RAVO50).
-// That opens a ticket carrying a data card (Discord, Kick, account age,
-// leaderboard standing) with the proof attached. An admin verifies or
+// That opens a ticket carrying a data card (Discord, Kick, account age)
+// with the proof attached. An admin verifies or
 // rejects it in Admin → Users, seeing any other account claiming the same
 // username. A username is only ever verified on one account. Challenge
 // claims need a verified username.
@@ -116,7 +115,6 @@ async function openQzinoTicket(accountId: number, proof: TicketFile[]): Promise<
        FROM user_accounts a WHERE a.id = ?`, [accountId]);
   const r = acc[0] ?? {};
   const username = String(r.qzino_username ?? ""), code = String(r.qzino_code ?? "");
-  const standing = await liveStanding(username).catch(() => null);
   const ageDays = Number(r.age_days ?? 0);
   let ticket;
   try {
@@ -128,7 +126,7 @@ async function openQzinoTicket(accountId: number, proof: TicketFile[]): Promise<
         : `**Qzino username verification**: please post here a screenshot or a short screen recording of your Qzino account, logged in, showing the username **${username}** under code **RAVO50**.`,
       embed: {
         title: `Verify ${username}`,
-        color: standing && standing.rank <= 10 ? 0xffd76a : 0x8dff4a,
+        color: 0x8dff4a,
         fields: [
           { name: "Player", value: String(r.display_name ?? "—"), inline: true },
           { name: "Discord", value: `<@${discordId}>`, inline: true },
@@ -136,7 +134,6 @@ async function openQzinoTicket(accountId: number, proof: TicketFile[]): Promise<
           { name: "Qzino username", value: `\`${username}\``, inline: true },
           { name: "Code", value: `\`${code}\``, inline: true },
           { name: "Account age", value: ageDays === 0 ? "created today" : `${ageDays} days`, inline: true },
-          { name: "Live leaderboard", value: standing ? `#${standing.rank} · ${Number(standing.score).toLocaleString("en-US")} pts${standing.rank <= 10 ? " · prize money at stake" : ""}` : "not on the board", inline: false },
           { name: "Proof", value: proof.length ? proof.map((f) => f.name).join(", ") : "not sent yet", inline: false },
         ],
         footer: "Staff: check the proof, then Verify or Reject in Admin → Users → Verification",
@@ -157,8 +154,6 @@ export interface PendingVerification {
   discord: string | null; kick: string | null; joined: string; age_days: number;
   /** other accounts claiming the same username right now */
   rivals: { account_id: number; display_name: string; status: QzinoStatus }[];
-  /** where the username sits on the running leaderboard */
-  standing: { rank: number; score: string; title: string } | null;
 }
 
 export async function pendingVerifications(): Promise<PendingVerification[]> {
@@ -174,7 +169,6 @@ export async function pendingVerifications(): Promise<PendingVerification[]> {
     ? await getPool().query<RowDataPacket[]>(
       "SELECT id, display_name, qzino_username, qzino_status FROM user_accounts WHERE LOWER(qzino_username) IN (?) AND qzino_status IN ('pending', 'verified')", [names])
     : [[] as RowDataPacket[]];
-  const standings = new Map(await Promise.all(names.map(async (n) => [n, await liveStanding(n).catch(() => null)] as const)));
   return rows.map((r) => {
     const name = String(r.qzino_username).toLowerCase();
     return {
@@ -183,7 +177,6 @@ export async function pendingVerifications(): Promise<PendingVerification[]> {
       discord: r.discord ? String(r.discord) : null, kick: r.kick ? String(r.kick) : null, joined: String(r.created_at), age_days: Number(r.age_days ?? 0),
       rivals: others.filter((o) => String(o.qzino_username).toLowerCase() === name && Number(o.id) !== Number(r.id))
         .map((o) => ({ account_id: Number(o.id), display_name: String(o.display_name), status: o.qzino_status as QzinoStatus })),
-      standing: standings.get(name) ?? null,
     };
   });
 }

@@ -20,7 +20,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     listVipApplications("pending").then((r) => r.length).catch(() => 0),
     openChallengeClaimCount().catch(() => 0),
     pendingRedemptionCount().catch(() => 0),
-    isOwner(),
+    isOwner().catch(() => false),
   ]);
   // the owner is in through their site sign-in: signing out ends that
   const logout = owner ? { endpoint: "/api/auth/user/logout", to: "/" } : { endpoint: "/api/auth/logout", to: "/login" };

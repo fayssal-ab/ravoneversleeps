@@ -5,8 +5,9 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
-import { ChevronDown, Menu, X } from "lucide-react";
-import { NAV } from "@/lib/constants";
+import { ArrowUpRight, ChevronDown } from "lucide-react";
+import { DISCORD_URL, KICK_URL, NAV, QZINO_CODE, X_URL } from "@/lib/constants";
+import { SocialIcon } from "@/components/ui/SocialIcon";
 import { NavActions } from "./NavActions";
 
 export interface TopBarViewer { name: string; avatar: string; points: number; level: number }
@@ -23,6 +24,13 @@ function LiveBadge({ live }: { live: boolean }) {
       {live ? "Live" : "Offline"}
     </span>
   );
+}
+
+const EASE = [0.76, 0, 0.24, 1] as const;
+
+/** The green pill that glides to the active desktop link. */
+function Pill() {
+  return <motion.span layoutId="nav-pill" aria-hidden className="absolute inset-0 rounded-full bg-neon shadow-[0_3px_0_var(--color-neon-deep)]" transition={{ type: "spring", stiffness: 380, damping: 32 }} />;
 }
 
 function StreamMenu({ item, active }: { item: (typeof NAV)[number]; active: boolean }) {
@@ -42,11 +50,12 @@ function StreamMenu({ item, active }: { item: (typeof NAV)[number]; active: bool
         type="button"
         aria-expanded={open}
         onClick={() => setOpen((v) => !v)}
-        className={`flex items-center gap-1 whitespace-nowrap rounded-full px-4 py-2 font-head text-[0.82rem] font-bold uppercase tracking-[0.12em] transition ${
-          active || open ? "bg-neon text-neon-ink shadow-[0_3px_0_var(--color-neon-deep)]" : "text-muted hover:text-text"
+        className={`relative flex items-center gap-1 whitespace-nowrap rounded-full px-4 py-2 font-head text-[0.82rem] font-bold uppercase tracking-[0.12em] transition-colors ${
+          active ? "text-neon-ink" : open ? "text-text" : "text-muted hover:text-text"
         }`}
       >
-        {item.label} <ChevronDown className={`size-4 transition ${open ? "rotate-180" : ""}`} />
+        {active && <Pill />}
+        <span className="relative flex items-center gap-1">{item.label} <ChevronDown className={`size-4 transition ${open ? "rotate-180" : ""}`} /></span>
       </button>
       <AnimatePresence>
         {open && (
@@ -84,9 +93,24 @@ export function TopBar({ viewer, live }: { viewer: TopBarViewer | null; live: bo
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
 
+  // a new page closes the menu
+  const [seen, setSeen] = useState(pathname);
+  if (seen !== pathname) { setSeen(pathname); setOpen(false); }
+
+  // menu open: the page behind stops scrolling, Escape closes
+  useEffect(() => {
+    if (!open) return;
+    const root = document.documentElement;
+    root.style.overflow = "hidden";
+    const esc = (e: KeyboardEvent) => { if (e.key === "Escape") setOpen(false); };
+    window.addEventListener("keydown", esc);
+    return () => { root.style.overflow = ""; window.removeEventListener("keydown", esc); };
+  }, [open]);
+
   const isActive = (href: string) => (href === "/" ? pathname === "/" : pathname.startsWith(href));
 
   return (
+    <>
     <header className="fixed inset-x-0 top-0 z-50 px-3 pt-3 sm:px-5">
       <div
         className={`mx-auto flex h-[calc(var(--nav-h)-0.75rem)] max-w-6xl items-center gap-3 rounded-[1.4rem] border px-3 transition-all duration-300 sm:px-4 ${
@@ -111,11 +135,13 @@ export function TopBar({ viewer, live }: { viewer: TopBarViewer | null; live: bo
               <Link
                 key={n.href}
                 href={n.href}
-                className={`whitespace-nowrap rounded-full px-4 py-2 font-head text-[0.82rem] font-bold uppercase tracking-[0.12em] transition ${
-                  isActive(n.href) ? "bg-neon text-neon-ink shadow-[0_3px_0_var(--color-neon-deep)]" : "text-muted hover:text-text"
+                aria-current={isActive(n.href) ? "page" : undefined}
+                className={`relative whitespace-nowrap rounded-full px-4 py-2 font-head text-[0.82rem] font-bold uppercase tracking-[0.12em] transition-colors ${
+                  isActive(n.href) ? "text-neon-ink" : "text-muted hover:text-text"
                 }`}
               >
-                {n.label}
+                {isActive(n.href) && <Pill />}
+                <span className="relative">{n.label}</span>
               </Link>
             )
           )}
@@ -125,53 +151,100 @@ export function TopBar({ viewer, live }: { viewer: TopBarViewer | null; live: bo
           <NavActions viewer={viewer} />
           <button
             type="button"
-            className="grid size-10 place-items-center rounded-xl border border-line-hot text-text lg:hidden"
+            className={`relative grid size-10 place-items-center rounded-xl border transition-colors lg:hidden ${open ? "border-neon bg-neon text-neon-ink" : "border-line-hot text-text"}`}
             onClick={() => setOpen((v) => !v)}
             aria-expanded={open}
+            aria-controls="mobile-menu"
             aria-label={open ? "Close menu" : "Open menu"}
           >
-            {open ? <X className="size-5" /> : <Menu className="size-5" />}
+            <span aria-hidden className={`absolute h-[2px] w-5 rounded-full bg-current transition-transform duration-300 ${open ? "rotate-45" : "-translate-y-[4px]"}`} />
+            <span aria-hidden className={`absolute h-[2px] rounded-full bg-current transition-all duration-300 ${open ? "w-5 -rotate-45" : "w-3.5 translate-x-[3px] translate-y-[4px]"}`} />
           </button>
         </div>
       </div>
 
-      <AnimatePresence>
-        {open && (
-          <motion.nav
-            initial={{ opacity: 0, y: -10 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -10 }}
-            className="panel mx-auto mt-2 max-w-6xl p-3 lg:hidden"
-            aria-label="Mobile"
-          >
-            {/* same groups as the desktop menu */}
-            <div className="space-y-3">
-              {[{ label: "", children: NAV.filter((n) => !n.children).map((n) => ({ href: n.href, label: n.label })) }, ...NAV.filter((n) => n.children)].map((n) => {
-                const links = n.children!;
-                return (
-                  <div key={n.label || "main"}>
-                    {n.label && <p className="px-2 pb-1 font-pixel text-[0.68rem] uppercase tracking-[0.22em] text-neon">{n.label}</p>}
-                    <div className="grid grid-cols-2 gap-1">
-                      {links.map((c) => (
-                        <Link
-                          key={c.href + c.label}
-                          href={c.href}
-                          onClick={() => setOpen(false)}
-                          className={`block rounded-xl px-4 py-3 font-head text-sm font-bold uppercase tracking-widest ${
-                            isActive(c.href) ? "bg-neon text-neon-ink" : "text-muted hover:bg-surface-2"
-                          }`}
-                        >
-                          {c.label}
-                        </Link>
-                      ))}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </motion.nav>
-        )}
-      </AnimatePresence>
     </header>
+    <MobileMenu open={open} isActive={isActive} onClose={() => setOpen(false)} />
+    </>
+  );
+}
+
+const SOCIALS = [
+  { href: KICK_URL, label: "Kick", icon: "kick" as const },
+  { href: X_URL, label: "X", icon: "x" as const },
+  { href: DISCORD_URL, label: "Discord", icon: "discord" as const },
+];
+
+/**
+ * Phones: a full-screen menu that drops in like a curtain (clip-path), with
+ * big numbered links rising one after another, then the socials and the code.
+ */
+function MobileMenu({ open, isActive, onClose }: { open: boolean; isActive: (href: string) => boolean; onClose: () => void }) {
+  // every page as one numbered list, grouped like the desktop menu
+  const groups = [
+    { label: "", links: NAV.filter((n) => !n.children).map((n) => ({ href: n.href, label: n.label, hint: "" })) },
+    ...NAV.filter((n) => n.children).map((n) => ({ label: n.label, links: n.children! })),
+  ];
+  let i = 0;
+  return (
+    <AnimatePresence>
+      {open && (
+        <motion.div
+          id="mobile-menu"
+          data-lenis-prevent
+          className="fixed inset-0 z-40 overflow-y-auto bg-bg px-5 pb-10 pt-[calc(var(--nav-h)+1.25rem)] lg:hidden"
+          initial={{ clipPath: "inset(0 0 100% 0)" }}
+          animate={{ clipPath: "inset(0 0 0% 0)" }}
+          exit={{ clipPath: "inset(0 0 100% 0)" }}
+          transition={{ duration: 0.6, ease: EASE }}
+        >
+          <div aria-hidden className="pointer-events-none fixed inset-0 bg-[radial-gradient(ellipse_at_85%_5%,rgb(141_255_74/0.18),transparent_55%),radial-gradient(ellipse_at_5%_95%,rgb(255_215_106/0.10),transparent_55%)]" />
+          <div aria-hidden className="pointer-events-none fixed inset-0 opacity-[0.07] [background-image:repeating-linear-gradient(0deg,#fff_0_1px,transparent_1px_4px)]" />
+
+          <nav aria-label="Mobile" className="relative mx-auto max-w-xl">
+            {groups.map((g) => (
+              <div key={g.label || "main"} className="mb-5">
+                {g.label && (
+                  <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.25 }} className="mb-1 font-pixel text-[0.68rem] uppercase tracking-[0.25em] text-neon">{g.label}</motion.p>
+                )}
+                <ul>
+                  {g.links.map((l) => {
+                    const n = ++i;
+                    const active = isActive(l.href);
+                    return (
+                      <li key={l.href + l.label} className="overflow-hidden border-b border-line">
+                        <motion.div initial={{ y: "105%" }} animate={{ y: 0 }} transition={{ delay: 0.18 + n * 0.045, duration: 0.6, ease: [0.22, 1, 0.36, 1] }}>
+                          <Link href={l.href} onClick={onClose} aria-current={active ? "page" : undefined}
+                            className={`group flex items-center gap-4 py-3.5 ${active ? "text-neon" : "text-text"}`}>
+                            <span className="w-7 shrink-0 font-mono text-xs text-dim">{String(n).padStart(2, "0")}</span>
+                            <span className="min-w-0 flex-1">
+                              <span className="block font-display text-[clamp(1.7rem,8vw,2.6rem)] leading-none">{l.label}</span>
+                              {l.hint && <span className="mt-1 block text-xs text-dim">{l.hint}</span>}
+                            </span>
+                            <ArrowUpRight className={`size-5 shrink-0 transition-transform duration-300 group-active:translate-x-1 ${active ? "text-neon" : "text-dim"}`} />
+                          </Link>
+                        </motion.div>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
+            ))}
+
+            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.5, duration: 0.5 }} className="mt-8 space-y-4">
+              <div className="grid grid-cols-3 gap-2">
+                {SOCIALS.map((s) => (
+                  <a key={s.label} href={s.href} target="_blank" rel="noopener noreferrer"
+                    className="flex flex-col items-center gap-1.5 rounded-2xl border border-line-hot bg-surface/70 py-3 text-xs font-bold uppercase tracking-widest text-muted transition active:border-neon active:text-neon">
+                    <SocialIcon name={s.icon} className="size-5" /> {s.label}
+                  </a>
+                ))}
+              </div>
+              <p className="text-center font-mono text-xs uppercase tracking-[0.25em] text-dim">Qzino code <span className="text-neon">{QZINO_CODE}</span></p>
+            </motion.div>
+          </nav>
+        </motion.div>
+      )}
+    </AnimatePresence>
   );
 }

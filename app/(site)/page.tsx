@@ -29,16 +29,16 @@ export default async function HomePage() {
     <div className="relative">
       <Hero newYear={isHolidaySeason() ? nextNewYear() : null} />
 
-      {/* the partner right under RAVO, on the chrome-claw wallpaper */}
-      <div className="claws-band -mt-6 pb-16 pt-2">
+      {/* clips right under RAVO */}
+      <ClipStrip clips={clips} />
+
+      {/* the partner, on the chrome-claw wallpaper */}
+      <div className="claws-band mt-16 pb-16 pt-2">
         <div aria-hidden className="claws-band-bg">
           <Image src="/media/claws-bg.webp" alt="" fill sizes="100vw" className="object-cover object-center" />
         </div>
         <Partners />
       </div>
-
-      {/* clips */}
-      <ClipStrip clips={clips} />
 
       {/* leaderboard: QHub Open Leaderboard, top 3 live */}
       <section className="mx-auto mt-20 max-w-6xl px-4 sm:px-6">

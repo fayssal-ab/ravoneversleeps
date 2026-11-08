@@ -74,7 +74,7 @@ export default async function AdminUsers({ searchParams }: { searchParams: Promi
           {pendingCount === 0 ? (
             <Empty>Nothing to verify right now.</Empty>
           ) : pending.map((p) => {
-            const risky = (p.standing && p.standing.rank <= 10) || p.rivals.length > 0 || p.age_days < 1;
+            const risky = p.rivals.length > 0 || p.age_days < 1;
             return (
               <article key={p.account_id} className={`admin-card p-5 ${risky ? "!border-gold/50" : ""}`}>
                 <div className="flex flex-wrap items-start justify-between gap-4">
@@ -98,13 +98,8 @@ export default async function AdminUsers({ searchParams }: { searchParams: Promi
                   </div>
                 </div>
 
-                {(p.standing || p.rivals.length > 0) && (
+                {p.rivals.length > 0 && (
                   <div className="mt-4 space-y-1.5 text-sm">
-                    {p.standing && (
-                      <p className={`rounded-lg px-3 py-2 ${p.standing.rank <= 10 ? "bg-gold/10 text-gold" : "bg-surface-3 text-muted"}`}>
-                        On the live board: <b>#{p.standing.rank}</b> with {Number(p.standing.score).toLocaleString("en-US")} pts{p.standing.rank <= 10 ? " · prize money at stake, check carefully" : ""}
-                      </p>
-                    )}
                     {p.rivals.map((r) => (
                       <p key={r.account_id} className="rounded-lg bg-danger/10 px-3 py-2 text-danger">
                         ⚠ Also claimed by <b>{r.display_name}</b> #{r.account_id} ({r.status}). Only one account can own it.

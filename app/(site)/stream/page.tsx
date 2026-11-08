@@ -16,7 +16,7 @@ export default async function StreamPage() {
   return (
     <div className="mx-auto max-w-6xl px-4 sm:px-6">
       <PageHeader eyebrow={live.live ? "● Live now" : "Kick · Slots & Casino"} title="The" accent="stream">
-        Slots, bonus hunts, raffles and points drops. &ldquo;I never sleep.&rdquo;
+        Slots, bonus hunts, tournaments and giveaways. &ldquo;I never sleep.&rdquo;
       </PageHeader>
 
       <Reveal><StreamBox live={live} /></Reveal>

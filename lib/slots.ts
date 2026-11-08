@@ -20,9 +20,9 @@ export const POOL_TOP = 1000;
 
 export interface CatalogSlot { id: string; name: string; provider: string; imageUrl: string | null }
 
-// Ravo plays on Qzino, so slots the feed marks "only on Stake" stay in the
-// table (kept for later) but are hidden everywhere: picker, search, !join,
-// !call and random tournament slots.
+// Ravo plays on Qzino, so slots the feed marks "only on Stake" are not
+// stored at all (the sync skips them, saving DB space); the filter below
+// stays as a guard for rows written before that.
 const SHOWN = "active = 1 AND stake_only = 0";
 let stakeColumn: Promise<void> | null = null;
 /** Adds slot_catalog.stake_only on first use (migration 0021). Outside a transaction (DDL commits). */
@@ -74,12 +74,15 @@ export async function syncCatalog(): Promise<{ total: number; withArt: number; g
   await withTx(async (conn) => {
     await lockApp(conn, "slots");
     await conn.query("UPDATE slot_catalog SET active = 0");
-    for (let i = 0; i < rows.length; i += 1000) {
+    // Stake-only slots are hidden everywhere: not stored at all (saves DB space)
+    const kept = rows.filter((r) => !r.stakeOnly);
+    await conn.query("DELETE FROM slot_catalog WHERE stake_only = 1");
+    for (let i = 0; i < kept.length; i += 1000) {
       await conn.query(
         `INSERT INTO slot_catalog (id, slug, name, name_norm, provider, image_url, popularity, stake_only, active, synced_at) VALUES ?
          ON DUPLICATE KEY UPDATE name = VALUES(name), name_norm = VALUES(name_norm), provider = VALUES(provider),
            image_url = VALUES(image_url), popularity = VALUES(popularity), stake_only = VALUES(stake_only), active = 1, synced_at = VALUES(synced_at)`,
-        [rows.slice(i, i + 1000).map((r) => [r.id, r.slug, r.name, normalizeName(r.name).slice(0, 191), r.provider, r.imageUrl, r.popularity, r.stakeOnly ? 1 : 0, 1, now])]
+        [kept.slice(i, i + 1000).map((r) => [r.id, r.slug, r.name, normalizeName(r.name).slice(0, 191), r.provider, r.imageUrl, r.popularity, r.stakeOnly ? 1 : 0, 1, now])]
       );
     }
   });

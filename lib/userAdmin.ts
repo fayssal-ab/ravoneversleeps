@@ -1,7 +1,6 @@
 import "server-only";
 import type { RowDataPacket } from "mysql2/promise";
 import { getPool } from "./db";
-import { getQboardsBoard } from "./qboards";
 import { applyPoints } from "./account";
 import { AppError, withTx } from "./tx";
 import { ensureVerificationSchema } from "./verification";
@@ -128,20 +127,11 @@ export async function adminSetUsernames(accountId: number, qzino: string): Promi
   });
 }
 
-export interface Stats { users: number; points_out: number; pending: number; open_raffles: number; live_period: string | null; board_players: number }
+export interface Stats { users: number }
 
 export async function getStats(): Promise<Stats> {
-  const [[u], [r], [rf], board] = await Promise.all([
-    getPool().query<RowDataPacket[]>("SELECT COUNT(*) AS n, COALESCE(SUM(points), 0) AS pts FROM user_accounts"),
-    getPool().query<RowDataPacket[]>("SELECT COUNT(*) AS n FROM store_redemptions WHERE status = 'pending'"),
-    getPool().query<RowDataPacket[]>("SELECT COUNT(*) AS n FROM raffles WHERE status = 'open'"),
-    getQboardsBoard(1000).catch(() => null),
-  ]);
-  const live = board?.period?.state === "live" ? board : null;
-  return {
-    users: Number(u[0].n), points_out: Number(u[0].pts), pending: Number(r[0].n), open_raffles: Number(rf[0].n),
-    live_period: live ? live.period!.title : null, board_players: live ? live.rows.length : 0,
-  };
+  const [u] = await getPool().query<RowDataPacket[]>("SELECT COUNT(*) AS n FROM user_accounts");
+  return { users: Number(u[0].n) };
 }
 
 export async function saveRanks(rows: { level: number; name: string; min_xp: number }[]): Promise<void> {

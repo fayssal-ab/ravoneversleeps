@@ -1,15 +1,15 @@
 import Link from "next/link";
-import { ArrowRight, CheckCircle2, Crosshair, Crown, Gamepad2, Gift, MessagesSquare, Radio, Swords, Target, Trophy, Users } from "lucide-react";
+import { ArrowRight, CheckCircle2, Crosshair, Crown, Gamepad2, Gift, MessagesSquare, Radio, Swords, Target, Users } from "lucide-react";
 import { AdminTitle } from "@/components/admin/ui";
 import { getStats } from "@/lib/userAdmin";
 import { openChallengeClaimCount, pendingVerifications } from "@/lib/verification";
 import { listVipApplications } from "@/lib/vip";
 import { pendingRedemptionCount } from "@/lib/store";
+import { getQhubBoard, QHUB_SEATS } from "@/lib/qhub";
 
 const SECTIONS = [
   { href: "/admin/users", icon: Users, label: "Users", body: "Verify Qzino usernames, find a player, ban." },
   { href: "/admin/vip", icon: Crown, label: "VIP Transfer", body: "Approve or reject VIP applications." },
-  { href: "/admin/leaderboard", icon: Trophy, label: "Leaderboard prizes", body: "Top-3 prizes shown on the board." },
   { href: "/admin/store", icon: Gift, label: "Store", body: "QHub Points rewards: pay requests, edit prices." },
   { href: "/admin/challenges", icon: Target, label: "Challenges", body: "Create slot challenges, pick winners." },
   { href: "/admin/tournaments", icon: Swords, label: "Tournament", body: "Run the knockout bracket live." },
@@ -21,10 +21,11 @@ const SECTIONS = [
 
 export default async function AdminDashboard() {
   const [stats, toVerify, vip, chClaims, store] = await Promise.all([
-    getStats(),
+    getStats().catch((e) => { console.error("admin stats failed", e instanceof Error ? e.message : e); return { users: 0 }; }),
     pendingVerifications().catch(() => []), listVipApplications("pending").catch(() => []), openChallengeClaimCount().catch(() => 0),
     pendingRedemptionCount().catch(() => 0),
   ]);
+  const qhub = await getQhubBoard().catch(() => null);
   const todo = [
     { n: toVerify.length, label: "Qzino username", verb: "to verify", href: "/admin/users?tab=verify" },
     { n: vip.length, label: "VIP application", verb: "to review", href: "/admin/vip" },
@@ -35,7 +36,7 @@ export default async function AdminDashboard() {
   return (
     <>
       <AdminTitle title="Dashboard">
-        {stats.live_period ? <>Live leaderboard: <span className="text-neon">{stats.live_period}</span> · {stats.board_players} players on the board · {stats.users.toLocaleString("en-US")} accounts.</> : <>No Q-boards leaderboard is live right now · {stats.users.toLocaleString("en-US")} accounts.</>}
+        {qhub ? <>QHub leaderboard: <span className="text-neon">{Math.min(qhub.total, QHUB_SEATS)} / {QHUB_SEATS} seats taken</span>{qhub.rows[0] ? <> · #1 {qhub.rows[0].name} ({qhub.rows[0].points.toLocaleString("en-US")} pts)</> : null}</> : <>QHub leaderboard unreachable right now</>} · {stats.users.toLocaleString("en-US")} accounts.
       </AdminTitle>
 
       <section className="admin-card p-5">

@@ -3,11 +3,14 @@
 import { motion, useMotionTemplate, useMotionValue, useReducedMotion, useSpring, useTransform } from "motion/react";
 import { Coins } from "lucide-react";
 import { useRef, type ReactNode } from "react";
+import { headline } from "@/lib/storeLabel";
 
 export interface StoreItemView {
   id: number; name: string; description: string;
   kind: "cash" | "bonus" | "game" | "merch" | "other";
   price: number; stock: number | null;
+  /** big text on the art; empty = from the name */
+  label?: string;
 }
 
 const KIND_LABEL: Record<StoreItemView["kind"], string> = { cash: "Qzino tip", bonus: "Bonus buy", game: "Played on stream", merch: "Merch", other: "Reward" };
@@ -19,13 +22,7 @@ const KIND_SUIT: Record<StoreItemView["kind"], string> = { cash: "♦", bonus: "
 // (overflow would flatten it); the art clips inside its own layer.
 const SPRING = { stiffness: 140, damping: 18, mass: 0.6 };
 
-/** "$40 bonus buy" → "$40", "Keno: $1 x15" → "Keno" (a "Name:" prefix wins). */
-function headline(name: string): string {
-  if (name.includes(":")) return name.split(":")[0].trim();
-  return name.match(/\$\d[\d,]*/)?.[0] ?? name.split(/[·-]/)[0].trim().split(" ").slice(0, 2).join(" ");
-}
-
-export function StoreCard({ item, index, action }: { item: StoreItemView; index: number; action: ReactNode }) {
+export function StoreCard({ item, index, action, still = false }: { item: StoreItemView; index: number; action: ReactNode; still?: boolean }) {
   const ref = useRef<HTMLDivElement>(null);
   const reduce = useReducedMotion();
   const px = useMotionValue(0), py = useMotionValue(0), hover = useMotionValue(0);
@@ -47,7 +44,7 @@ export function StoreCard({ item, index, action }: { item: StoreItemView; index:
 
   return (
     <motion.div
-      initial={reduce ? false : { opacity: 0, y: 40, rotateX: -18 }}
+      initial={reduce || still ? false : { opacity: 0, y: 40, rotateX: -18 }}
       whileInView={{ opacity: 1, y: 0, rotateX: 0 }}
       viewport={{ once: true, margin: "-60px" }}
       transition={{ type: "spring", stiffness: 90, damping: 16, delay: (index % 3) * 0.08 }}
@@ -76,7 +73,7 @@ export function StoreCard({ item, index, action }: { item: StoreItemView; index:
           <span aria-hidden className="store-suit absolute left-5 top-4 font-display text-5xl" style={{ transform: "translateZ(35px)" }}>{KIND_SUIT[item.kind]}</span>
           <span aria-hidden className="store-chip absolute bottom-6 right-6 size-10 rounded-full" style={{ transform: "translateZ(45px) rotateX(55deg)" }} />
           <div className="absolute inset-0 grid place-items-center" style={{ transform: "translateZ(70px)" }}>
-            <span className="chrome font-display text-6xl leading-none drop-shadow-[0_10px_22px_rgb(0_0_0/0.85)] sm:text-7xl">{headline(item.name)}</span>
+            <span className="chrome font-display text-6xl leading-none drop-shadow-[0_10px_22px_rgb(0_0_0/0.85)] sm:text-7xl">{item.label?.trim() || headline(item.name)}</span>
           </div>
           {item.stock != null && (
             <span className="chip absolute right-3 top-3 !py-0.5 text-[0.7rem]" style={{ transform: "translateZ(40px)" }}>{soldOut ? "Sold out" : `${item.stock} left`}</span>

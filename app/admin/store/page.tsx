@@ -1,9 +1,11 @@
 import Link from "next/link";
 import { ExternalLink } from "lucide-react";
-import { AdminTitle, Card, Field } from "@/components/admin/ui";
+import { AdminTitle, Card } from "@/components/admin/ui";
+import { ItemEditor } from "@/components/store/ItemEditor";
+import { headline } from "@/lib/storeLabel";
 import { Flash } from "@/components/ui/bits";
 import { ConfirmButton } from "@/components/ui/ConfirmButton";
-import { ITEM_KINDS, listRedemptions, listStoreItems } from "@/lib/store";
+import { listRedemptions, listStoreItems } from "@/lib/store";
 import { deleteItemAction, resolveRedemptionAction, saveItemAction } from "../actions";
 
 const KIND_LABEL = { cash: "Qzino tip", bonus: "Bonus buy", game: "Played on stream", merch: "Merch", other: "Other" } as const;
@@ -50,35 +52,17 @@ export default async function AdminStore({ searchParams }: { searchParams: Promi
         )}
       </Card>
 
-      <div className="mt-6 grid gap-6 lg:grid-cols-[1fr_1.4fr]">
-        <Card title={editing ? `Edit: ${editing.name}` : "New reward"}>
-          <form action={saveItemAction} className="space-y-4" key={editing?.id ?? "new"}>
-            <input type="hidden" name="id" value={editing?.id ?? ""} />
-            <Field label="Name" hint="A $ amount in the name is shown big on the card ($40 bonus buy → $40)"><input name="name" required maxLength={120} defaultValue={editing?.name} className="field" /></Field>
-            <Field label="Description"><textarea name="description" rows={2} maxLength={500} defaultValue={editing?.description} className="field" /></Field>
-            <div className="grid grid-cols-2 gap-3">
-              <Field label="Price (QHub Points)"><input name="price" type="number" min={1} required defaultValue={editing?.price ?? 3000} className="field font-mono" /></Field>
-              <Field label="Stock" hint="Empty = unlimited"><input name="stock" type="number" min={0} defaultValue={editing?.stock ?? ""} className="field font-mono" /></Field>
-              <Field label="Type">
-                <select name="kind" defaultValue={editing?.kind ?? "cash"} className="field">
-                  {ITEM_KINDS.map((k) => <option key={k} value={k}>{KIND_LABEL[k]}</option>)}
-                </select>
-              </Field>
-              <Field label="Order"><input name="sort" type="number" defaultValue={editing?.sort ?? 0} className="field font-mono" /></Field>
-            </div>
-            <label className="flex items-center gap-2 text-sm text-muted"><input type="checkbox" name="active" defaultChecked={editing?.active ?? true} className="accent-[var(--color-neon)]" /> Visible in the store</label>
-            <div className="flex gap-2">
-              <button className="btn btn-neon btn-sm">{editing ? "Save" : "Add reward"}</button>
-              {editing && <Link href="/admin/store" className="btn btn-ghost btn-sm">Cancel</Link>}
-            </div>
-          </form>
-        </Card>
+      <Card title={editing ? `Edit: ${editing.name}` : "New reward"} className="mt-6">
+        <ItemEditor key={editing?.id ?? "new"} item={editing} action={saveItemAction} />
+      </Card>
 
+      <div className="mt-6">
         <Card title={`Rewards (${items.filter((i) => i.active).length} visible)`}>
           <ul className="divide-y divide-line">
             {items.map((it) => (
               <li key={it.id} className={`flex flex-wrap items-center justify-between gap-2 py-2.5 text-sm ${it.active ? "" : "opacity-50"}`}>
                 <span>
+                  <span className="mr-2 inline-grid min-w-12 place-items-center rounded-md bg-surface-3 px-1.5 py-0.5 font-display text-sm text-text">{it.label || headline(it.name)}</span>
                   <span className="font-bold">{it.name}</span>
                   <span className="ml-2 font-mono text-gold">{it.price.toLocaleString("en-US")}</span>
                   <span className="ml-2 text-xs text-dim">{KIND_LABEL[it.kind] ?? it.kind}</span>
