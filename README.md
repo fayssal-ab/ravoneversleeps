@@ -6,14 +6,16 @@ a casino and takes no deposits.
 
 ## Pages
 
-Navigation: Home · Leaderboard · **Rewards** (Challenges, VIP Transfer) ·
+Navigation: Home · Leaderboard · **Rewards** (Store, Challenges) ·
 **Stream** (Watch live, Clips, Bonus hunts, Tournaments).
-The points store, raffles and ranks were removed (their tables stay in the DB).
+Qzino is the only partner (Flush was removed; its DB columns are left unused).
+Raffles and ranks were removed (their tables stay in the DB).
 Milestones were removed too; migration 0017 drops their tables.
 
 - **Home**: playable RAVO slot hero, Kick clips strip, leaderboard (top-3 prizes set in admin), Qzino card, stream, VIP teaser.
 - **Clips**: Ravo's Kick clips, played on the site (hls.js).
-- **Leaderboard**: Q-boards points board (podium, countdown, search, rules) with a monthly archive.
+- **Leaderboard**: the QHub Open Leaderboard (q-hub.tv): podium, seats, prize per seat, search, rules. Read from the q-hub.tv page itself (no API), cached 5 minutes (`lib/qhub.ts`).
+- **Store**: rewards paid in QHub Points (tips, bonus buy, blackjack hand, keno). "Redeem" takes the QHub username + a screenshot of the Points and opens a private Discord ticket with the proof; staff mark it Paid / Reject in Admin → Store (prices editable there). Needs Discord and a verified Qzino username. 3D hero scene in `components/three/Store3DScene.tsx`.
 - **Challenges**: "first to hit Nx on a slot wins $X"; claiming opens a Discord proof ticket.
 - **VIP Transfer**: Qzino VIP benefits and an application form reviewed in a Discord ticket.
 - **Stream**: Kick player when live (Ravo's pug film when offline) and the weekly schedule.

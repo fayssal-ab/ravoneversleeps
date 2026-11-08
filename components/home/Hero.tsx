@@ -6,9 +6,8 @@ import { useRef } from "react";
 import { Paw } from "@/components/decor/shapes";
 import { NewYearChip } from "@/components/season/NewYearChip";
 import { SantaHat } from "@/components/season/SantaHat";
-import { FlushLogo } from "@/components/ui/FlushLogo";
 import { QzinoLogo } from "@/components/ui/QzinoLogo";
-import { FLUSH_URL, QZINO_URL } from "@/lib/constants";
+import { QZINO_URL } from "@/lib/constants";
 import { useSiteReady } from "@/components/shell/siteReady";
 import { HeroBackdrop } from "./HeroBackdrop";
 import { SlotReels } from "./SlotReels";
@@ -97,14 +96,10 @@ export function Hero({ newYear = null }: { newYear?: number | null }) {
           </span>
         </div>
 
-        {/* the two partners, sliding in after the title lands */}
+        {/* the partner, sliding in after the title lands */}
         <div className="hero-intro mt-8 flex flex-col items-center gap-3" style={{ "--d": "1.7s" } as React.CSSProperties}>
-          <p className="font-head text-[0.7rem] font-bold uppercase tracking-[0.35em] text-muted">Official partners</p>
+          <p className="font-head text-[0.7rem] font-bold uppercase tracking-[0.35em] text-muted">Official partner</p>
           <div className="hero-partners">
-            <a href={FLUSH_URL} target="_blank" rel="noopener noreferrer sponsored" aria-label="Flush" className="hero-partner">
-              <FlushLogo className="h-6 w-auto sm:h-7" priority />
-            </a>
-            <span aria-hidden className="hero-partner-x font-display">×</span>
             <a href={QZINO_URL} target="_blank" rel="noopener noreferrer sponsored" aria-label="Qzino" className="hero-partner">
               <QzinoLogo className="h-6 w-auto sm:h-7" priority />
             </a>

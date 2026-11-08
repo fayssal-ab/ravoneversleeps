@@ -20,7 +20,7 @@ const SLOTS = [
 const SOFT = { stiffness: 70, damping: 16, mass: 0.8 };
 const FLIP = { stiffness: 75, damping: 13, mass: 0.9 };
 
-const points = (n: number) => n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " pts";
+const points = (n: number) => n.toLocaleString("en-US", { minimumFractionDigits: Number.isInteger(n) ? 0 : 2, maximumFractionDigits: 2 }) + " pts";
 const money = (n: number) => "$" + n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 function Screws() {

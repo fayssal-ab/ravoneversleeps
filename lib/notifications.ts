@@ -34,19 +34,13 @@ export async function getNotifications(accountId: number | null): Promise<Note[]
 
   if (accountId != null) {
     const [acc, vip] = await Promise.all([
-      safe(async () => (await pool.query<RowDataPacket[]>("SELECT qzino_username, qzino_status, flush_username, flush_status FROM user_accounts WHERE id = ?", [accountId]))[0][0], undefined),
+      safe(async () => (await pool.query<RowDataPacket[]>("SELECT qzino_username, qzino_status FROM user_accounts WHERE id = ?", [accountId]))[0][0], undefined),
       safe(async () => (await pool.query<RowDataPacket[]>("SELECT id, casino, status, admin_note, updated_at FROM vip_applications WHERE account_id = ? ORDER BY id DESC LIMIT 1", [accountId]))[0][0], undefined),
     ]);
     if (acc?.qzino_username && (acc.qzino_status === "verified" || acc.qzino_status === "rejected" || acc.qzino_status === "pending")) notes.push({
       id: `qzino-${acc.qzino_status}`, kind: "personal",
       title: acc.qzino_status === "verified" ? "Qzino username verified" : acc.qzino_status === "rejected" ? "Qzino username not verified" : "Qzino username under review",
       body: acc.qzino_status === "verified" ? "Challenges are unlocked." : acc.qzino_status === "rejected" ? "Correct it on your account page." : "Check your Discord ticket.",
-      href: "/account", at: now,
-    });
-    if (acc?.flush_username && (acc.flush_status === "verified" || acc.flush_status === "rejected" || acc.flush_status === "pending")) notes.push({
-      id: `flush-${acc.flush_status}`, kind: "personal",
-      title: acc.flush_status === "verified" ? "Flush username verified" : acc.flush_status === "rejected" ? "Flush username not verified" : "Flush username under review",
-      body: acc.flush_status === "verified" ? "Your Flush username is linked to your account." : acc.flush_status === "rejected" ? "Correct it on your account page." : "Check your Discord ticket.",
       href: "/account", at: now,
     });
     if (vip) notes.push({

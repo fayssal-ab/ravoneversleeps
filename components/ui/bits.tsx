@@ -1,13 +1,12 @@
 import Image from "next/image";
 import type { ReactNode } from "react";
 import { ERROR_TEXT } from "@/lib/errors";
-import { FLUSH_URL, QZINO_URL } from "@/lib/constants";
-import { FlushLogo } from "./FlushLogo";
+import { QZINO_URL } from "@/lib/constants";
 import { QzinoLogo } from "./QzinoLogo";
 
 /** Page title block: a banner on the chrome-claw wallpaper with a slow
  *  light sweep, pixel eyebrow, chrome metal title, optional blurb and a small
- *  "with Flush × Qzino" pill so every page shows both partners. */
+ *  "with Qzino" pill so every page shows the partner. */
 export function PageHeader({ eyebrow, title, accent, children }: { eyebrow: string; title: string; accent?: string; children?: ReactNode }) {
   return (
     <header className="page-banner relative mx-auto mb-10 max-w-5xl overflow-hidden rounded-[2rem] px-5 pb-10 pt-10 text-center sm:px-10 sm:pt-12">
@@ -24,8 +23,6 @@ export function PageHeader({ eyebrow, title, accent, children }: { eyebrow: stri
       <div className="relative mt-7 flex justify-center">
         <span className="partner-pill">
           <span className="text-[0.62rem] font-bold uppercase tracking-[0.25em] text-dim">With</span>
-          <a href={FLUSH_URL} target="_blank" rel="noopener noreferrer sponsored" aria-label="Flush"><FlushLogo className="h-4 w-auto" /></a>
-          <span aria-hidden className="text-neon">×</span>
           <a href={QZINO_URL} target="_blank" rel="noopener noreferrer sponsored" aria-label="Qzino"><QzinoLogo className="h-4 w-auto" /></a>
         </span>
       </div>

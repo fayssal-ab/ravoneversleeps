@@ -1,14 +1,16 @@
 import Link from "next/link";
-import { ArrowRight, CheckCircle2, Crosshair, Crown, Gamepad2, MessagesSquare, Radio, Swords, Target, Trophy, Users } from "lucide-react";
+import { ArrowRight, CheckCircle2, Crosshair, Crown, Gamepad2, Gift, MessagesSquare, Radio, Swords, Target, Trophy, Users } from "lucide-react";
 import { AdminTitle } from "@/components/admin/ui";
 import { getStats } from "@/lib/userAdmin";
 import { openChallengeClaimCount, pendingVerifications } from "@/lib/verification";
 import { listVipApplications } from "@/lib/vip";
+import { pendingRedemptionCount } from "@/lib/store";
 
 const SECTIONS = [
   { href: "/admin/users", icon: Users, label: "Users", body: "Verify Qzino usernames, find a player, ban." },
   { href: "/admin/vip", icon: Crown, label: "VIP Transfer", body: "Approve or reject VIP applications." },
   { href: "/admin/leaderboard", icon: Trophy, label: "Leaderboard prizes", body: "Top-3 prizes shown on the board." },
+  { href: "/admin/store", icon: Gift, label: "Store", body: "QHub Points rewards: pay requests, edit prices." },
   { href: "/admin/challenges", icon: Target, label: "Challenges", body: "Create slot challenges, pick winners." },
   { href: "/admin/tournaments", icon: Swords, label: "Tournament", body: "Run the knockout bracket live." },
   { href: "/admin/hunts", icon: Crosshair, label: "Bonus hunts", body: "Track bonuses and wins on stream." },
@@ -18,14 +20,16 @@ const SECTIONS = [
 ];
 
 export default async function AdminDashboard() {
-  const [stats, toVerify, vip, chClaims] = await Promise.all([
+  const [stats, toVerify, vip, chClaims, store] = await Promise.all([
     getStats(),
     pendingVerifications().catch(() => []), listVipApplications("pending").catch(() => []), openChallengeClaimCount().catch(() => 0),
+    pendingRedemptionCount().catch(() => 0),
   ]);
   const todo = [
     { n: toVerify.length, label: "Qzino username", verb: "to verify", href: "/admin/users?tab=verify" },
     { n: vip.length, label: "VIP application", verb: "to review", href: "/admin/vip" },
     { n: chClaims, label: "challenge claim", verb: "to check", href: "/admin/challenges" },
+    { n: store, label: "store request", verb: "to pay", href: "/admin/store" },
   ].filter((t) => t.n > 0);
 
   return (

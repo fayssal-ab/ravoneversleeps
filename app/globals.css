@@ -165,21 +165,21 @@ body {
   opacity: 0.8;
   pointer-events: none;
 }
-.flush-card {
+.glow-card {
   isolation: isolate;
-  animation: flush-card-glow 4.5s ease-in-out infinite;
+  animation: glow-card-glow 4.5s ease-in-out infinite;
 }
-.flush-card::after {
+.glow-card::after {
   content: "";
   position: absolute;
   z-index: 0;
   inset: -60% -25%;
   background: linear-gradient(115deg, transparent 40%, rgb(141 255 74 / 0.045) 48%, rgb(235 255 223 / 0.1) 50%, rgb(141 255 74 / 0.045) 52%, transparent 60%);
   translate: -70% 0;
-  animation: flush-card-shine 6s ease-in-out infinite;
+  animation: glow-card-shine 6s ease-in-out infinite;
   pointer-events: none;
 }
-@keyframes flush-card-glow {
+@keyframes glow-card-glow {
   0%, 100% {
     border-color: rgb(141 255 74 / 0.18);
     box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.05), 0 28px 60px -36px rgb(141 255 74 / 0.35);
@@ -189,12 +189,12 @@ body {
     box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.07), 0 28px 64px -34px rgb(141 255 74 / 0.52);
   }
 }
-@keyframes flush-card-shine {
+@keyframes glow-card-shine {
   0%, 18% { translate: -70% 0; }
   72%, 100% { translate: 70% 0; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .flush-card, .flush-card::after { animation: none; }
+  .glow-card, .glow-card::after { animation: none; }
 }
 
 /* Animated neon frame (conic border) — add to a .panel. */
@@ -850,9 +850,9 @@ iframe[src*=".netlify/scripts/hud"],
 .heartbeat { animation: heartbeat 1.1s ease-in-out infinite; }
 @media (prefers-reduced-motion: reduce) { .ember, .flicker, .rays, .heartbeat { animation: none !important; } }
 
-/* ── partners (Flush × Qzino) ───────────────────────────────────────── */
+/* ── partner (Qzino) ───────────────────────────────────────── */
 
-/* backdrop: both partner logos as huge faint marks drifting behind every
+/* backdrop: the partner logo as a huge faint mark drifting behind every
    page, plus a slow green light beam sweeping across */
 .ghost-logo {
   position: absolute;
@@ -861,7 +861,6 @@ iframe[src*=".netlify/scripts/hud"],
   filter: grayscale(0.2) drop-shadow(0 0 40px rgb(141 255 74 / 0.5));
   will-change: transform;
 }
-.ghost-flush { width: min(62vw, 760px); top: 14%; left: -8%; rotate: -12deg; animation: ghost-a 38s ease-in-out infinite alternate; }
 .ghost-qzino { width: min(46vw, 560px); bottom: 6%; right: -6%; rotate: 10deg; animation: ghost-b 44s ease-in-out infinite alternate; }
 @keyframes ghost-a {
   0% { transform: translate3d(0, 0, 0) scale(1); opacity: 0.03; }
@@ -873,7 +872,7 @@ iframe[src*=".netlify/scripts/hud"],
   50% { opacity: 0.065; }
   100% { transform: translate3d(-16vw, -30vh, 0) scale(0.92); opacity: 0.03; }
 }
-.flush-beam {
+.partner-beam {
   position: absolute;
   inset: -20% -60%;
   background: linear-gradient(105deg, transparent 42%, rgb(141 255 74 / 0.035) 48%, rgb(195 255 143 / 0.06) 50%, rgb(141 255 74 / 0.035) 52%, transparent 58%);
@@ -907,7 +906,7 @@ iframe[src*=".netlify/scripts/hud"],
   opacity: 0.7;
 }
 
-/* hero: Flush × Qzino lockup under the title */
+/* hero: Qzino lockup under the title */
 .hero-partners {
   display: inline-flex; align-items: center; gap: 1rem;
   padding: 0.7rem 1.4rem;
@@ -950,7 +949,7 @@ iframe[src*=".netlify/scripts/hud"],
   background:
     radial-gradient(120% 120% at 0% 0%, rgb(188 235 57 / 0.12), transparent 42%),
     linear-gradient(180deg, rgb(12 18 14 / 0.92), rgb(6 9 7 / 0.98));
-  animation: flush-card-glow 4.5s ease-in-out infinite 2.25s;
+  animation: glow-card-glow 4.5s ease-in-out infinite 2.25s;
 }
 .qzino-amount { text-shadow: 0 0 24px rgb(141 255 74 / 0.45); animation: amount-pop 3s ease-in-out infinite; }
 @keyframes amount-pop { 50% { scale: 1.06; text-shadow: 0 0 34px rgb(141 255 74 / 0.7); } }
@@ -1000,7 +999,53 @@ iframe[src*=".netlify/scripts/hud"],
 .partner-pill a:hover { transform: scale(1.08); filter: drop-shadow(0 0 8px rgb(141 255 74 / 0.6)); }
 
 @media (prefers-reduced-motion: reduce) {
-  .ghost-logo, .flush-beam, .partner-marquee-track, .hero-partners::after, .hero-partner-x,
+  .ghost-logo, .partner-beam, .partner-marquee-track, .hero-partners::after, .hero-partner-x,
   .qzino-card, .qzino-amount, .logo-float, .orbit-ring-outer, .orbit-ring-inner, .page-banner-sweep { animation: none !important; }
   .partner-marquee { overflow-x: auto; }
+}
+
+/* ── store (QHub Points) ─────────────────────────────────────────────── */
+.store-hero {
+  background:
+    radial-gradient(ellipse 60% 70% at 75% 50%, rgb(255 215 106 / 0.12), transparent 65%),
+    radial-gradient(ellipse 50% 60% at 15% 20%, rgb(141 255 74 / 0.08), transparent 70%),
+    var(--color-bg-2);
+}
+.store-halo {
+  background: radial-gradient(circle, rgb(255 215 106 / 0.22), rgb(141 255 74 / 0.06) 45%, transparent 70%);
+  filter: blur(24px);
+  animation: store-halo 6s ease-in-out infinite;
+}
+@keyframes store-halo {
+  0%, 100% { opacity: 0.7; transform: scale(1); }
+  50% { opacity: 1; transform: scale(1.08); }
+}
+.store-card { will-change: transform; }
+.store-card-plate {
+  border: 1px solid var(--color-line-hot);
+  background: linear-gradient(160deg, var(--color-surface-2), var(--color-surface) 55%, var(--color-bg-2));
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.06), 0 30px 60px -30px rgb(0 0 0 / 0.9);
+  transition: border-color 0.4s, box-shadow 0.4s;
+}
+.store-card:hover .store-card-plate {
+  border-color: rgb(255 215 106 / 0.45);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.08), 0 40px 70px -28px rgb(255 215 106 / 0.28);
+}
+.store-suit {
+  color: transparent;
+  background: linear-gradient(180deg, #f4fff5, #8fa596);
+  -webkit-background-clip: text;
+  background-clip: text;
+  filter: drop-shadow(0 6px 10px rgb(0 0 0 / 0.7));
+}
+.store-chip {
+  background:
+    radial-gradient(circle, #1f6b2b 52%, transparent 53%),
+    repeating-conic-gradient(#e9f5ec 0 12deg, #2e9a3e 12deg 45deg);
+  box-shadow: 0 8px 14px rgb(0 0 0 / 0.6);
+  animation: store-chip 7s linear infinite;
+}
+@keyframes store-chip { to { rotate: 360deg; } }
+@media (prefers-reduced-motion: reduce) {
+  .store-halo, .store-chip { animation: none; }
 }

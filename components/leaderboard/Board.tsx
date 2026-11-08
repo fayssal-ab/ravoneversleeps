@@ -7,7 +7,7 @@ import { useState } from "react";
 /** prize: a label, "$3,000" or "AirPods Pro Max 2" */
 export interface BoardRowView { rank: number; name: string; score: number; prize: string | null }
 
-const points = (n: number) => n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " pts";
+const points = (n: number) => n.toLocaleString("en-US", { minimumFractionDigits: Number.isInteger(n) ? 0 : 2, maximumFractionDigits: 2 }) + " pts";
 
 const money = (n: number) => "$" + n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
@@ -52,7 +52,7 @@ export function BoardTable({ rows, fromRank = 4, scoreKind = "wagered" }: { rows
 }
 
 /** Table + player search + rules dialog (toolbar above the rows). */
-export function BoardExplorer({ rows, rules, scoreKind = "wagered" }: { rows: BoardRowView[]; rules: string[]; scoreKind?: "points" | "wagered" }) {
+export function BoardExplorer({ rows, rules, scoreKind = "wagered", history = true }: { rows: BoardRowView[]; rules: string[]; scoreKind?: "points" | "wagered"; history?: boolean }) {
   const [q, setQ] = useState("");
   const [open, setOpen] = useState(false);
   const shown = q ? rows.filter((r) => r.name.toLowerCase().includes(q.toLowerCase())) : rows;
@@ -64,7 +64,7 @@ export function BoardExplorer({ rows, rules, scoreKind = "wagered" }: { rows: Bo
           <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search players" className="field !rounded-full !pl-10" aria-label="Search players" />
         </label>
         <button type="button" onClick={() => setOpen(true)} className="btn btn-neon btn-sm"><ScrollText className="size-4" /> Rules</button>
-        <a href="#history" className="btn btn-ghost btn-sm"><History className="size-4" /> History</a>
+        {history && <a href="#history" className="btn btn-ghost btn-sm"><History className="size-4" /> History</a>}
       </div>
       {shown.length ? <BoardTable rows={shown} fromRank={q ? 1 : 4} scoreKind={scoreKind} /> : <p className="panel p-6 text-center text-sm text-muted">No player matches “{q}”.</p>}
       <AnimatePresence>

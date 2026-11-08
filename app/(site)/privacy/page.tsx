@@ -6,7 +6,7 @@ export const metadata: Metadata = { title: "Privacy Policy" };
 
 const SECTIONS: { h: string; p: string[] }[] = [
   { h: "What we store", p: [
-    "When you sign in with Kick or Discord we keep your public username, avatar and account id from that provider, the Qzino and Flush usernames you add, your points and rank, and what you redeem or claim.",
+    "When you sign in with Kick or Discord we keep your public username, avatar and account id from that provider, the Qzino and QHub usernames you add, your points and rank, and what you redeem or claim.",
     "Leaderboard wagers come from Qzino's affiliate dashboard. Usernames are partly hidden on public pages.",
   ] },
   { h: "Cookies", p: [
@@ -14,7 +14,7 @@ const SECTIONS: { h: string; p: string[] }[] = [
     "ravo_consent remembers your cookie choice for a year. We don't use advertising or tracking cookies.",
   ] },
   { h: "Who we share it with", p: [
-    "Nobody sells your data. To pay a reward, the team uses your Qzino or Flush username or the details you give us on Discord.",
+    "Nobody sells your data. To pay a reward, the team uses your Qzino username or the details you give us on Discord.",
   ] },
   { h: "Your choices", p: [
     "You can sign out at any time. To delete your account and its data, contact the team on Discord.",

@@ -1,6 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
-import { ArrowRight, Timer } from "lucide-react";
+import { ArrowRight, Gift, Tv } from "lucide-react";
 import { ClipStrip } from "@/components/home/ClipStrip";
 import { Hero } from "@/components/home/Hero";
 import { Partners } from "@/components/home/Partners";
@@ -12,19 +12,24 @@ import { PugVideo } from "@/components/ui/PugVideo";
 import { SocialIcon } from "@/components/ui/SocialIcon";
 import { getClips } from "@/lib/clips";
 import { DISCORD_URL, KICK_URL, QZINO_CODE, X_URL } from "@/lib/constants";
+import { getQhubBoard, QHUB_POOL, QHUB_RAVO_URL, QHUB_SEATS } from "@/lib/qhub";
 import { getLiveStatus } from "@/lib/stream";
 import { isHolidaySeason, nextNewYear } from "@/lib/season";
 
 export const dynamic = "force-dynamic";
 
 export default async function HomePage() {
-  const [live, clips] = await Promise.all([getLiveStatus(), getClips("date").catch(() => [])]);
+  const [live, clips, board] = await Promise.all([getLiveStatus(), getClips("date").catch(() => []), getQhubBoard().catch(() => null)]);
+  const podium = [1, 2, 3].map((rank) => {
+    const r = board?.rows.find((x) => x.rank === rank);
+    return { name: r?.name ?? null, score: r ? `${r.points.toLocaleString("en-US")} pts` : null, prize: r?.prize != null ? `$${r.prize.toLocaleString("en-US")}` : null };
+  });
 
   return (
     <div className="relative">
       <Hero newYear={isHolidaySeason() ? nextNewYear() : null} />
 
-      {/* both partners right under RAVO, on the chrome-claw wallpaper */}
+      {/* the partner right under RAVO, on the chrome-claw wallpaper */}
       <div className="claws-band -mt-6 pb-16 pt-2">
         <div aria-hidden className="claws-band-bg">
           <Image src="/media/claws-bg.webp" alt="" fill sizes="100vw" className="object-cover object-center" />
@@ -35,21 +40,24 @@ export default async function HomePage() {
       {/* clips */}
       <ClipStrip clips={clips} />
 
-      {/* leaderboard (paused: the new one is on its way) */}
+      {/* leaderboard: QHub Open Leaderboard, top 3 live */}
       <section className="mx-auto mt-20 max-w-6xl px-4 sm:px-6">
         <Reveal>
           <div className="grid items-center gap-10 lg:grid-cols-[1fr_1.4fr]">
             <div className="panel-soft p-6 sm:p-8">
-              <p className="font-head text-xs font-bold uppercase tracking-[0.25em] text-neon">Leaderboard</p>
+              <p className="font-head text-xs font-bold uppercase tracking-[0.25em] text-neon">QHub Open Leaderboard</p>
               <h2 className="mt-3 font-display text-6xl leading-[0.9] sm:text-7xl"><span className="chrome">The board</span></h2>
-              <p className="mt-5 font-display text-6xl leading-none text-gold sm:text-7xl">Soon</p>
-              <p className="mt-3 flex items-center gap-2 text-sm text-muted">
-                <Timer className="size-4 text-neon" />
-                A new leaderboard is on the way. Watch Discord for the start.
+              <p className="mt-5 font-mono text-5xl font-bold leading-none text-gold sm:text-6xl">${QHUB_POOL.toLocaleString("en-US")}</p>
+              <p className="mt-3 text-sm text-muted">
+                {QHUB_SEATS} paid seats{board ? `, ${Math.max(QHUB_SEATS - board.total, 0)} still open` : ""}. Watch Ravo on QHub, earn Points, take a seat, and spend your Points in the store.
               </p>
-              <a href={DISCORD_URL} target="_blank" rel="noopener noreferrer" className="btn btn-neon mt-6">Join the Discord <ArrowRight className="size-4" /></a>
+              <div className="mt-6 flex flex-wrap gap-3">
+                <Link href="/leaderboard" className="btn btn-neon">See the board <ArrowRight className="size-4" /></Link>
+                <a href={QHUB_RAVO_URL} target="_blank" rel="noopener noreferrer" className="btn btn-ghost"><Tv className="size-4" /> Watch on QHub</a>
+                <Link href="/store" className="btn btn-ghost"><Gift className="size-4" /> Store</Link>
+              </div>
             </div>
-            <Podium3D entries={[0, 1, 2].map(() => ({ name: null, score: null, prize: null }))} />
+            <Podium3D entries={podium} />
           </div>
         </Reveal>
       </section>

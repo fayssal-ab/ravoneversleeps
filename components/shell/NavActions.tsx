@@ -5,9 +5,8 @@ import { AnimatePresence, motion } from "motion/react";
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { ArrowRight, Bell, ChevronDown, ExternalLink, LogOut, Radio, ShoppingBag, Target, Trophy, User } from "lucide-react";
 import { CopyCode } from "@/components/ui/CopyCode";
-import { FlushLogo } from "@/components/ui/FlushLogo";
 import { QzinoLogo } from "@/components/ui/QzinoLogo";
-import { FLUSH_URL, QZINO_CODE, QZINO_URL } from "@/lib/constants";
+import { QZINO_CODE, QZINO_URL } from "@/lib/constants";
 import { DiscordIcon } from "@/components/account/SignInPanel";
 
 // Navbar actions: partner links, bell (site events and
@@ -57,30 +56,26 @@ function PartnerButton() {
   const ref = useOutside(open, close);
   return (
     <div ref={ref} className="relative">
-      <button type="button" className={iconBtn} aria-label="Explore Flush and Qzino partner sites" aria-expanded={open}
+      <button type="button" className={iconBtn} aria-label="Explore the Qzino partner site" aria-expanded={open}
         onClick={() => setOpen((v) => !v)}>
         <ExternalLink className="size-5" />
       </button>
       <Pop open={open} width="w-[min(92vw,25rem)]">
         <section className="rounded-2xl border border-neon/30 bg-[radial-gradient(ellipse_at_100%_0%,rgb(141_255_74/0.12),transparent_55%),var(--color-bg-2)] p-4">
           <div className="flex items-center justify-between">
-            <a href={FLUSH_URL} target="_blank" rel="noopener noreferrer sponsored" onClick={close} aria-label="Visit Flush">
-              <FlushLogo className="h-7 w-auto" />
+            <a href={QZINO_URL} target="_blank" rel="noopener noreferrer sponsored" onClick={close} aria-label="Visit Qzino">
+              <QzinoLogo className="h-7 w-auto" />
             </a>
-            <span className="rounded-full border border-neon/25 bg-neon/10 px-2.5 py-1 font-pixel text-[0.6rem] uppercase tracking-wider text-neon">Featured</span>
+            <span className="rounded-full border border-neon/25 bg-neon/10 px-2.5 py-1 font-pixel text-[0.6rem] uppercase tracking-wider text-neon">Partner</span>
           </div>
-          <p className="mt-2 text-sm text-muted">Casino &amp; sportsbook · availability varies by location.</p>
-          <a href={FLUSH_URL} target="_blank" rel="noopener noreferrer sponsored" onClick={close} className="btn btn-neon btn-sm mt-4 w-full">
-            Visit Flush <ArrowRight className="size-4" />
-          </a>
+          <p className="mt-2 text-sm text-muted">Sign up with code <span className="font-mono text-text">{QZINO_CODE}</span> · 18+ · availability varies by location.</p>
+          <div className="mt-4 flex items-center gap-3">
+            <a href={QZINO_URL} target="_blank" rel="noopener noreferrer sponsored" onClick={close} className="btn btn-neon btn-sm flex-1">
+              Play on Qzino <ArrowRight className="size-4" />
+            </a>
+            <CopyCode code={QZINO_CODE} />
+          </div>
         </section>
-        <div className="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-line bg-bg-2 px-3 py-2.5">
-          <a href={QZINO_URL} target="_blank" rel="noopener noreferrer sponsored" onClick={close} className="flex items-center gap-2" aria-label="Visit Qzino">
-            <QzinoLogo className="h-5 w-auto" />
-            <span className="text-xs text-muted">Code {QZINO_CODE}</span>
-          </a>
-          <CopyCode code={QZINO_CODE} />
-        </div>
       </Pop>
     </div>
   );

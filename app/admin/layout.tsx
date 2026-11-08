@@ -7,6 +7,7 @@ import { ConfirmHost } from "@/components/ui/confirm";
 import { isOwner, requireAdmin } from "@/lib/admin";
 import { openChallengeClaimCount, pendingVerifications } from "@/lib/verification";
 import { listVipApplications } from "@/lib/vip";
+import { pendingRedemptionCount } from "@/lib/store";
 
 export const metadata: Metadata = { title: "Admin", robots: { index: false } };
 export const dynamic = "force-dynamic";
@@ -14,15 +15,16 @@ export const dynamic = "force-dynamic";
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   await requireAdmin();
   // what's waiting, shown as badges in the sidebar on every admin page
-  const [verify, vip, challenges, owner] = await Promise.all([
+  const [verify, vip, challenges, store, owner] = await Promise.all([
     pendingVerifications().then((r) => r.length).catch(() => 0),
     listVipApplications("pending").then((r) => r.length).catch(() => 0),
     openChallengeClaimCount().catch(() => 0),
+    pendingRedemptionCount().catch(() => 0),
     isOwner(),
   ]);
   // the owner is in through their site sign-in: signing out ends that
   const logout = owner ? { endpoint: "/api/auth/user/logout", to: "/" } : { endpoint: "/api/auth/logout", to: "/login" };
-  const counts = { "/admin/users": verify, "/admin/vip": vip, "/admin/challenges": challenges };
+  const counts = { "/admin/users": verify, "/admin/vip": vip, "/admin/challenges": challenges, "/admin/store": store };
   return (
     <div className="min-h-dvh bg-bg lg:grid lg:grid-cols-[15rem_1fr]">
       <aside className="border-b border-white/[0.06] bg-bg-2 lg:sticky lg:top-0 lg:flex lg:h-dvh lg:flex-col lg:border-b-0 lg:border-r">

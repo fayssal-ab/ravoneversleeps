@@ -8,7 +8,7 @@ import * as THREE from "three";
 import { LazyCanvas } from "@/components/three/LazyCanvas";
 import { StudioLights } from "@/components/three/StudioLights";
 
-// A chrome coin: Flush on the front, Qzino on the back, flipping between
+// A chrome coin: Qzino on both faces, flipping between
 // them with a gentle tilt of its own (the mouse does not move it). Faces are
 // canvas textures drawn from the real logo SVGs; lighting is built in (Lightformers), so nothing loads from a CDN.
 
@@ -63,7 +63,7 @@ function Coin({ front, back }: { front: THREE.Texture; back: THREE.Texture }) {
   useFrame((state) => {
     const g = ref.current;
     if (!g) return;
-    // hold a face, then flip: Flush → Qzino → Flush… (3.2 s per face)
+    // hold a face, then flip: (3.2 s per face)
     const phase = state.clock.elapsedTime / 3.2;
     const k = THREE.MathUtils.smoothstep(phase % 1, 0.62, 1);
     g.rotation.y = (Math.floor(phase) + k) * Math.PI + Math.sin(state.clock.elapsedTime * 0.8) * 0.18;
@@ -101,9 +101,9 @@ export default function PartnerCoin3D() {
 
   useEffect(() => {
     let live = true;
-    Promise.all([faceTexture("/media/flush-logo.svg", "PARTNER 01"), faceTexture("/media/qzino-logo.svg", "PARTNER 02")])
+    Promise.all([faceTexture("/media/qzino-logo.svg", "PARTNER"), faceTexture("/media/qzino-logo.svg", "CODE RAVO50")])
       .then((f) => { if (live) setFaces(f); })
-      .catch(() => { /* coin stays hidden; the cards still show both partners */ });
+      .catch(() => { /* coin stays hidden; the card still shows the partner */ });
     return () => { live = false; };
   }, []);
 

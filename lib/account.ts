@@ -23,7 +23,6 @@ export interface Viewer {
   display_name: string;
   avatar: string;
   qzino_username: string;
-  flush_username: string;
   points: number;
   xp: number;
   level: number;
@@ -34,7 +33,7 @@ export async function getViewerById(id: number, ranks?: Rank[]): Promise<Viewer 
   await ensureVerificationSchema();
   const pool = getPool();
   const [[acc], [ids]] = await Promise.all([
-    pool.query<RowDataPacket[]>("SELECT id, display_name, avatar, qzino_username, flush_username, points, xp FROM user_accounts WHERE id = ? AND banned = 0", [id]),
+    pool.query<RowDataPacket[]>("SELECT id, display_name, avatar, qzino_username, points, xp FROM user_accounts WHERE id = ? AND banned = 0", [id]),
     pool.query<RowDataPacket[]>("SELECT provider, username FROM user_identities WHERE account_id = ? ORDER BY linked_at", [id]),
   ]);
   const a = acc[0];
@@ -42,7 +41,7 @@ export async function getViewerById(id: number, ranks?: Rank[]): Promise<Viewer 
   const xp = Number(a.xp);
   const level = rankForXp(ranks ?? (await getRanks()), xp).level;
   return {
-    id: Number(a.id), display_name: String(a.display_name), avatar: String(a.avatar), qzino_username: String(a.qzino_username), flush_username: String(a.flush_username),
+    id: Number(a.id), display_name: String(a.display_name), avatar: String(a.avatar), qzino_username: String(a.qzino_username),
     points: Number(a.points), xp, level, identities: ids as Viewer["identities"],
   };
 }
@@ -96,20 +95,6 @@ export async function saveQzinoUsername(accountId: number, username: string): Pr
   if (taken[0]) throw new AppError("qzino_taken");
   if (String(cur[0]?.qzino_username ?? "").toLowerCase() === username.toLowerCase()) return false;
   await pool.query("UPDATE user_accounts SET qzino_username = ? WHERE id = ?", [username, accountId]);
-  return true;
-}
-
-/** A Flush username can be verified on one account only. */
-export async function saveFlushUsername(accountId: number, username: string): Promise<boolean> {
-  await ensureVerificationSchema();
-  const pool = getPool();
-  const [[cur], [taken]] = await Promise.all([
-    pool.query<RowDataPacket[]>("SELECT flush_username FROM user_accounts WHERE id = ?", [accountId]),
-    pool.query<RowDataPacket[]>("SELECT id FROM user_accounts WHERE ? <> '' AND LOWER(flush_username) = LOWER(?) AND id <> ? AND flush_status = 'verified' LIMIT 1", [username, username, accountId]),
-  ]);
-  if (taken[0]) throw new AppError("flush_taken");
-  if (String(cur[0]?.flush_username ?? "").toLowerCase() === username.toLowerCase()) return false;
-  await pool.query("UPDATE user_accounts SET flush_username = ? WHERE id = ?", [username, accountId]);
   return true;
 }
 

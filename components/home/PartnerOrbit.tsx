@@ -7,7 +7,7 @@ import { motion, useReducedMotion } from "motion/react";
 // loading screen, the canvas starts when it scrolls near.
 const PartnerCoin3D = dynamic(() => import("./PartnerCoin3D"), { ssr: false });
 
-// Centre of the partners row: the 3D Flush/Qzino coin inside a chrome ring.
+// Centre of the partners row: the 3D Qzino coin inside a chrome ring.
 export function PartnerOrbit({ className = "" }: { className?: string }) {
   const reduce = useReducedMotion();
   return (

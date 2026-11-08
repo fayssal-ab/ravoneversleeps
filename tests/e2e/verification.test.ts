@@ -1,4 +1,4 @@
-// E2E for Qzino/Flush verification + challenge claims (+ the Discord bot calls,
+// E2E for Qzino verification + challenge claims (+ the Discord bot calls,
 // against a fake Discord) on a throwaway database:
 //   DB_NAME=ravo_test node --env-file-if-exists=.env.local --conditions=react-server --import tsx --test tests/e2e/verification.test.ts
 import assert from "node:assert/strict";
@@ -6,10 +6,9 @@ import { after, test } from "node:test";
 import { randomUUID } from "node:crypto";
 import type { ResultSetHeader } from "mysql2/promise";
 import { getPool } from "../../lib/db";
-import { saveFlushUsername } from "../../lib/account";
 import { createChallenge, markChallengeWon } from "../../lib/challenges";
 import { cleanupTickets } from "../../lib/tickets";
-import { claimChallenge, decideFlushVerification, decideVerification, flushStatusOf, myChallengeClaims, pendingFlushVerifications, pendingVerifications, qzinoStatusOf, requestFlushVerification, requestQzinoVerification, requireVerifiedQzino } from "../../lib/verification";
+import { claimChallenge, decideVerification, myChallengeClaims, pendingVerifications, qzinoStatusOf, requestQzinoVerification, requireVerifiedQzino } from "../../lib/verification";
 
 if (process.env.DB_NAME !== "ravo_test") throw new Error("refusing to run outside ravo_test");
 after(() => getPool().end());
@@ -66,18 +65,6 @@ test("username → pending + ticket → verified unlocks claims; one claim per c
   st = await qzinoStatusOf(id);
   assert.equal(st.status, "verified");
   assert.ok(calls.some((c) => c.method === "POST" && /\/channels\/9000\d+\/messages/.test(c.path) && String(c.body?.content).includes("verified")));
-
-  const flushUsername = `${tag}flush`;
-  await saveFlushUsername(id, flushUsername);
-  await requestFlushVerification(id, flushUsername, PROOF);
-  let flush = await flushStatusOf(id);
-  assert.equal(flush.status, "pending");
-  assert.ok((await pendingFlushVerifications()).some((p) => p.account_id === id));
-  const flushProofMessage = calls.find((c) => c.method === "POST" && c.path.endsWith("/messages") && Array.isArray(c.body?.attachments));
-  assert.equal((flushProofMessage?.body?.attachments as unknown[] | undefined)?.length, 1);
-  await decideFlushVerification(id, true);
-  flush = await flushStatusOf(id);
-  assert.equal(flush.status, "verified");
 
   const url = await claimChallenge(id, challenge, HIT, PROOF);
   assert.match(url ?? "", /^\/api\/discord\/ticket\/\d+$/);

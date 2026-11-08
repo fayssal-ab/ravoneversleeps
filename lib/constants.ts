@@ -7,7 +7,6 @@ export const SITE_TAGLINE = "Ravo never sleeps: streams, clips, slot challenges,
 
 export const QZINO_CODE = process.env.NEXT_PUBLIC_QZINO_CODE || "RAVO50";
 export const QZINO_URL = process.env.NEXT_PUBLIC_QZINO_URL || "https://qzino-partners.com/trdj40jfb";
-export const FLUSH_URL = "https://flush.com/";
 /**
  * What playing on Qzino with the code gets you. Cashback/rakeback rates are
  * Qzino's published VIP rates (https://qzino.com/en/vip-club, "up to").
@@ -32,6 +31,7 @@ export const NAV: NavItem[] = [
     href: "/challenges",
     label: "Rewards",
     children: [
+      { href: "/store", label: "Store", hint: "Spend your QHub Points" },
       { href: "/challenges", label: "Challenges", hint: "First to hit the multi wins" },
     ],
   },
@@ -52,6 +52,7 @@ export const NAV: NavItem[] = [
 export const NAV_FLAT = [
   { href: "/", label: "Home" },
   { href: "/leaderboard", label: "Leaderboard" },
+  { href: "/store", label: "Store" },
   { href: "/challenges", label: "Challenges" },
   { href: "/stream", label: "Stream" },
   { href: "/clips", label: "Clips" },

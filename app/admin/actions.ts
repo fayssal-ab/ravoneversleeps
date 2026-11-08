@@ -6,19 +6,50 @@ import { addBonus, createHunt, deleteBonus, deleteHunt, finishHunt, moveBonus, r
 import { syncCatalog, upgradeTypedSlots } from "@/lib/slots";
 import { addSlot, deleteSlot } from "@/lib/stream";
 import { createChallenge, deleteChallenge, markChallengeWon, setChallengeStatus } from "@/lib/challenges";
-import { decideFlushVerification, decideVerification, FLUSH_REJECT_REASONS, REJECT_REASONS, retryFlushTicket, retryQzinoTicket, type FlushRejectReason, type RejectReason } from "@/lib/verification";
+import { decideVerification, REJECT_REASONS, retryQzinoTicket, type RejectReason } from "@/lib/verification";
 import { discordErrorText, discordSetup, setInteractionsEndpoint } from "@/lib/discordBot";
 import { SITE_URL } from "@/lib/constants";
 import { saveTopPrizes } from "@/lib/leaderboardPrizes";
 import { decideVipApplication } from "@/lib/vip";
 import { AppError, DECIMAL_20_8, parseForm, zId, zRequiredText, zText } from "@/lib/tx";
 import { adminSetUsernames, setBanned } from "@/lib/userAdmin";
+import { deleteStoreItem, ITEM_KINDS, resolveRedemption, saveStoreItem, type ItemKind } from "@/lib/store";
 
 // Admin Server Actions. adminAction re-checks the session, writes the audit
 // log and redirects back with ?ok= / ?error=.
 
 const checkbox = z.literal("on").optional().transform((v) => v === "on");
 
+
+// ── store (QHub Points) ────────────────────────────────────────────────
+export async function saveItemAction(form: FormData) {
+  await adminAction({ path: "/admin/store", audit: "store.item.save", revalidate: ["/store"] }, async () => {
+    const v = parseForm(z.object({
+      id: z.union([z.literal(""), zId]).transform((x) => (x === "" ? null : x)),
+      name: zRequiredText(120), description: zText(500), kind: z.enum(ITEM_KINDS as [ItemKind, ...ItemKind[]]),
+      price: z.coerce.number().int().min(1).max(100_000_000),
+      stock: z.union([z.literal(""), z.coerce.number().int().min(0).max(1_000_000)]).transform((x) => (x === "" ? null : x)),
+      sort: z.coerce.number().int().min(-1000).max(1000), active: checkbox,
+    }), form);
+    return { id: await saveStoreItem(v.id, v), name: v.name };
+  });
+}
+
+export async function deleteItemAction(form: FormData) {
+  await adminAction({ path: "/admin/store", audit: "store.item.delete", revalidate: ["/store"] }, async () => {
+    const { id } = parseForm(z.object({ id: zId }), form);
+    await deleteStoreItem(id);
+    return { id };
+  });
+}
+
+export async function resolveRedemptionAction(form: FormData) {
+  await adminAction({ path: "/admin/store", audit: "store.redemption.resolve", revalidate: ["/store"] }, async () => {
+    const v = parseForm(z.object({ id: zId, status: z.enum(["fulfilled", "rejected"]), note: zText(255) }), form);
+    await resolveRedemption(v.id, v.status, v.note);
+    return v;
+  });
+}
 
 // ── users ──────────────────────────────────────────────────────────────
 /** Back to the same Users tab/search/sort (only /admin/users URLs). */
@@ -30,9 +61,9 @@ function usersBack(form: FormData): string {
 export async function userFlagsAction(form: FormData) {
   await adminAction({ path: usersBack(form), audit: "user.update" }, async () => {
     const v = parseForm(z.object({
-      id: zId, qzino: z.string().trim().max(64), flush: z.string().trim().max(64).regex(/^[\w.-]*$/, "letters, numbers, . _ - only"), banned: checkbox,
+      id: zId, qzino: z.string().trim().max(64), banned: checkbox,
     }), form);
-    await adminSetUsernames(v.id, v.qzino, v.flush);
+    await adminSetUsernames(v.id, v.qzino);
     await setBanned(v.id, v.banned);
     return v;
   });
@@ -160,27 +191,6 @@ export async function retryQzinoTicketAction(form: FormData) {
   await adminAction({ path: "/admin/users?tab=verify", audit: "qzino.ticket" }, async () => {
     const v = parseForm(z.object({ account: zId }), form);
     await retryQzinoTicket(v.account);
-    return v;
-  });
-}
-
-export async function verifyFlushAction(form: FormData) {
-  await adminAction({ path: "/admin/users?tab=verify", audit: "flush.verify", revalidate: ["/account"] }, async () => {
-    const v = parseForm(z.object({
-      account: zId, decision: z.enum(["verify", "reject"]),
-      reason: z.enum(Object.keys(FLUSH_REJECT_REASONS) as [FlushRejectReason, ...FlushRejectReason[]]).default("other"),
-      c_profile: checkbox, c_cut: checkbox,
-    }), form);
-    if (v.decision === "verify" && !(v.c_profile && v.c_cut)) throw new AppError("invalid_input", "tick every check before verifying");
-    await decideFlushVerification(v.account, v.decision === "verify", v.reason);
-    return v;
-  });
-}
-
-export async function retryFlushTicketAction(form: FormData) {
-  await adminAction({ path: "/admin/users?tab=verify", audit: "flush.ticket" }, async () => {
-    const v = parseForm(z.object({ account: zId }), form);
-    await retryFlushTicket(v.account);
     return v;
   });
 }

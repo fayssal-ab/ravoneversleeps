@@ -124,7 +124,7 @@ const slug = (s: string) => s.toLowerCase().normalize("NFKD").replace(/[^a-z0-9]
 export const TICKET_STATUS = { open: "🟡", claimed: "🔵", approved: "✅", rejected: "❌", closed: "🔒" } as const;
 export type TicketStatus = keyof typeof TICKET_STATUS;
 const STATUS_PREFIX = new RegExp(`^(${Object.values(TICKET_STATUS).join("|")})-`, "u");
-export type TicketKind = "verify" | "challenge" | "vip";
+export type TicketKind = "verify" | "challenge" | "vip" | "store";
 
 /** Buttons under a ticket's first message (handled by /api/discord/interactions). */
 export function ticketButtons(claimedBy?: string) {
